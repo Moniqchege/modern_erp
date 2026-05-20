@@ -9,11 +9,6 @@ This workspace contains a fresh starter scaffold for a modern ERP system.
 ## Environment Variables
 Create a `.env` file in `backend/`:
 
-```env
-DATABASE_URL="mysql://USER:PASSWORD@localhost:3306/modern_erp?schema=public"
-PORT=4000
-```
-
 ## Backend
 ```bash
 cd backend
