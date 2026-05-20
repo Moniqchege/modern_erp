@@ -88,6 +88,19 @@ const fmtDateTime = (iso: string) =>
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+ const fmtCompact = (value: number) => {
+  const abs = Math.abs(value);
+
+  if (abs >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+
+  if (abs >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  return fmt(value, 2);
+};
 
 const MOVEMENT_META: Record<MovementEntry["movementType"], { label: string; color: string; bg: string; sign: "+" | "−" }> = {
   RECEIPT:            { label: "Receipt",          color: "#16a34a", bg: "#f0fdf4", sign: "+" },
@@ -101,8 +114,6 @@ const TYPE_META = {
   FINISHED_GOOD:{ label: "Finished Good", color: "#065f46", bg: "#d1fae5" },
   BY_PRODUCT:   { label: "By-Product",    color: "#4c1d95", bg: "#ede9fe" },
 };
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
   return (
@@ -127,7 +138,7 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
       </div>
       <div>
         <div style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: "#111827", lineHeight: 1.2, marginTop: 2, fontFamily: "'DM Mono', 'Courier New', monospace" }}>{value}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", lineHeight: 1.2, marginTop: 2, fontFamily: "'DM Mono', 'Courier New', monospace" }}>{value}</div>
         {sub && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3 }}>{sub}</div>}
       </div>
     </div>
@@ -145,13 +156,17 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export interface InventoryItemViewProps {
-  /** The item id to fetch. If omitted, falls back to mock data. */
-  itemId?: string;
-  onBack?: () => void;
-}
+import { useParams, useNavigate } from "react-router-dom";
 
-export function InventoryItemView({ itemId, onBack }: InventoryItemViewProps) {
+type InventoryItemRouteParams = {
+  itemId: string;
+};
+
+export function InventoryItemView() {
+  const { itemId } = useParams<InventoryItemRouteParams>();
+  const navigate = useNavigate();
+
+
   const [item, setItem] = useState<InventoryItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -223,7 +238,8 @@ export function InventoryItemView({ itemId, onBack }: InventoryItemViewProps) {
         boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
       }}>
         <button
-          onClick={onBack ?? (() => window.history.back())}
+          onClick={() => navigate("/inventory")}
+
           style={{
             display: "flex", alignItems: "center", gap: 6,
             background: "none", border: "1px solid #e5e7eb",
@@ -256,7 +272,7 @@ export function InventoryItemView({ itemId, onBack }: InventoryItemViewProps) {
         </div>
       </div>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px 0" }}>
+      <div style={{ maxWidth: 1060, margin: "0", padding: "32px 0 0" }}>
 
         {/* ── Error banner ── */}
         {error && (
@@ -323,13 +339,13 @@ export function InventoryItemView({ itemId, onBack }: InventoryItemViewProps) {
           <StatCard
             icon={<Activity style={{ width: 18, height: 18 }} />}
             label="Quantity on Hand"
-            value={`${fmt(item.quantity, 3)} ${item.unit}`}
+            value={`${fmt(item.quantity)} ${item.unit}`}
             sub={item.quantity < (item.type === "RAW_MATERIAL" ? 500 : 100) ? "⚠ Below reorder threshold" : "In stock"}
           />
           <StatCard
             icon={<DollarSign style={{ width: 18, height: 18 }} />}
             label="Unit Price"
-            value={`$${fmt(latestPrice)}`}
+            value={`ksh${fmt(latestPrice)}`}
             sub={priceTrend !== null
               ? `${priceTrend >= 0 ? "▲" : "▼"} $${fmt(Math.abs(priceTrend))} vs prev`
               : "Current price"}
@@ -337,8 +353,8 @@ export function InventoryItemView({ itemId, onBack }: InventoryItemViewProps) {
           <StatCard
             icon={<BarChart3 style={{ width: 18, height: 18 }} />}
             label="Stock Value"
-            value={`$${fmt(totalValue)}`}
-            sub={`${item.quantity.toFixed(3)} × $${fmt(latestPrice)}`}
+            value={`KSh ${fmtCompact(totalValue)}`}
+            sub={`${item.quantity.toFixed(3)} × ksh${fmt(latestPrice)}`}
           />
           <StatCard
             icon={<Clock style={{ width: 18, height: 18 }} />}
@@ -469,7 +485,7 @@ function MovementsTable({ movements, unit }: { movements: MovementEntry[]; unit:
                     {isPos ? "+" : ""}{fmt(m.quantityDelta, 3)} {unit}
                   </td>
                   <td style={{ padding: "11px 12px", fontFamily: "monospace", color: "#374151" }}>
-                    ${fmt(m.unitPriceApplied)}
+                    ksh{fmt(m.unitPriceApplied)}
                   </td>
                   <td style={{ padding: "11px 12px", color: "#9ca3af", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {m.notes ?? "—"}
@@ -518,7 +534,7 @@ function PriceHistoryTable({ priceHistory }: { priceHistory: PriceHistoryEntry[]
                     {fmtDate(p.effectiveDate)}
                   </td>
                   <td style={{ padding: "11px 12px", fontFamily: "monospace", fontWeight: 800, color: "#111827", fontSize: 14 }}>
-                    ${fmt(p.unitPrice)}
+                    ksh{fmt(p.unitPrice)}
                   </td>
                   <td style={{ padding: "11px 12px" }}>
                     {delta === null ? (

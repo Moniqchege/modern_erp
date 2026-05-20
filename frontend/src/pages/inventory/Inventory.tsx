@@ -3,6 +3,7 @@ import {
   Package, Search, Plus, Loader2, Info, Check,
   AlertCircle, RefreshCw, Pencil, Eye, X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export interface InventoryItem {
   id: string;
@@ -47,9 +48,10 @@ const MOCK_ITEMS: InventoryItem[] = [
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface InventoryProps {
-  /** Called when the user clicks "View" on a row — receives the item id */
+  /** Kept for backward compatibility; routing now drives navigation */
   onViewItem?: (itemId: string) => void;
 }
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -291,6 +293,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [quantity, setQuantity] = useState<number>(0);
   const [unitPrice, setUnitPrice] = useState<number>(0.0);
 
+  const navigate = useNavigate();
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -460,7 +463,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
                           <span className="text-[10px] text-slate-400 font-sans font-bold">{item.unit}</span>
                         </td>
                         <td className="px-6 py-4 text-left font-mono font-bold text-slate-700">
-                          {item.unitPrice != null ? `$${item.unitPrice.toFixed(2)}` : "—"}
+                          {item.unitPrice != null ? `ksh ${item.unitPrice.toFixed(2)}` : "—"}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isOutOfStock ? (
@@ -478,7 +481,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
                             {/* View */}
                             <button
                               title="View item details"
-                              onClick={() => onViewItem?.(item.id)}
+                              onClick={() => navigate(`/inventory/${item.id}`)}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 text-[10px] font-bold text-slate-500 hover:text-indigo-600 transition-all active:scale-95"
                             >
                               <Eye className="h-3 w-3" />
@@ -582,7 +585,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Selling Unit Price ($)</label>
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Selling Unit Price (ksh)</label>
                   <input type="number" step="0.01" min="0" value={unitPrice}
                     onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono" />
