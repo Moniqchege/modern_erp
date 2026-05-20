@@ -9,6 +9,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardProps {
   onNavigate?: (tab: "dashboard" | "inventory" | "production" | "customers" | "invoices") => void;
@@ -42,6 +43,7 @@ function formatPct(n: number) {
 export function Dashboard({ onNavigate }: DashboardProps) {
   const [data, setData] = useState<DashboardApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -170,7 +172,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
        <div className="flex items-center gap-3 relative z-10 shrink-0">
   <button 
-    onClick={() => onNavigate?.("production")} 
+    onClick={() => navigate(`/production`)}
     className="flex items-center gap-1 !bg-[#ffa255] hover:!bg-[#f2c096] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md active:scale-95"
   >
     <Plus className="h-4 w-4" />
@@ -178,7 +180,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   </button>
 
   <button 
-    onClick={() => onNavigate?.("inventory")} 
+    onClick={() => navigate(`/inventory`)} 
     className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs px-6 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm"
   >
     Manage Inventory
@@ -202,12 +204,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <span className="text-[10px] font-extrabold tracking-wider text-slate-450 uppercase">
                   {stat.label}
                 </span>
-                <div className={`p-2 rounded-xl transition-colors ${stat.iconColor}`}>
+                <div className={`p-1 rounded-xl transition-colors ${stat.iconColor}`}>
                   <Icon className="h-4.5 w-4.5" />
                 </div>
               </div>
 
-              <div className="mt-4 flex items-baseline gap-2">
+              <div className="mt-1 flex items-baseline gap-2">
                 <span className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
                   {stat.value}
                 </span>
@@ -272,14 +274,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <line x1="0" y1="15" x2="100" y2="15" stroke="#f1f5f9" strokeWidth="0.5" />
               <line x1="0" y1="25" x2="100" y2="25" stroke="#f1f5f9" strokeWidth="0.5" />
 
-              {/* Glowing Area Fill */}
+              {/* Glowing Area Fill (use computed path when available) */}
               <path
-                d="M0,35 L0,22 Q15,15 30,23 T60,10 T85,12 L100,5 L100,35 Z"
+                d={
+                  chartPoints.labels.length
+                    ? `M0,35 ${chartPoints.path.replace(/^M/, "L")}`
+                    : "M0,35 L0,22 Q15,15 30,23 T60,10 T85,12 L100,5 L100,35 Z"
+                }
                 fill="url(#chartGlowLight)"
               />
               {/* Glowing Trendline */}
               <path
-                d="M0,22 Q15,15 30,23 T60,10 T85,12 L100,5"
+                d={chartPoints.path}
                 fill="none"
                 stroke="url(#indigoPurpleGrad)"
                 strokeWidth="1"
@@ -287,24 +293,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               />
             </svg>
             <div className="absolute inset-x-0 bottom-0 flex justify-between text-[9px] text-slate-400 font-bold px-1 select-none">
-              <span>Run #1</span>
-              <span>Run #2</span>
-              <span>Run #3</span>
-              <span>Run #4</span>
-              <span>Run #5</span>
-              <span>Run #6</span>
+              {(chartPoints.labels.length ? chartPoints.labels : ["Run #1","Run #2","Run #3","Run #4","Run #5","Run #6"]).slice(0,6).map((lbl, i) => (
+                <span key={i}>{lbl}</span>
+              ))}
             </div>
           </div>
 
+
           <div className="border-t border-slate-100 pt-4 flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span>Average yield loss rate: <strong className="text-slate-800">3.58%</strong></span>
-            <span 
-              onClick={() => onNavigate?.("production")}
-              className="text-indigo-650 font-bold hover:text-indigo-700 cursor-pointer hover:underline flex items-center gap-0.5"
-            >
-              Analyze production batches &rarr;
+            <span>
+              Average yield loss rate: <strong className="text-slate-800">{data ? formatPct(data.stats.avgYieldLossRatePct) : "0.00%"}</strong>
             </span>
           </div>
+
         </div>
 
         {/* Recent Activities Feed */}
@@ -338,7 +339,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
 
           <button 
-            onClick={() => onNavigate?.("production")}
+            onClick={() => navigate(`/production`)}
             className="w-full text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-xs font-bold text-slate-655 hover:text-slate-800 transition-colors"
           >
             Show milling batch log
