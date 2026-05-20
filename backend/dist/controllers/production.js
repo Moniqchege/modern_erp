@@ -37,7 +37,6 @@ async function processBatch(req, res) {
                         type: "RAW_MATERIAL",
                         unit: "KG",
                         quantity: 5000.0, // Seed with 5,000 KG
-                        unitPrice: 0.45,
                     },
                 });
             }
@@ -57,7 +56,6 @@ async function processBatch(req, res) {
                         type: "FINISHED_GOOD",
                         unit: "KG",
                         quantity: 0.0,
-                        unitPrice: 1.20,
                     },
                 });
             }
@@ -71,7 +69,6 @@ async function processBatch(req, res) {
                         type: "FINISHED_GOOD",
                         unit: "KG",
                         quantity: 0.0,
-                        unitPrice: 0.90,
                     },
                 });
             }
@@ -85,7 +82,6 @@ async function processBatch(req, res) {
                         type: "BY_PRODUCT",
                         unit: "KG",
                         quantity: 0.0,
-                        unitPrice: 0.30,
                     },
                 });
             }

@@ -39,9 +39,9 @@ export async function processBatch(req: Request, res: Response) {
             type: "RAW_MATERIAL",
             unit: "KG",
             quantity: 5000.0, // Seed with 5,000 KG
-            unitPrice: 0.45,
           },
         });
+
       }
 
       // Check for sufficient inventory
@@ -63,9 +63,9 @@ export async function processBatch(req: Request, res: Response) {
             type: "FINISHED_GOOD",
             unit: "KG",
             quantity: 0.0,
-            unitPrice: 1.20,
           },
         });
+
       }
 
       let grade2 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR2-02" } });
@@ -78,9 +78,9 @@ export async function processBatch(req: Request, res: Response) {
             type: "FINISHED_GOOD",
             unit: "KG",
             quantity: 0.0,
-            unitPrice: 0.90,
           },
         });
+
       }
 
       let maizeJam = await tx.inventoryItem.findUnique({ where: { sku: "BY-JAM-03" } });
@@ -93,9 +93,9 @@ export async function processBatch(req: Request, res: Response) {
             type: "BY_PRODUCT",
             unit: "KG",
             quantity: 0.0,
-            unitPrice: 0.30,
           },
         });
+
       }
 
       // 2. Deduct Raw Material Maize

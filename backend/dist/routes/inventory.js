@@ -12,13 +12,13 @@ const CreateInventoryItemSchema = zod_1.z.object({
     type: zod_1.z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "BY_PRODUCT"]).optional().default("FINISHED_GOOD"),
     unit: zod_1.z.enum(["KG", "BAG"]).optional().default("KG"),
     quantity: zod_1.z.number().nonnegative().optional().default(0.0),
-    unitPrice: zod_1.z.number().nonnegative().optional().default(0.0),
 });
 // Helper to convert Prisma Decimal fields to numbers for simpler frontend consumption
 const formatPrismaItem = (item) => ({
     ...item,
     quantity: Number(item.quantity),
-    unitPrice: Number(item.unitPrice),
+    // Prefer latest unit price from price history when available.
+    unitPrice: item.unitPrice != null ? Number(item.unitPrice) : undefined,
 });
 // GET all items
 exports.inventoryRouter.get("/", async (_req, res) => {
@@ -61,10 +61,10 @@ exports.inventoryRouter.post("/", async (req, res) => {
                 type: input.type,
                 unit: input.unit,
                 quantity: input.quantity.toFixed(3),
-                unitPrice: input.unitPrice.toFixed(2),
             },
         });
-        res.status(201).json({ item: formatPrismaItem(created) });
+        // Latest unit price will come from InventoryPriceHistory when migrations are applied.
+        res.status(201).json({ item: formatPrismaItem({ ...created, unitPrice: null }) });
     }
     catch (error) {
         res.status(500).json({ message: "Failed to create inventory item", error: String(error) });

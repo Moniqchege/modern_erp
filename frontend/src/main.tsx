@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Layout, NavKey } from "./layouts/Layout";
 import { Dashboard } from "./pages/Dashboard";
-import { Inventory } from "./pages/Inventory";
+import { Inventory } from "./pages/inventory/Inventory";
 import { ProductionForm } from "./pages/ProductionForm";
 import { Customers } from "./pages/Customers";
 import { Invoices } from "./pages/Invoices";
