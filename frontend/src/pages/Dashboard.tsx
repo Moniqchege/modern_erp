@@ -1,102 +1,161 @@
 import {
-  TrendingUp,
   Activity,
-  Plus,
-  ArrowUpRight,
   ArrowDownRight,
-  TrendingDown,
-  Wheat,
-  Scale,
+  ArrowUpRight,
+  Plus,
   Percent,
+  Wheat,
   Warehouse,
+  TrendingUp,
 } from "lucide-react";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 interface DashboardProps {
   onNavigate?: (tab: "dashboard" | "inventory" | "production" | "customers" | "invoices") => void;
 }
 
-export function Dashboard({ onNavigate }: DashboardProps) {
-  // Milling Plant specific stats
-  const stats = [
-    {
-      label: "Raw Maize Stock",
-      value: "4,250.50 KG",
-      change: "+2,000.00 KG",
-      isPositive: true,
-      timeframe: "Last intake yesterday",
-      icon: Wheat,
-      bg: "bg-amber-50/60",
-      border: "border-amber-100",
-      iconColor: "text-amber-600 bg-amber-100",
-    },
-    {
-      label: "Grade 1 Flour Stock",
-      value: "1,420.00 KG",
-      change: "+385.00 KG",
-      isPositive: true,
-      timeframe: "From today's milling",
-      icon: Warehouse,
-      bg: "bg-emerald-50/60",
-      border: "border-emerald-100",
-      iconColor: "text-emerald-600 bg-emerald-100",
-    },
-    {
-      label: "Grade 2 Flour Stock",
-      value: "840.50 KG",
-      change: "-120.00 KG",
-      isPositive: false,
-      timeframe: "Pending invoice dispatch",
-      icon: Warehouse,
-      bg: "bg-sky-50/60",
-      border: "border-sky-100",
-      iconColor: "text-sky-600 bg-sky-100",
-    },
-    {
-      label: "Avg Milling Efficiency",
-      value: "96.42%",
-      change: "+0.85%",
-      isPositive: true,
-      timeframe: "Target threshold: 95.00%",
-      icon: Percent,
-      bg: "bg-indigo-50/60",
-      border: "border-indigo-100",
-      iconColor: "text-indigo-600 bg-indigo-100",
-    },
-  ];
+type DashboardApiResponse = {
+  success: boolean;
+  stats: {
+    rawMaizeStockKg: number;
+    grade1FlourStockKg: number;
+    grade2FlourStockKg: number;
+    avgMillingEfficiencyPct: number;
+    avgYieldLossRatePct: number;
+  };
+  yieldHistory: Array<{ label: string; efficiencyPct: number }>;
+  recentActivities: Array<{
+    runNumber: string;
+    startTime: string | Date;
+    yieldEfficiency: number;
+    variancePercent: number;
+  }>;
+};
 
-  const recentActivities = [
-    {
-      id: 1,
-      type: "production",
-      title: "Batch M-BATCH-5291 processed",
-      description: "Milled 500 KG Maize. Yielded 482 KG total products (96.40% efficiency)",
-      time: "15 mins ago",
-    },
-    {
-      id: 2,
-      type: "inventory",
-      title: "Raw material replenishment received",
-      description: "Intake of 2,000 KG Raw Maize grain added to SKU MZ-RAW-01",
-      time: "2 hours ago",
-    },
-    {
-      id: 3,
-      type: "production",
-      title: "Batch M-BATCH-5290 processed",
-      description: "Milled 350 KG Maize. Yielded 341 KG total products (97.43% efficiency)",
-      time: "4 hours ago",
-    },
-    {
-      id: 4,
-      type: "inventory",
-      title: "Product dispatch completed",
-      description: "150 KG Grade 1 Flour sold to Bakeries Association",
-      time: "6 hours ago",
-    },
-  ];
+function formatKg(n: number) {
+  return `${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KG`;
+}
+function formatPct(n: number) {
+  return `${n.toFixed(2)}%`;
+}
+
+export function Dashboard({ onNavigate }: DashboardProps) {
+  const [data, setData] = useState<DashboardApiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/dashboard/summary");
+        const json = (await res.json()) as DashboardApiResponse;
+        if (mounted) setData(json);
+      } catch {
+        // keep UI usable even if API fails
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const stats = useMemo(() => {
+    const s = data?.stats;
+    if (!s) return [];
+
+    // Change/delta is not currently provided by backend; derive a neutral placeholder.
+    return [
+      {
+        label: "Raw Maize Stock",
+        value: formatKg(s.rawMaizeStockKg),
+        change: "+0.00 KG",
+        isPositive: true,
+        timeframe: "Available (approved batches)",
+        icon: Wheat,
+        border: "border-amber-100",
+        iconColor: "text-amber-600 bg-amber-100",
+      },
+      {
+        label: "Grade 1 Flour Stock",
+        value: formatKg(s.grade1FlourStockKg),
+        change: "+0.00 KG",
+        isPositive: true,
+        timeframe: "Finished goods on hand",
+        icon: Warehouse,
+        border: "border-emerald-100",
+        iconColor: "text-emerald-600 bg-emerald-100",
+      },
+      {
+        label: "Grade 2 Flour Stock",
+        value: formatKg(s.grade2FlourStockKg),
+        change: "-0.00 KG",
+        isPositive: false,
+        timeframe: "Finished goods on hand",
+        icon: Warehouse,
+        border: "border-sky-100",
+        iconColor: "text-sky-600 bg-sky-100",
+      },
+      {
+        label: "Avg Milling Efficiency",
+        value: formatPct(s.avgMillingEfficiencyPct),
+        change: "+0.00%",
+        isPositive: true,
+        timeframe: `Avg yield loss: ${formatPct(s.avgYieldLossRatePct)}`,
+        icon: Percent,
+        border: "border-indigo-100",
+        iconColor: "text-indigo-600 bg-indigo-100",
+      },
+    ];
+  }, [data]);
+
+  const recentActivities = useMemo(() => {
+    if (!data?.recentActivities) return [];
+    return data.recentActivities.map((a, idx) => {
+      const t = new Date(a.startTime);
+      const minutesAgo = Math.floor((Date.now() - t.getTime()) / 60000);
+      const timeLabel =
+        minutesAgo < 60
+          ? `${minutesAgo} mins ago`
+          : `${Math.floor(minutesAgo / 60)} hours ago`;
+
+      return {
+        id: idx + 1,
+        type: "production" as const,
+        title: `Batch ${a.runNumber} processed`,
+        description: `Yield efficiency: ${formatPct(a.yieldEfficiency)} (variance ${a.variancePercent?.toFixed(2)}%)`,
+        time: timeLabel,
+      };
+    });
+  }, [data]);
+
+  const chartPoints = useMemo(() => {
+    const history = data?.yieldHistory ?? [];
+    const values = history.map((h) => h.efficiencyPct);
+    if (values.length < 2) return { path: "M0,22 L100,5", labels: [] as string[] };
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+
+    const points = values.map((v, i) => {
+      const x = (i / (values.length - 1)) * 100;
+      const normalized = (v - min) / range;
+      const y = 35 - normalized * 30; // map to [5..35]
+      return { x, y };
+    });
+
+    const d = points
+      .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+      .join(" ");
+
+    const labels = history.map((h) => h.label);
+    return { path: d, labels };
+  }, [data]);
 
   return (
+
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Welcome Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-8 rounded-2xl relative overflow-hidden shadow-sm">

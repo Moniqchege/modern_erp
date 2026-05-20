@@ -1,35 +1,16 @@
-# TODO - ERP-grade inventory (stock movements + price history)
+# TODO - Dashboard data (remove hardcoded values)
 
-## Step 1 (DB): Price history + inventory ledger
-- [ ] Update `backend/prisma/schema.prisma`
-  - Add `InventoryPriceHistory`
-  - Add `InventoryMovement` (movementType, qty delta, movementAt, unitPriceApplied, optional refs)
-
-## Step 2 (DB): Migrate + regen Prisma client
-- [ ] Create and apply Prisma migration
-- [ ] `prisma generate`
-
-## Step 3 (Backend): Inventory APIs
-- [ ] Update `backend/src/routes/inventory.ts`
-  - Add Edit Item endpoint
-  - Add Price History endpoint
-  - Add stock movement endpoints (receipt / issue / adjustment / sales dispatch)
-- [ ] Ensure SKU uniqueness rule remains enforced
-
-## Step 4 (Backend): Inventory response shape
-- [ ] Update GET /api/inventory to include current effective unit price (latest PriceHistory)
-- [ ] Ensure quantity updates are driven by movements
-
-## Step 5 (Frontend): Edit Item UI + price history UI
-- [ ] Update `frontend/src/pages/Inventory.tsx`
-  - Add Edit Item button + modal
-  - Add price history update UI (effective date)
-
-## Step 6 (Frontend): Stock movement UI (MVP)
-- [ ] Add movement modal/actions from Inventory page
-  - Receive / Issue to production / Adjustment / Sales dispatch
-
-## Step 7: Testing
-- [ ] Smoke test: create SKU, edit item, add price history with different dates
-- [ ] Smoke test: apply multiple movements and verify quantities and ledger rows
+- [ ] Inspect existing dashboard page and identify all hardcoded sections
+- [ ] Add backend API endpoint(s) that return dashboard summary + activity + yield history
+- [ ] Implement computation using Prisma models:
+  - Raw maize stock: sum(currentQuantity) for RawMaizeBatch where status=APPROVED
+  - Flour stock: sum(currentQuantity) for FinishedGoodsBatch filtered by productType
+  - Avg milling efficiency: avg(yieldEfficiency) from ProductionRun (or derived from totals)
+  - Yield history (last 6): productionRun.yieldEfficiency ordered desc/asc
+  - Recent activity: derive from latest production runs + latest inventory-related updates (inventory movements not used; use productionRun + dispatch logs)
+- [ ] Wire frontend Dashboard.tsx to fetch the API and map results into UI stats/cards
+- [ ] Replace static SVG chart with dynamic chart data from API
+- [ ] Replace recent activity feed with fetched activity items
+- [ ] Add loading/error UI states
+- [ ] Run backend build/start and frontend dev/build to verify
 
