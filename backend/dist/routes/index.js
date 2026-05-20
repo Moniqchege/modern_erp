@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.routes = void 0;
+const express_1 = require("express");
+const inventory_1 = require("./inventory");
+const customers_1 = require("./customers");
+const invoices_1 = require("./invoices");
+const production_1 = require("./production");
+exports.routes = (0, express_1.Router)();
+exports.routes.use("/inventory", inventory_1.inventoryRouter);
+exports.routes.use("/customers", customers_1.customersRouter);
+exports.routes.use("/invoices", invoices_1.invoicesRouter);
+exports.routes.use("/production", production_1.productionRouter);

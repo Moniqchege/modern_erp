@@ -1,0 +1,276 @@
+"use strict";
+/**
+ * TRACEABILITY API ROUTES
+ *
+ * RESTful endpoints for food safety traceability operations.
+ * Implements HACCP/ISO 22000 compliant tracking workflows.
+ */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const zod_1 = require("zod");
+const traceability_service_1 = __importDefault(require("../services/traceability.service"));
+const router = (0, express_1.Router)();
+// ============================================
+// VALIDATION SCHEMAS
+// ============================================
+const receiveRawMaizeSchema = zod_1.z.object({
+    supplierId: zod_1.z.string().min(1, "Supplier ID is required"),
+    farmOrigin: zod_1.z.string().optional(),
+    harvestDate: zod_1.z.string().datetime().optional(),
+    truckRegistration: zod_1.z.string().min(1, "Truck registration is required"),
+    driverName: zod_1.z.string().optional(),
+    driverPhone: zod_1.z.string().optional(),
+    grossWeight: zod_1.z.number().positive("Gross weight must be positive"),
+    tareWeight: zod_1.z.number().positive("Tare weight must be positive"),
+    siloId: zod_1.z.string().optional(),
+    expiryDate: zod_1.z.string().datetime().optional(),
+});
+const qualityTestSchema = zod_1.z.object({
+    rawMaizeBatchId: zod_1.z.string().min(1, "Raw maize batch ID is required"),
+    moistureContent: zod_1.z.number().min(0).max(100, "Moisture must be 0-100%"),
+    aflatoxinLevel: zod_1.z.number().min(0, "Aflatoxin level must be non-negative"),
+    foreignMatter: zod_1.z.number().min(0).max(100, "Foreign matter must be 0-100%"),
+    brokenKernels: zod_1.z.number().min(0).max(100).optional(),
+    testedBy: zod_1.z.string().min(1, "Tester name/ID is required"),
+    remarks: zod_1.z.string().optional(),
+});
+const productionRunSchema = zod_1.z.object({
+    millingLine: zod_1.z.string().min(1, "Milling line is required"),
+    operatorName: zod_1.z.string().min(1, "Operator name is required"),
+    rawMaizeBatchInputs: zod_1.z
+        .array(zod_1.z.object({
+        batchId: zod_1.z.string().min(1),
+        quantityUsed: zod_1.z.number().positive(),
+    }))
+        .min(1, "At least one raw maize batch input is required"),
+    startTime: zod_1.z.string().datetime(),
+    endTime: zod_1.z.string().datetime().optional(),
+    yieldData: zod_1.z.object({
+        grade1Flour: zod_1.z.number().min(0),
+        grade2Flour: zod_1.z.number().min(0),
+        maizeBran: zod_1.z.number().min(0),
+        maizeGerm: zod_1.z.number().min(0),
+    }),
+});
+// ============================================
+// RAW MATERIAL RECEIVING
+// ============================================
+/**
+ * POST /api/traceability/receive-raw-maize
+ *
+ * Record inbound raw maize delivery with weighbridge data.
+ * Batch is automatically quarantined pending QC approval.
+ */
+router.post("/receive-raw-maize", async (req, res) => {
+    try {
+        const data = receiveRawMaizeSchema.parse(req.body);
+        const batch = await traceability_service_1.default.receiveRawMaize({
+            ...data,
+            harvestDate: data.harvestDate ? new Date(data.harvestDate) : undefined,
+            expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
+        });
+        res.status(201).json({
+            success: true,
+            message: "Raw maize batch received and quarantined pending QC",
+            batch,
+        });
+    }
+    catch (error) {
+        console.error("Error receiving raw maize:", error);
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to receive raw maize",
+        });
+    }
+});
+/**
+ * POST /api/traceability/quality-control
+ *
+ * Perform quality control test on quarantined raw maize batch.
+ * Automatically approves or rejects based on compliance thresholds.
+ */
+router.post("/quality-control", async (req, res) => {
+    try {
+        const data = qualityTestSchema.parse(req.body);
+        const qcLog = await traceability_service_1.default.performQualityControl(data);
+        res.status(201).json({
+            success: true,
+            message: `Quality control test completed: ${qcLog.status}`,
+            qcLog,
+        });
+    }
+    catch (error) {
+        console.error("Error performing quality control:", error);
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to perform quality control",
+        });
+    }
+});
+// ============================================
+// PRODUCTION & MILLING
+// ============================================
+/**
+ * POST /api/traceability/production-run
+ *
+ * Create a production run with full traceability.
+ * Links raw maize inputs to finished goods outputs.
+ * Validates mass balance and flags variance alerts.
+ */
+router.post("/production-run", async (req, res) => {
+    try {
+        const data = productionRunSchema.parse(req.body);
+        const result = await traceability_service_1.default.createProductionRun({
+            millingLine: data.millingLine,
+            operatorName: data.operatorName,
+            rawMaizeBatchInputs: data.rawMaizeBatchInputs,
+            startTime: new Date(data.startTime),
+            endTime: data.endTime ? new Date(data.endTime) : undefined,
+        }, data.yieldData);
+        res.status(201).json({
+            success: true,
+            message: result.yieldMetrics.message,
+            productionRun: result.productionRun,
+            yieldMetrics: result.yieldMetrics,
+        });
+    }
+    catch (error) {
+        console.error("Error creating production run:", error);
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to create production run",
+        });
+    }
+});
+/**
+ * POST /api/traceability/calculate-yield
+ *
+ * Calculate milling yield and mass balance.
+ * Utility endpoint for pre-validation before creating production run.
+ */
+router.post("/calculate-yield", async (req, res) => {
+    try {
+        const { rawMaizeWeight, yieldData } = req.body;
+        if (!rawMaizeWeight || !yieldData) {
+            return res.status(400).json({
+                success: false,
+                message: "rawMaizeWeight and yieldData are required",
+            });
+        }
+        const result = traceability_service_1.default.calculateMillingYield(rawMaizeWeight, yieldData);
+        res.json({
+            success: true,
+            yieldMetrics: result,
+        });
+    }
+    catch (error) {
+        console.error("Error calculating yield:", error);
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to calculate yield",
+        });
+    }
+});
+// ============================================
+// FIFO INVENTORY PICKING
+// ============================================
+/**
+ * GET /api/traceability/fifo-picking
+ *
+ * Get FIFO-sorted list of batches for picking.
+ * Prioritizes oldest expiration or reception date.
+ *
+ * Query params:
+ * - itemType: "RAW_MAIZE" or "FINISHED_GOODS"
+ * - requiredQuantity: (optional) filter by minimum quantity
+ */
+router.get("/fifo-picking", async (req, res) => {
+    try {
+        const { itemType, requiredQuantity } = req.query;
+        if (!itemType || (itemType !== "RAW_MAIZE" && itemType !== "FINISHED_GOODS")) {
+            return res.status(400).json({
+                success: false,
+                message: 'itemType must be "RAW_MAIZE" or "FINISHED_GOODS"',
+            });
+        }
+        const results = await traceability_service_1.default.enforceFIFOPicking(itemType, requiredQuantity ? parseFloat(requiredQuantity) : undefined);
+        res.json({
+            success: true,
+            itemType,
+            pickingOrder: results,
+            message: `Found ${results.length} batches sorted by FIFO priority`,
+        });
+    }
+    catch (error) {
+        console.error("Error enforcing FIFO picking:", error);
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to enforce FIFO picking",
+        });
+    }
+});
+// ============================================
+// TRACEABILITY QUERIES
+// ============================================
+/**
+ * GET /api/traceability/trace-forward/:batchId
+ *
+ * Forward traceability: Raw Maize → Production → Finished Goods → Dispatch
+ * Returns complete supply chain tree from source to customer.
+ */
+router.get("/trace-forward/:batchId", async (req, res) => {
+    try {
+        const { batchId } = req.params;
+        const result = await traceability_service_1.default.traceForward(batchId);
+        res.json({
+            success: true,
+            traceability: result,
+            message: "Forward traceability report generated",
+        });
+    }
+    catch (error) {
+        console.error("Error tracing forward:", error);
+        res.status(404).json({
+            success: false,
+            message: error.message || "Failed to trace forward",
+        });
+    }
+});
+/**
+ * GET /api/traceability/trace-backward/:barcode
+ *
+ * Backward traceability: Finished Product → Production → Raw Maize → Supplier
+ * Returns complete chain from retail bag to farm origin.
+ */
+router.get("/trace-backward/:barcode", async (req, res) => {
+    try {
+        const { barcode } = req.params;
+        const result = await traceability_service_1.default.traceBackward(barcode);
+        res.json({
+            success: true,
+            traceability: result,
+            message: "Backward traceability report generated",
+        });
+    }
+    catch (error) {
+        console.error("Error tracing backward:", error);
+        res.status(404).json({
+            success: false,
+            message: error.message || "Failed to trace backward",
+        });
+    }
+});
+// ============================================
+// HEALTH CHECK
+// ============================================
+router.get("/health", (_req, res) => {
+    res.json({
+        success: true,
+        message: "Traceability module is operational",
+        timestamp: new Date().toISOString(),
+    });
+});
+exports.default = router;
