@@ -11,6 +11,27 @@ const InventoryItemView = lazy(() => import("../../pages/inventory/InventoryItem
 const ProductionForm = lazy(() => import("../../pages/ProductionForm").then((m) => ({ default: m.ProductionForm })));
 const Customers = lazy(() => import("../../pages/Customers").then((m) => ({ default: m.Customers })));
 const Invoices = lazy(() => import("../../pages/Invoices").then((m) => ({ default: m.Invoices })));
+const ProcurementDashboard = lazy(() =>
+  import("../../pages/procurement/ProcurementDashboard").then((m) => ({ default: m.ProcurementDashboard }))
+);
+const ProcurementSuppliers = lazy(() =>
+  import("../../pages/procurement/Suppliers").then((m) => ({ default: m.Suppliers }))
+);
+const ProcurementSupplierDetail = lazy(() =>
+  import("../../pages/procurement/SupplierDetail").then((m) => ({ default: m.SupplierDetail }))
+);
+const ProcurementRequisitions = lazy(() =>
+  import("../../pages/procurement/Requisitions").then((m) => ({ default: m.Requisitions }))
+);
+const ProcurementPOs = lazy(() =>
+  import("../../pages/procurement/PurchaseOrders").then((m) => ({ default: m.PurchaseOrders }))
+);
+const ProcurementReceiving = lazy(() =>
+  import("../../pages/procurement/ReceivingQC").then((m) => ({ default: m.ReceivingQC }))
+);
+const ProcurementFinance = lazy(() =>
+  import("../../pages/procurement/ThreeWayMatch").then((m) => ({ default: m.ThreeWayMatch }))
+);
 
 const Login = lazy(() => import("../../pages/Login").then((m) => ({ default: m.Login })));
 const VerifyOtp = lazy(() => import("../../pages/VerifyOtp").then((m) => ({ default: m.VerifyOtp })));
@@ -49,6 +70,13 @@ export function AppRouter() {
           <Route path={ROUTES.PRODUCTION} element={<ProductionForm />} />
           <Route path={ROUTES.CUSTOMERS} element={<Customers />} />
           <Route path={ROUTES.INVOICES} element={<Invoices />} />
+          <Route path={ROUTES.PROCUREMENT} element={<ProcurementDashboard />} />
+          <Route path={ROUTES.PROCUREMENT_SUPPLIERS} element={<ProcurementSuppliers />} />
+          <Route path="/procurement/suppliers/:supplierId" element={<ProcurementSupplierDetail />} />
+          <Route path={ROUTES.PROCUREMENT_REQUISITIONS} element={<ProcurementRequisitions />} />
+          <Route path={ROUTES.PROCUREMENT_POS} element={<ProcurementPOs />} />
+          <Route path={ROUTES.PROCUREMENT_RECEIVING} element={<ProcurementReceiving />} />
+          <Route path={ROUTES.PROCUREMENT_FINANCE} element={<ProcurementFinance />} />
 
           <Route path="*" element={<NotFound />} />
         </Route>

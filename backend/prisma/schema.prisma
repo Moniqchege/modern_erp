@@ -13,6 +13,10 @@ enum UserRole {
   EMPLOYEE
   QC_INSPECTOR
   WAREHOUSE_OPERATOR
+  PROCUREMENT_OFFICER
+  FINANCE_DIRECTOR
+  LAB_TECHNICIAN
+  WEIGHBRIDGE_OPERATOR
 }
 
 enum ItemType {
@@ -133,8 +137,10 @@ model InventoryMovement {
   unitPriceApplied Decimal               @db.Decimal(10, 2) // stored for MVP costing trace
   movementAt      DateTime              @default(now())
 
-  // Optional refs (expand later)
   supplierId       String?
+  supplier         Supplier?             @relation(fields: [supplierId], references: [id])
+  grnLineId        String?
+  grnLine          GoodsReceivedNoteLine? @relation(fields: [grnLineId], references: [id])
   productionRunId  String?
   dispatchLogId    String?
 
@@ -160,18 +166,39 @@ model Supplier {
   phone           String?
   email           String?
   address         String?   @db.Text
-  farmLocation    String?   // GPS coordinates or farm name
-  certifications  String?   @db.Text // e.g. "Organic, GlobalGAP"
-  
+  farmLocation    String?
+  certifications  String?   @db.Text
+
+  // CRM & compliance
+  businessRegistrationNo String?
+  taxPin                 String?
+  vatNumber              String?
+  bankName               String?
+  bankAccountNo          String?
+  bankBranch             String?
+  bankSwiftCode          String?
+  onboardingStatus       SupplierOnboardingStatus @default(DRAFT)
+  onboardingNotes        String?                  @db.Text
+  qaApprovedAt           DateTime?
+  financeApprovedAt      DateTime?
+  activatedAt            DateTime?
+
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  // Relations
-  rawMaizeBatches RawMaizeBatch[]
+  rawMaizeBatches       RawMaizeBatch[]
+  complianceDocuments   SupplierComplianceDocument[]
+  purchaseRequisitions  PurchaseRequisition[]
+  purchaseOrders        PurchaseOrder[]
+  supplierInvoices      SupplierInvoice[]
+  inventoryMovements    InventoryMovement[]
+  onboardingAuditLogs   ProcurementAuditLog[] @relation("SupplierAudit")
 
   @@index([code])
   @@index([name])
+  @@index([onboardingStatus])
+  @@index([taxPin])
 }
 
 model RawMaizeBatch {
@@ -209,9 +236,12 @@ model RawMaizeBatch {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  // Relations
+  purchaseOrderId     String?
+
   qualityControlLogs  QualityControlLog[]
   productionInputs    ProductionRunInput[]
+  weighbridgeTickets  WeighbridgeTicket[]
+  procurementQcResults ProcurementQCLabResult[]
 
   @@index([batchNumber])
   @@index([supplierId])
@@ -570,4 +600,1068 @@ model Invoice {
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// ============================================
+// PROCUREMENT & SUPPLIER MANAGEMENT MODULE
+// ============================================
+
+enum SupplierOnboardingStatus {
+  DRAFT
+  QA_AUDIT
+  FINANCE_APPROVAL
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum ComplianceDocumentStatus {
+  ACTIVE
+  EXPIRING_SOON
+  NON_COMPLIANT
+}
+
+enum ComplianceDocumentType {
+  FOOD_SAFETY
+  KEBS_CERTIFICATE
+  ISO
+  ORGANIC
+  GLOBALGAP
+  TAX_COMPLIANCE
+  OTHER
+}
+
+enum ProcurementCategory {
+  RAW_MATERIAL
+  PACKAGING
+  MILLING_CONSUMABLE
+  ENGINEERING_SPARE
+}
+
+enum RawMaizeGrade {
+  GRADE_A
+  GRADE_B
+  GRADE_C
+  REJECT
+}
+
+enum PackagingBagSize {
+  KG_1
+  KG_2
+  KG_5
+  KG_10
+  KG_24
+  KG_50
+}
+
+enum RequisitionSource {
+  LOW_STOCK_AUTO
+  MANUAL_PLANT
+  MANUAL_PROCUREMENT
+}
+
+enum RequisitionStatus {
+  DRAFT
+  PENDING_HEAD_PROCUREMENT
+  PENDING_FINANCE
+  APPROVED
+  REJECTED
+  CONVERTED_TO_PO
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum CurrencyCode {
+  KES
+  USD
+  EUR
+  UGX
+  TZS
+}
+
+enum WeighbridgeDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ProcurementQCStatus {
+  PENDING
+  PASSED
+  FAILED_CONDITIONAL
+  FULL_REJECTION
+}
+
+enum GrnStatus {
+  DRAFT
+  PENDING_QC
+  POSTED
+  REJECTED
+  CANCELLED
+}
+
+enum ThreeWayMatchStatus {
+  PENDING
+  MATCHED
+  PRICE_DISCREPANCY
+  QUANTITY_DISCREPANCY
+  BOTH_DISCREPANCY
+  APPROVED_FOR_PAYMENT
+  REJECTED
+}
+
+enum PaymentVoucherStatus {
+  DRAFT
+  APPROVED
+  PAID
+  VOID
+}
+
+enum DomainEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum ProcurementAuditAction {
+  CREATE
+  UPDATE
+  STATUS_CHANGE
+  APPROVE
+  REJECT
+  POST
+  VOID
+}
+
+model SupplierComplianceDocument {
+  id           String                   @id @default(cuid())
+  supplierId   String
+  supplier     Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  documentType ComplianceDocumentType
+  title        String
+  fileUrl      String?                  @db.Text
+  referenceNo  String?
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  status       ComplianceDocumentStatus @default(ACTIVE)
+  notes        String?                  @db.Text
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([supplierId])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+model ProcurementItemProfile {
+  id                  String              @id @default(cuid())
+  inventoryItemId     String?             @unique
+  sku                 String              @unique
+  name                String
+  category            ProcurementCategory
+  unit                UnitOfMeasure       @default(KG)
+  description         String?             @db.Text
+  lowStockThreshold   Decimal?            @db.Decimal(12, 3)
+  reorderQuantity     Decimal?            @db.Decimal(12, 3)
+  rawMaizeGrade       RawMaizeGrade?
+  packagingBagSize    PackagingBagSize?
+  brandingDesignCode  String?
+  moistureMaxPct      Decimal?            @db.Decimal(5, 2)
+  aflatoxinMaxPpb     Decimal?            @db.Decimal(8, 2)
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  requisitionLines PurchaseRequisitionLine[]
+  poLines          PurchaseOrderLine[]
+
+  @@index([category])
+  @@index([sku])
+}
+
+model ApprovalThreshold {
+  id                    String   @id @default(cuid())
+  name                  String
+  currency              CurrencyCode @default(KES)
+  headProcurementMax    Decimal  @db.Decimal(14, 2)
+  financeDirectorMin    Decimal  @db.Decimal(14, 2)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model PurchaseRequisition {
+  id              String              @id @default(cuid())
+  requisitionNo   String              @unique
+  supplierId      String?
+  supplier        Supplier?           @relation(fields: [supplierId], references: [id])
+  requestedBy     String
+  department      String?
+  source          RequisitionSource   @default(MANUAL_PROCUREMENT)
+  status          RequisitionStatus   @default(DRAFT)
+  justification   String?             @db.Text
+  requiredByDate  DateTime?
+  estimatedTotal  Decimal             @default(0) @db.Decimal(14, 2)
+  currency        CurrencyCode        @default(KES)
+  rejectionReason String?             @db.Text
+  approvedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  lines           PurchaseRequisitionLine[]
+  approvals       ProcurementApproval[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@index([requisitionNo])
+  @@index([status])
+  @@index([supplierId])
+}
+
+model PurchaseRequisitionLine {
+  id                    String                 @id @default(cuid())
+  requisitionId         String
+  requisition           PurchaseRequisition    @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  itemProfileId         String
+  itemProfile           ProcurementItemProfile @relation(fields: [itemProfileId], references: [id])
+  quantity              Decimal                @db.Decimal(12, 3)
+  unitPriceEstimate     Decimal?               @db.Decimal(12, 2)
+  lineTotalEstimate     Decimal?               @db.Decimal(14, 2)
+  notes                 String?                @db.Text
+  createdAt             DateTime               @default(now())
+
+  @@index([requisitionId])
+}
+
+model ProcurementApproval {
+  id            String   @id @default(cuid())
+  entityType    String
+  entityId      String
+  level         String
+  approverId    String?
+  approverName  String
+  decision      String
+  comments      String?  @db.Text
+  decidedAt     DateTime @default(now())
+
+  requisitionId String?
+  requisition   PurchaseRequisition? @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  purchaseOrderId String?
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([requisitionId])
+  @@index([purchaseOrderId])
+}
+
+model PurchaseOrder {
+  id                String              @id @default(cuid())
+  poNumber          String              @unique
+  supplierId        String
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  requisitionId     String?
+  requisition       PurchaseRequisition? @relation(fields: [requisitionId], references: [id])
+  status            PurchaseOrderStatus @default(DRAFT)
+  currency          CurrencyCode        @default(KES)
+  exchangeRate      Decimal             @default(1) @db.Decimal(12, 6)
+  subtotal          Decimal             @default(0) @db.Decimal(14, 2)
+  taxRate           Decimal             @default(16) @db.Decimal(5, 2)
+  taxAmount         Decimal             @default(0) @db.Decimal(14, 2)
+  totalAmount       Decimal             @default(0) @db.Decimal(14, 2)
+  termsAndConditions String?            @db.Text
+  expectedDelivery  DateTime?
+  issuedAt          DateTime?
+  issuedBy          String?
+  pdfUrl            String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  lines             PurchaseOrderLine[]
+  weighbridgeTickets WeighbridgeTicket[]
+  grns              GoodsReceivedNote[]
+  supplierInvoices  SupplierInvoice[]
+  approvals         ProcurementApproval[]
+
+  @@index([poNumber])
+  @@index([supplierId])
+  @@index([status])
+}
+
+model PurchaseOrderLine {
+  id              String                 @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemProfileId   String
+  itemProfile     ProcurementItemProfile @relation(fields: [itemProfileId], references: [id])
+  description     String?
+  quantity        Decimal                @db.Decimal(12, 3)
+  unitPrice       Decimal                @db.Decimal(12, 2)
+  taxAmount       Decimal                @default(0) @db.Decimal(12, 2)
+  lineTotal       Decimal                @db.Decimal(14, 2)
+  quantityReceived Decimal               @default(0) @db.Decimal(12, 3)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  grnLines        GoodsReceivedNoteLine[]
+
+  @@index([purchaseOrderId])
+}
+
+model WeighbridgeTicket {
+  id                  String               @id @default(cuid())
+  ticketNumber        String               @unique
+  direction           WeighbridgeDirection @default(INBOUND)
+  purchaseOrderId     String?
+  purchaseOrder       PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id])
+  rawMaizeBatchId     String?
+  rawMaizeBatch       RawMaizeBatch?       @relation(fields: [rawMaizeBatchId], references: [id])
+  truckRegistration   String
+  driverName          String?
+  grossWeightKg       Decimal              @db.Decimal(12, 3)
+  tareWeightKg        Decimal              @db.Decimal(12, 3)
+  netWeightKg         Decimal              @db.Decimal(12, 3)
+  weighedInAt         DateTime             @default(now())
+  weighedOutAt        DateTime?
+  operatorName        String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  grns                GoodsReceivedNote[]
+  qcResults           ProcurementQCLabResult[]
+
+  @@index([ticketNumber])
+  @@index([purchaseOrderId])
+}
+
+model ProcurementQCLabResult {
+  id                    String              @id @default(cuid())
+  qcNumber              String              @unique
+  category              ProcurementCategory
+  weighbridgeTicketId   String?
+  weighbridgeTicket     WeighbridgeTicket?  @relation(fields: [weighbridgeTicketId], references: [id])
+  rawMaizeBatchId       String?
+  rawMaizeBatch         RawMaizeBatch?      @relation(fields: [rawMaizeBatchId], references: [id])
+  grnId                 String?
+  grn                   GoodsReceivedNote?  @relation(fields: [grnId], references: [id])
+  status                ProcurementQCStatus @default(PENDING)
+  testedBy              String
+  testedAt              DateTime            @default(now())
+  moistureContentPct    Decimal?            @db.Decimal(5, 2)
+  aflatoxinPpb          Decimal?            @db.Decimal(8, 2)
+  rottenBrokenPct       Decimal?            @db.Decimal(5, 2)
+  foreignMatterPct      Decimal?            @db.Decimal(5, 2)
+  liveInsectsCount      Int?
+  assignedGrade         RawMaizeGrade?
+  tensileStrengthN      Decimal?            @db.Decimal(10, 2)
+  printAlignmentScore   Decimal?            @db.Decimal(5, 2)
+  dimensionAccuracyMm   Decimal?            @db.Decimal(8, 2)
+  priceDeductionPct     Decimal?            @db.Decimal(5, 2)
+  priceDeductionAmount  Decimal?            @db.Decimal(14, 2)
+  acceptedQuantity      Decimal?            @db.Decimal(12, 3)
+  rejectionNote         String?             @db.Text
+  remarks               String?             @db.Text
+  blocksInventoryPost   Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([qcNumber])
+  @@index([status])
+  @@index([rawMaizeBatchId])
+}
+
+model GoodsReceivedNote {
+  id                  String        @id @default(cuid())
+  grnNumber           String        @unique
+  purchaseOrderId     String
+  purchaseOrder       PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  weighbridgeTicketId String?
+  weighbridgeTicket   WeighbridgeTicket? @relation(fields: [weighbridgeTicketId], references: [id])
+  deliverySequence    Int           @default(1)
+  status              GrnStatus     @default(PENDING_QC)
+  receivedAt          DateTime      @default(now())
+  receivedBy          String
+  lotNumber           String?
+  batchTraceCode      String?
+  netWeightAccepted   Decimal?      @db.Decimal(12, 3)
+  postedAt            DateTime?
+  postedBy            String?
+  notes               String?       @db.Text
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  lines               GoodsReceivedNoteLine[]
+  qcResults           ProcurementQCLabResult[]
+  threeWayMatches     ThreeWayMatch[]
+
+  @@index([grnNumber])
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([lotNumber])
+  @@index([batchTraceCode])
+}
+
+model GoodsReceivedNoteLine {
+  id                  String            @id @default(cuid())
+  grnId               String
+  grn                 GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  purchaseOrderLineId String
+  purchaseOrderLine   PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id])
+  quantityAccepted    Decimal           @db.Decimal(12, 3)
+  quantityRejected    Decimal           @default(0) @db.Decimal(12, 3)
+  unitPriceApplied    Decimal           @db.Decimal(12, 2)
+  lineTotal           Decimal           @db.Decimal(14, 2)
+  lotNumber           String?
+  createdAt           DateTime          @default(now())
+
+  inventoryMovements  InventoryMovement[]
+
+  @@index([grnId])
+  @@index([purchaseOrderLineId])
+}
+
+model SupplierInvoice {
+  id                String        @id @default(cuid())
+  invoiceNumber     String
+  supplierId        String
+  supplier          Supplier      @relation(fields: [supplierId], references: [id])
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  invoiceDate       DateTime
+  dueDate           DateTime?
+  currency          CurrencyCode  @default(KES)
+  subtotal          Decimal       @db.Decimal(14, 2)
+  taxAmount         Decimal       @db.Decimal(14, 2)
+  totalAmount       Decimal       @db.Decimal(14, 2)
+  fileUrl           String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  threeWayMatches   ThreeWayMatch[]
+  paymentVouchers   PaymentVoucher[]
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([purchaseOrderId])
+}
+
+model ThreeWayMatch {
+  id                    String              @id @default(cuid())
+  matchNumber           String              @unique
+  purchaseOrderId       String
+  grnId                 String
+  grn                   GoodsReceivedNote   @relation(fields: [grnId], references: [id])
+  supplierInvoiceId     String
+  supplierInvoice       SupplierInvoice     @relation(fields: [supplierInvoiceId], references: [id])
+  status                ThreeWayMatchStatus @default(PENDING)
+  poTotal               Decimal             @db.Decimal(14, 2)
+  grnTotal              Decimal             @db.Decimal(14, 2)
+  invoiceTotal          Decimal             @db.Decimal(14, 2)
+  priceVariancePct      Decimal?            @db.Decimal(8, 4)
+  quantityVariancePct   Decimal?            @db.Decimal(8, 4)
+  tolerancePct          Decimal             @default(1) @db.Decimal(5, 2)
+  discrepancyNotes      String?             @db.Text
+  matchedAt             DateTime?
+  matchedBy             String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  paymentVouchers       PaymentVoucher[]
+
+  @@index([matchNumber])
+  @@index([status])
+}
+
+model PaymentVoucher {
+  id                String               @id @default(cuid())
+  voucherNumber     String               @unique
+  threeWayMatchId   String
+  threeWayMatch     ThreeWayMatch        @relation(fields: [threeWayMatchId], references: [id])
+  supplierInvoiceId String
+  supplierInvoice   SupplierInvoice      @relation(fields: [supplierInvoiceId], references: [id])
+  amount            Decimal              @db.Decimal(14, 2)
+  currency          CurrencyCode         @default(KES)
+  status            PaymentVoucherStatus @default(DRAFT)
+  approvedBy        String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  apQueuePushedAt   DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([voucherNumber])
+  @@index([status])
+}
+
+model DomainEvent {
+  id            String            @id @default(cuid())
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  status        DomainEventStatus @default(PENDING)
+  publishedAt   DateTime?
+  retryCount    Int               @default(0)
+  lastError     String?           @db.Text
+  createdAt     DateTime          @default(now())
+
+  @@index([status, createdAt])
+  @@index([eventType])
+  @@index([aggregateType, aggregateId])
+}
+
+model ProcurementAuditLog {
+  id          String                 @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      ProcurementAuditAction
+  actorId     String?
+  actorName   String?
+  beforeState Json?
+  afterState  Json?
+  ipAddress   String?
+  createdAt   DateTime               @default(now())
+
+  supplierId  String?
+  supplier    Supplier?              @relation("SupplierAudit", fields: [supplierId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([supplierId])
+}
+
+// ============================================
+// PROCUREMENT & SUPPLIER MANAGEMENT MODULE
+// ============================================
+
+enum SupplierOnboardingStatus {
+  DRAFT
+  QA_AUDIT
+  FINANCE_APPROVAL
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum ComplianceDocumentStatus {
+  ACTIVE
+  EXPIRING_SOON
+  NON_COMPLIANT
+}
+
+enum ComplianceDocumentType {
+  FOOD_SAFETY
+  KEBS_CERTIFICATE
+  ISO
+  ORGANIC
+  GLOBALGAP
+  TAX_COMPLIANCE
+  OTHER
+}
+
+enum ProcurementCategory {
+  RAW_MATERIAL
+  PACKAGING
+  MILLING_CONSUMABLE
+  ENGINEERING_SPARE
+}
+
+enum RawMaizeGrade {
+  GRADE_A
+  GRADE_B
+  GRADE_C
+  REJECT
+}
+
+enum PackagingBagSize {
+  KG_1
+  KG_2
+  KG_5
+  KG_10
+  KG_24
+  KG_50
+}
+
+enum RequisitionSource {
+  LOW_STOCK_AUTO
+  MANUAL_PLANT
+  MANUAL_PROCUREMENT
+}
+
+enum RequisitionStatus {
+  DRAFT
+  PENDING_HEAD_PROCUREMENT
+  PENDING_FINANCE
+  APPROVED
+  REJECTED
+  CONVERTED_TO_PO
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum CurrencyCode {
+  KES
+  USD
+  EUR
+  UGX
+  TZS
+}
+
+enum WeighbridgeDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ProcurementQCStatus {
+  PENDING
+  PASSED
+  FAILED_CONDITIONAL
+  FULL_REJECTION
+}
+
+enum GrnStatus {
+  DRAFT
+  PENDING_QC
+  POSTED
+  REJECTED
+  CANCELLED
+}
+
+enum ThreeWayMatchStatus {
+  PENDING
+  MATCHED
+  PRICE_DISCREPANCY
+  QUANTITY_DISCREPANCY
+  BOTH_DISCREPANCY
+  APPROVED_FOR_PAYMENT
+  REJECTED
+}
+
+enum PaymentVoucherStatus {
+  DRAFT
+  APPROVED
+  PAID
+  VOID
+}
+
+enum DomainEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum ProcurementAuditAction {
+  CREATE
+  UPDATE
+  STATUS_CHANGE
+  APPROVE
+  REJECT
+  POST
+  VOID
+}
+
+model SupplierComplianceDocument {
+  id           String                   @id @default(cuid())
+  supplierId   String
+  supplier     Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  documentType ComplianceDocumentType
+  title        String
+  fileUrl      String?                  @db.Text
+  referenceNo  String?
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  status       ComplianceDocumentStatus @default(ACTIVE)
+  notes        String?                  @db.Text
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([supplierId])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+model ProcurementItemProfile {
+  id                  String              @id @default(cuid())
+  inventoryItemId     String?             @unique
+  sku                 String              @unique
+  name                String
+  category            ProcurementCategory
+  unit                UnitOfMeasure       @default(KG)
+  description         String?             @db.Text
+  lowStockThreshold   Decimal?            @db.Decimal(12, 3)
+  reorderQuantity     Decimal?            @db.Decimal(12, 3)
+  rawMaizeGrade       RawMaizeGrade?
+  packagingBagSize    PackagingBagSize?
+  brandingDesignCode  String?
+  moistureMaxPct      Decimal?            @db.Decimal(5, 2)
+  aflatoxinMaxPpb     Decimal?            @db.Decimal(8, 2)
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  requisitionLines PurchaseRequisitionLine[]
+  poLines          PurchaseOrderLine[]
+
+  @@index([category])
+  @@index([sku])
+}
+
+model ApprovalThreshold {
+  id                    String   @id @default(cuid())
+  name                  String
+  currency              CurrencyCode @default(KES)
+  headProcurementMax    Decimal  @db.Decimal(14, 2)
+  financeDirectorMin    Decimal  @db.Decimal(14, 2)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model PurchaseRequisition {
+  id              String              @id @default(cuid())
+  requisitionNo   String              @unique
+  supplierId      String?
+  supplier        Supplier?           @relation(fields: [supplierId], references: [id])
+  requestedBy     String
+  department      String?
+  source          RequisitionSource   @default(MANUAL_PROCUREMENT)
+  status          RequisitionStatus   @default(DRAFT)
+  justification   String?             @db.Text
+  requiredByDate  DateTime?
+  estimatedTotal  Decimal             @default(0) @db.Decimal(14, 2)
+  currency        CurrencyCode        @default(KES)
+  rejectionReason String?             @db.Text
+  approvedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  lines           PurchaseRequisitionLine[]
+  approvals       ProcurementApproval[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@index([requisitionNo])
+  @@index([status])
+  @@index([supplierId])
+}
+
+model PurchaseRequisitionLine {
+  id                    String                 @id @default(cuid())
+  requisitionId         String
+  requisition           PurchaseRequisition    @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  itemProfileId         String
+  itemProfile           ProcurementItemProfile @relation(fields: [itemProfileId], references: [id])
+  quantity              Decimal                @db.Decimal(12, 3)
+  unitPriceEstimate     Decimal?               @db.Decimal(12, 2)
+  lineTotalEstimate     Decimal?               @db.Decimal(14, 2)
+  notes                 String?                @db.Text
+  createdAt             DateTime               @default(now())
+
+  @@index([requisitionId])
+}
+
+model ProcurementApproval {
+  id            String   @id @default(cuid())
+  entityType    String
+  entityId      String
+  level         String
+  approverId    String?
+  approverName  String
+  decision      String
+  comments      String?  @db.Text
+  decidedAt     DateTime @default(now())
+
+  requisitionId String?
+  requisition   PurchaseRequisition? @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  purchaseOrderId String?
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([requisitionId])
+  @@index([purchaseOrderId])
+}
+
+model PurchaseOrder {
+  id                String              @id @default(cuid())
+  poNumber          String              @unique
+  supplierId        String
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  requisitionId     String?
+  requisition       PurchaseRequisition? @relation(fields: [requisitionId], references: [id])
+  status            PurchaseOrderStatus @default(DRAFT)
+  currency          CurrencyCode        @default(KES)
+  exchangeRate      Decimal             @default(1) @db.Decimal(12, 6)
+  subtotal          Decimal             @default(0) @db.Decimal(14, 2)
+  taxRate           Decimal             @default(16) @db.Decimal(5, 2)
+  taxAmount         Decimal             @default(0) @db.Decimal(14, 2)
+  totalAmount       Decimal             @default(0) @db.Decimal(14, 2)
+  termsAndConditions String?            @db.Text
+  expectedDelivery  DateTime?
+  issuedAt          DateTime?
+  issuedBy          String?
+  pdfUrl            String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  lines             PurchaseOrderLine[]
+  weighbridgeTickets WeighbridgeTicket[]
+  grns              GoodsReceivedNote[]
+  supplierInvoices  SupplierInvoice[]
+  approvals         ProcurementApproval[]
+
+  @@index([poNumber])
+  @@index([supplierId])
+  @@index([status])
+}
+
+model PurchaseOrderLine {
+  id              String                 @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemProfileId   String
+  itemProfile     ProcurementItemProfile @relation(fields: [itemProfileId], references: [id])
+  description     String?
+  quantity        Decimal                @db.Decimal(12, 3)
+  unitPrice       Decimal                @db.Decimal(12, 2)
+  taxAmount       Decimal                @default(0) @db.Decimal(12, 2)
+  lineTotal       Decimal                @db.Decimal(14, 2)
+  quantityReceived Decimal               @default(0) @db.Decimal(12, 3)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  grnLines        GoodsReceivedNoteLine[]
+
+  @@index([purchaseOrderId])
+}
+
+model WeighbridgeTicket {
+  id                  String               @id @default(cuid())
+  ticketNumber        String               @unique
+  direction           WeighbridgeDirection @default(INBOUND)
+  purchaseOrderId     String?
+  purchaseOrder       PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id])
+  rawMaizeBatchId     String?
+  rawMaizeBatch       RawMaizeBatch?       @relation(fields: [rawMaizeBatchId], references: [id])
+  truckRegistration   String
+  driverName          String?
+  grossWeightKg       Decimal              @db.Decimal(12, 3)
+  tareWeightKg        Decimal              @db.Decimal(12, 3)
+  netWeightKg         Decimal              @db.Decimal(12, 3)
+  weighedInAt         DateTime             @default(now())
+  weighedOutAt        DateTime?
+  operatorName        String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  grns                GoodsReceivedNote[]
+  qcResults           ProcurementQCLabResult[]
+
+  @@index([ticketNumber])
+  @@index([purchaseOrderId])
+}
+
+model ProcurementQCLabResult {
+  id                    String              @id @default(cuid())
+  qcNumber              String              @unique
+  category              ProcurementCategory
+  weighbridgeTicketId   String?
+  weighbridgeTicket     WeighbridgeTicket?  @relation(fields: [weighbridgeTicketId], references: [id])
+  rawMaizeBatchId       String?
+  rawMaizeBatch         RawMaizeBatch?      @relation(fields: [rawMaizeBatchId], references: [id])
+  grnId                 String?
+  grn                   GoodsReceivedNote?  @relation(fields: [grnId], references: [id])
+  status                ProcurementQCStatus @default(PENDING)
+  testedBy              String
+  testedAt              DateTime            @default(now())
+  moistureContentPct    Decimal?            @db.Decimal(5, 2)
+  aflatoxinPpb          Decimal?            @db.Decimal(8, 2)
+  rottenBrokenPct       Decimal?            @db.Decimal(5, 2)
+  foreignMatterPct      Decimal?            @db.Decimal(5, 2)
+  liveInsectsCount      Int?
+  assignedGrade         RawMaizeGrade?
+  tensileStrengthN      Decimal?            @db.Decimal(10, 2)
+  printAlignmentScore   Decimal?            @db.Decimal(5, 2)
+  dimensionAccuracyMm   Decimal?            @db.Decimal(8, 2)
+  priceDeductionPct     Decimal?            @db.Decimal(5, 2)
+  priceDeductionAmount  Decimal?            @db.Decimal(14, 2)
+  acceptedQuantity      Decimal?            @db.Decimal(12, 3)
+  rejectionNote         String?             @db.Text
+  remarks               String?             @db.Text
+  blocksInventoryPost   Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([qcNumber])
+  @@index([status])
+  @@index([rawMaizeBatchId])
+}
+
+model GoodsReceivedNote {
+  id                  String        @id @default(cuid())
+  grnNumber           String        @unique
+  purchaseOrderId     String
+  purchaseOrder       PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  weighbridgeTicketId String?
+  weighbridgeTicket   WeighbridgeTicket? @relation(fields: [weighbridgeTicketId], references: [id])
+  deliverySequence    Int           @default(1)
+  status              GrnStatus     @default(PENDING_QC)
+  receivedAt          DateTime      @default(now())
+  receivedBy          String
+  lotNumber           String?
+  batchTraceCode      String?
+  netWeightAccepted   Decimal?      @db.Decimal(12, 3)
+  postedAt            DateTime?
+  postedBy            String?
+  notes               String?       @db.Text
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  lines               GoodsReceivedNoteLine[]
+  qcResults           ProcurementQCLabResult[]
+  threeWayMatches     ThreeWayMatch[]
+
+  @@index([grnNumber])
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([lotNumber])
+  @@index([batchTraceCode])
+}
+
+model GoodsReceivedNoteLine {
+  id                  String            @id @default(cuid())
+  grnId               String
+  grn                 GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  purchaseOrderLineId String
+  purchaseOrderLine   PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id])
+  quantityAccepted    Decimal           @db.Decimal(12, 3)
+  quantityRejected    Decimal           @default(0) @db.Decimal(12, 3)
+  unitPriceApplied    Decimal           @db.Decimal(12, 2)
+  lineTotal           Decimal           @db.Decimal(14, 2)
+  lotNumber           String?
+  createdAt           DateTime          @default(now())
+
+  inventoryMovements  InventoryMovement[]
+
+  @@index([grnId])
+  @@index([purchaseOrderLineId])
+}
+
+model SupplierInvoice {
+  id                String        @id @default(cuid())
+  invoiceNumber     String
+  supplierId        String
+  supplier          Supplier      @relation(fields: [supplierId], references: [id])
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  invoiceDate       DateTime
+  dueDate           DateTime?
+  currency          CurrencyCode  @default(KES)
+  subtotal          Decimal       @db.Decimal(14, 2)
+  taxAmount         Decimal       @db.Decimal(14, 2)
+  totalAmount       Decimal       @db.Decimal(14, 2)
+  fileUrl           String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  threeWayMatches   ThreeWayMatch[]
+  paymentVouchers   PaymentVoucher[]
+
+  @@unique([supplierId, invoiceNumber])
+  @@index([purchaseOrderId])
+}
+
+model ThreeWayMatch {
+  id                    String              @id @default(cuid())
+  matchNumber           String              @unique
+  purchaseOrderId       String
+  grnId                 String
+  grn                   GoodsReceivedNote   @relation(fields: [grnId], references: [id])
+  supplierInvoiceId     String
+  supplierInvoice       SupplierInvoice     @relation(fields: [supplierInvoiceId], references: [id])
+  status                ThreeWayMatchStatus @default(PENDING)
+  poTotal               Decimal             @db.Decimal(14, 2)
+  grnTotal              Decimal             @db.Decimal(14, 2)
+  invoiceTotal          Decimal             @db.Decimal(14, 2)
+  priceVariancePct      Decimal?            @db.Decimal(8, 4)
+  quantityVariancePct   Decimal?            @db.Decimal(8, 4)
+  tolerancePct          Decimal             @default(1) @db.Decimal(5, 2)
+  discrepancyNotes      String?             @db.Text
+  matchedAt             DateTime?
+  matchedBy             String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  paymentVouchers       PaymentVoucher[]
+
+  @@index([matchNumber])
+  @@index([status])
+}
+
+model PaymentVoucher {
+  id                String               @id @default(cuid())
+  voucherNumber     String               @unique
+  threeWayMatchId   String
+  threeWayMatch     ThreeWayMatch        @relation(fields: [threeWayMatchId], references: [id])
+  supplierInvoiceId String
+  supplierInvoice   SupplierInvoice      @relation(fields: [supplierInvoiceId], references: [id])
+  amount            Decimal              @db.Decimal(14, 2)
+  currency          CurrencyCode         @default(KES)
+  status            PaymentVoucherStatus @default(DRAFT)
+  approvedBy        String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  apQueuePushedAt   DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([voucherNumber])
+  @@index([status])
+}
+
+model DomainEvent {
+  id            String            @id @default(cuid())
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  status        DomainEventStatus @default(PENDING)
+  publishedAt   DateTime?
+  retryCount    Int               @default(0)
+  lastError     String?           @db.Text
+  createdAt     DateTime          @default(now())
+
+  @@index([status, createdAt])
+  @@index([eventType])
+  @@index([aggregateType, aggregateId])
+}
+
+model ProcurementAuditLog {
+  id          String                 @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      ProcurementAuditAction
+  actorId     String?
+  actorName   String?
+  beforeState Json?
+  afterState  Json?
+  ipAddress   String?
+  createdAt   DateTime               @default(now())
+
+  supplierId  String?
+  supplier    Supplier?              @relation("SupplierAudit", fields: [supplierId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([supplierId])
 }

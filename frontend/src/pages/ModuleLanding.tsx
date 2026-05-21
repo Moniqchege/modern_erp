@@ -37,7 +37,7 @@ export function ModuleLanding() {
       title: "Procurement & Suppliers",
       subtitle: "Vendors & purchasing workflow",
       icon: Landmark,
-      to: "/inventory",
+      to: "/procurement",
     },
     {
       title: "Customer & Sales",

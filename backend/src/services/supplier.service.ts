@@ -5,9 +5,7 @@
  * Tracks farm origins, certifications, and supplier performance.
  */
 
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../server";
 
 export interface CreateSupplierData {
     code: string;
@@ -18,6 +16,13 @@ export interface CreateSupplierData {
     address?: string;
     farmLocation?: string;
     certifications?: string;
+    businessRegistrationNo?: string;
+    taxPin?: string;
+    vatNumber?: string;
+    bankName?: string;
+    bankAccountNo?: string;
+    bankBranch?: string;
+    bankSwiftCode?: string;
 }
 
 export interface UpdateSupplierData extends Partial<CreateSupplierData> {

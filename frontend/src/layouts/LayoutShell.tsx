@@ -1,9 +1,14 @@
 import React from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "./Layout";
+import { ProcurementLayout } from "./ProcurementLayout";
 import { ROUTES } from "../app/router/routes";
 
 type SidebarKey = "dashboard" | "inventory" | "production" | "customers" | "invoices";
+
+function isProcurementModule(pathname: string): boolean {
+  return pathname === ROUTES.PROCUREMENT || pathname.startsWith(`${ROUTES.PROCUREMENT}/`);
+}
 
 function getSidebarKeyFromPath(pathname: string): SidebarKey {
   if (pathname === "/" || pathname.startsWith(ROUTES.DASHBOARD)) return "dashboard";
@@ -38,6 +43,10 @@ export function LayoutShell() {
         return;
     }
   };
+
+  if (isProcurementModule(location.pathname)) {
+    return <ProcurementLayout />;
+  }
 
   const shouldHideSidebar = location.pathname === "/app";
 

@@ -308,4 +308,6 @@ router.get("/health", (_req: Request, res: Response) => {
     });
 });
 
+export const traceabilityRouter = router;
 export default router;
+

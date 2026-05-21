@@ -6,6 +6,9 @@ import { invoicesRouter } from "./invoices";
 import { productionRouter } from "./production";
 import { dashboardRouter } from "./dashboard";
 import { authRouter } from "./auth";
+import { suppliersRouter } from "./suppliers";
+import { procurementRouter } from "./procurement";
+import { traceabilityRouter } from "./traceability";
 
 export const routes = Router();
 
@@ -15,6 +18,9 @@ routes.use("/customers", customersRouter);
 routes.use("/invoices", invoicesRouter);
 routes.use("/production", productionRouter);
 routes.use("/dashboard", dashboardRouter);
+routes.use("/suppliers", suppliersRouter);
+routes.use("/procurement", procurementRouter);
+routes.use("/traceability", traceabilityRouter);
 
 
 

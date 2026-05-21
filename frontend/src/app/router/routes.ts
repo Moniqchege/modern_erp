@@ -10,6 +10,15 @@ export const ROUTES = {
     CUSTOMERS: "/customers",
     INVOICES: "/invoices",
 
+    PROCUREMENT: "/procurement",
+    PROCUREMENT_SUPPLIERS: "/procurement/suppliers",
+    PROCUREMENT_SUPPLIER_NEW: "/procurement/suppliers/new",
+    PROCUREMENT_SUPPLIER_DETAIL: (id: string) => `/procurement/suppliers/${id}`,
+    PROCUREMENT_REQUISITIONS: "/procurement/requisitions",
+    PROCUREMENT_POS: "/procurement/purchase-orders",
+    PROCUREMENT_RECEIVING: "/procurement/receiving",
+    PROCUREMENT_FINANCE: "/procurement/finance",
+
     ROOT: "/",
 } as const;
 

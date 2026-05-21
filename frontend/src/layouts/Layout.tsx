@@ -12,7 +12,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export type NavKey = "dashboard" | "inventory" | "production" | "customers" | "invoices";
+export type NavKey =
+  | "dashboard"
+  | "inventory"
+  | "production"
+  | "customers"
+  | "invoices";
 
 interface LayoutProps {
   children: React.ReactNode;

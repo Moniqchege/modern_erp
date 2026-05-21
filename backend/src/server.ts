@@ -1,8 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 
 import { app } from "./app";
+import { registerProcurementListeners } from "./events/procurementListeners";
 
 export const prisma = new PrismaClient();
+
+registerProcurementListeners();
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 
