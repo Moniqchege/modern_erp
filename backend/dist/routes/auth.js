@@ -46,6 +46,22 @@ exports.authRouter.post("/verify-otp", async (req, res) => {
         res.status(400).json({ success: false, message: String(e) });
     }
 });
+const resendOtpSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+});
+exports.authRouter.post("/resend-otp", async (req, res) => {
+    const parse = resendOtpSchema.safeParse(req.body);
+    if (!parse.success) {
+        return res.status(400).json({ success: false, message: "Invalid request", errors: parse.error.flatten() });
+    }
+    try {
+        const data = await (0, auth_service_1.resendOtp)(parse.data);
+        res.status(200).json({ success: true, ...data });
+    }
+    catch (e) {
+        res.status(400).json({ success: false, message: String(e) });
+    }
+});
 const forceResetSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     newPassword: zod_1.z.string().min(8),

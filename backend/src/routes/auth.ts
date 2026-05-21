@@ -4,6 +4,7 @@ import {
     seedDefaultUserIfNeeded,
     loginWithPasswordThenOtp,
     verifyOtp,
+    resendOtp,
     forceResetPassword,
     createPasswordResetToken,
     resetPasswordWithToken,
@@ -48,6 +49,24 @@ authRouter.post("/verify-otp", async (req, res) => {
 
     try {
         const data = await verifyOtp(parse.data);
+        res.status(200).json({ success: true, ...data });
+    } catch (e) {
+        res.status(400).json({ success: false, message: String(e) });
+    }
+});
+
+const resendOtpSchema = z.object({
+    email: z.string().email(),
+});
+
+authRouter.post("/resend-otp", async (req, res) => {
+    const parse = resendOtpSchema.safeParse(req.body);
+    if (!parse.success) {
+        return res.status(400).json({ success: false, message: "Invalid request", errors: parse.error.flatten() });
+    }
+
+    try {
+        const data = await resendOtp(parse.data);
         res.status(200).json({ success: true, ...data });
     } catch (e) {
         res.status(400).json({ success: false, message: String(e) });

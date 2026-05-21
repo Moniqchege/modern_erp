@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedDefaultUserIfNeeded = seedDefaultUserIfNeeded;
 exports.loginWithPasswordThenOtp = loginWithPasswordThenOtp;
+exports.resendOtp = resendOtp;
 exports.verifyOtp = verifyOtp;
 exports.forceResetPassword = forceResetPassword;
 exports.getUserByTokenPayload = getUserByTokenPayload;
@@ -20,11 +21,11 @@ const DEFAULT_ADMIN_NAME = process.env.DEFAULT_ADMIN_NAME || "Default Admin";
 const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || "Admin123!";
 function otpTtlMs() {
     const v = process.env.OTP_TTL_MS;
-    return v ? Number(v) : 5 * 60 * 1000; // 5 mins
+    return v ? Number(v) : 5 * 60 * 1000;
 }
 function tokenTtlMs() {
     const v = process.env.PASSWORD_RESET_TTL_MS;
-    return v ? Number(v) : 60 * 60 * 1000; // 1 hour
+    return v ? Number(v) : 60 * 60 * 1000;
 }
 function hashToken(raw) {
     return crypto_1.default.createHash("sha256").update(raw).digest("hex");
@@ -48,11 +49,44 @@ async function loginWithPasswordThenOtp(params) {
     const { email, password } = params;
     const user = await server_1.prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
+        console.warn(`[OTP] login attempt failed: user not found or missing passwordHash. email=${email}`);
         throw new Error("Invalid credentials");
     }
     const ok = await bcrypt_1.default.compare(password, user.passwordHash);
-    if (!ok)
+    if (!ok) {
+        console.warn(`[OTP] login attempt failed: invalid password. email=${email}`);
         throw new Error("Invalid credentials");
+    }
+    const code = (0, auth_1.randomNumericOtp)(6);
+    const expiresAt = new Date(Date.now() + otpTtlMs());
+    await server_1.prisma.otpCode.upsert({
+        where: { userId: user.id },
+        update: {
+            code,
+            expiresAt,
+            verifiedAt: null,
+        },
+        create: {
+            userId: user.id,
+            code,
+            expiresAt,
+            verifiedAt: null,
+        },
+    });
+    console.log(`[OTP] generated: ${code}`);
+    return {
+        userId: user.id,
+        email: user.email,
+        forcePasswordReset: user.forcePasswordReset,
+        otpExpiresAt: expiresAt,
+        otp: code,
+    };
+}
+async function resendOtp(params) {
+    const { email } = params;
+    const user = await server_1.prisma.user.findUnique({ where: { email } });
+    if (!user)
+        throw new Error("Invalid request");
     const code = (0, auth_1.randomNumericOtp)(6);
     const expiresAt = new Date(Date.now() + otpTtlMs());
     await server_1.prisma.otpCode.upsert({
@@ -70,12 +104,9 @@ async function loginWithPasswordThenOtp(params) {
             verifiedAt: null,
         },
     });
+    console.log(`[OTP] resent: ${code} email=${email}`);
     return {
-        userId: user.id,
-        email: user.email,
-        forcePasswordReset: user.forcePasswordReset,
         otpExpiresAt: expiresAt,
-        otp: code,
     };
 }
 async function verifyOtp(params) {
@@ -84,18 +115,27 @@ async function verifyOtp(params) {
     if (!user)
         throw new Error("Invalid request");
     const otpRow = await server_1.prisma.otpCode.findUnique({ where: { userId: user.id } });
-    if (!otpRow)
+    if (!otpRow) {
+        console.warn(`[OTP] verify failed: otp not generated. email=${email}`);
         throw new Error("OTP not generated");
-    if (otpRow.verifiedAt)
+    }
+    if (otpRow.verifiedAt) {
+        console.warn(`[OTP] verify failed: otp already verified. email=${email}`);
         throw new Error("OTP already verified");
-    if (otpRow.expiresAt.getTime() < Date.now())
+    }
+    if (otpRow.expiresAt.getTime() < Date.now()) {
+        console.warn(`[OTP] verify failed: otp expired. email=${email} expiresAt=${otpRow.expiresAt.toISOString()}`);
         throw new Error("OTP expired");
-    if (!(0, auth_1.constantTimeEqual)(otp, otpRow.code))
+    }
+    if (!(0, auth_1.constantTimeEqual)(otp, otpRow.code)) {
+        console.warn(`[OTP] verify failed: invalid otp. email=${email} provided=${otp} expected=${otpRow.code}`);
         throw new Error("Invalid OTP");
+    }
     await server_1.prisma.otpCode.update({
         where: { userId: user.id },
         data: { verifiedAt: new Date() },
     });
+    console.log(`[OTP] verified: email=${user.email} userId=${user.id}`);
     const accessToken = (0, jwt_1.signAccessToken)({
         userId: user.id,
         email: user.email,
