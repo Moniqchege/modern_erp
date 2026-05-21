@@ -14,8 +14,6 @@
 
     "strict": true,
     "types": [],
-
-    "baseUrl": "."
   },
   "include": ["src"],
   "exclude": ["node_modules"]

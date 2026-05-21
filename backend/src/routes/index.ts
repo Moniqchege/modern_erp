@@ -5,14 +5,24 @@ import { customersRouter } from "./customers";
 import { invoicesRouter } from "./invoices";
 import { productionRouter } from "./production";
 import { dashboardRouter } from "./dashboard";
+import { authRouter } from "./auth";
 
 export const routes = Router();
 
+routes.use("/auth", authRouter);
 routes.use("/inventory", inventoryRouter);
 routes.use("/customers", customersRouter);
 routes.use("/invoices", invoicesRouter);
 routes.use("/production", productionRouter);
 routes.use("/dashboard", dashboardRouter);
+
+
+
+
+
+
+
+
 
 
 

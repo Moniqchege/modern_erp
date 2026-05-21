@@ -50,15 +50,39 @@ enum DispatchStatus {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
+  id        String   @id @default(cuid())
+  email     String   @unique
   name      String
-  role      UserRole  @default(EMPLOYEE)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  role      UserRole @default(EMPLOYEE)
 
-  // Relations
+  passwordHash        String?
+  forcePasswordReset  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   invoices  Invoice[] @relation("InvoiceCreatedBy")
+}
+
+model OtpCode {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  code        String
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tokenHash String
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum InventoryMovementType {
