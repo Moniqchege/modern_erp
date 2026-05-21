@@ -118,9 +118,86 @@ export function SupplierDetail() {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="font-extrabold text-slate-400 uppercase text-[10px] tracking-widest mb-3">
-            Compliance wallet
-          </h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-extrabold text-slate-400 uppercase text-[10px] tracking-widest mb-3">
+              Compliance wallet
+            </h2>
+          </div>
+
+          {/* upload form (metadata only; no binary upload/storage yet) */}
+          <form
+            className="mt-2 mb-4 space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+
+              if (!supplierId) return;
+
+              const form = e.currentTarget;
+              const formData = new FormData(form);
+              const titles = String(formData.get("titles") ?? "")
+                .split("|")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              const documentType = String(formData.get("documentType") ?? "OTHER")
+                .trim();
+
+              if (titles.length === 0) return;
+
+              await procurementApi.suppliers.createComplianceDocumentsBatch(supplierId, {
+                documents: titles.map((title) => ({
+                  documentType,
+                  title,
+                  referenceNo: null,
+                  // fileUrl intentionally omitted until storage exists
+                })),
+              });
+
+              const d = await procurementApi.suppliers.get(supplierId);
+              setDocuments((d.documents as ComplianceDoc[]) ?? []);
+              form.reset();
+            }}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_170px] gap-2">
+              <label className="block">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  Add file titles (separate with |)
+                </span>
+                <input
+                  name="titles"
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  placeholder="KEBS 2026|Tax Compliance"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  Type
+                </span>
+                <select
+                  name="documentType"
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  defaultValue="OTHER"
+                >
+                  <option value="FOOD_SAFETY">FOOD_SAFETY</option>
+                  <option value="KEBS_CERTIFICATE">KEBS_CERTIFICATE</option>
+                  <option value="ISO">ISO</option>
+                  <option value="ORGANIC">ORGANIC</option>
+                  <option value="GLOBALGAP">GLOBALGAP</option>
+                  <option value="TAX_COMPLIANCE">TAX_COMPLIANCE</option>
+                  <option value="OTHER">OTHER</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="text-xs font-bold bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700"
+              >
+                Add to wallet
+              </button>
+            </div>
+          </form>
+
           {documents.length === 0 ? (
             <p className="text-xs text-slate-400">No documents on file</p>
           ) : (

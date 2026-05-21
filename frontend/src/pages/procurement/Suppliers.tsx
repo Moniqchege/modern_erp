@@ -164,7 +164,9 @@ export function Suppliers() {
           documentType: d.documentType,
           title: d.title.trim(),
           referenceNo: null,
-          fileUrl: null, // swap for real upload URL once storage exists
+          // Important: backend expects fileUrl to be a valid URL when provided.
+          // Do not send `null`; omit it entirely until storage/upload exists.
+          ...(false ? { fileUrl: d.title } : {}),
         }));
 
       if (supplierId && documents.length) {
