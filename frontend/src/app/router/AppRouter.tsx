@@ -19,8 +19,6 @@ const ModuleLanding = lazy(() => import("../../pages/ModuleLanding").then((m) =>
 
 export function AppRouter() {
   const RequireAuth = ({ children }: { children: React.ReactNode }) => {
-    // MVP guard: presence of access token.
-    // Backend also includes forcePasswordReset via dedicated page.
     if (!isAuthenticated()) return <Navigate to="/login" replace />;
     return <>{children}</>;
   };
