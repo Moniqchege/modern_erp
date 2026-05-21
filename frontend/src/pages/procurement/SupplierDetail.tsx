@@ -73,7 +73,7 @@ export function SupplierDetail() {
       <button
         type="button"
         onClick={() => navigate(ROUTES.PROCUREMENT_SUPPLIERS)}
-        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800"
+        className="inline-flex items-center gap-1.5 px-5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-500 hover:text-slate-800"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Suppliers

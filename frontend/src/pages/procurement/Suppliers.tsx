@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Loader2, X } from "lucide-react";
+import { Plus, Search, Loader2, X, Eye } from "lucide-react";
 import { StatusBadge } from "../../modules/procurement/components/StatusBadge";
 import { procurementApi } from "../../modules/procurement/api/procurementClient";
 import { ROUTES } from "../../app/router/routes";
@@ -148,7 +148,7 @@ export function Suppliers() {
                 <th className="px-4 py-3">Tax PIN</th>
                 <th className="px-4 py-3">Onboarding</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 w-24" />
+                <th className="px-4 py-3 w-24">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -169,8 +169,16 @@ export function Suppliers() {
                       {s.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-emerald-700 font-bold">View</td>
-                </tr>
+                  <td className="px-4 py-3 text-left">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-sm transition-all hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 active:scale-95"
+                  >
+                   <Eye className="h-3 w-3" />
+                   View
+                  </button>
+                </td>               
+               </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
@@ -182,12 +190,6 @@ export function Suppliers() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {!apiConnected && !loading && (
-        <p className="text-[10px] text-amber-600 font-medium">
-          Showing sample data — connect backend to persist suppliers.
-        </p>
       )}
 
       {modalOpen && (

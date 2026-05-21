@@ -1,26 +1,27 @@
 import React from "react";
 
 const STYLES: Record<string, string> = {
-  ACTIVE: "bg-emerald-100 text-emerald-800",
-  EXPIRING_SOON: "bg-amber-100 text-amber-800",
-  NON_COMPLIANT: "bg-red-100 text-red-800",
-  PASSED: "bg-emerald-100 text-emerald-800",
-  FAILED_CONDITIONAL: "bg-amber-100 text-amber-800",
-  FULL_REJECTION: "bg-red-100 text-red-800",
-  PENDING_QC: "bg-sky-100 text-sky-800",
-  POSTED: "bg-emerald-100 text-emerald-800",
-  MATCHED: "bg-emerald-100 text-emerald-800",
-  PRICE_DISCREPANCY: "bg-orange-100 text-orange-800",
-  QUANTITY_DISCREPANCY: "bg-orange-100 text-orange-800",
-  BOTH_DISCREPANCY: "bg-red-100 text-red-800",
-  PENDING_FINANCE: "bg-violet-100 text-violet-800",
-  PARTIALLY_RECEIVED: "bg-amber-100 text-amber-800",
+  ACTIVE: "border-emerald-200 text-emerald-700",
+  EXPIRING_SOON: "border-amber-200 text-amber-700",
+  NON_COMPLIANT: "border-red-200 text-red-700",
+  PASSED: "border-emerald-200 text-emerald-700",
+  FAILED_CONDITIONAL: "border-amber-200 text-amber-700",
+  FULL_REJECTION: "border-red-200 text-red-700",
+  PENDING_QC: "border-sky-200 text-sky-700",
+  POSTED: "border-emerald-200 text-emerald-700",
+  MATCHED: "border-emerald-200 text-emerald-700",
+  PRICE_DISCREPANCY: "border-orange-200 text-orange-700",
+  QUANTITY_DISCREPANCY: "border-orange-200 text-orange-700",
+  BOTH_DISCREPANCY: "border-red-200 text-red-700",
+  PENDING_FINANCE: "border-violet-200 text-violet-700",
+  PARTIALLY_RECEIVED: "border-amber-200 text-amber-700",
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const cls = STYLES[status] ?? "bg-slate-100 text-slate-700";
+  const colorCls = STYLES[status] ?? "border-slate-900 text-slate-200";
+  
   return (
-    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${cls}`}>
+    <span className={`inline-flex items-center px-5 py-0.5 rounded-full border bg-slate-50/50 text-[10px] font-bold uppercase tracking-wide ${colorCls}`}>
       {status.replace(/_/g, " ")}
     </span>
   );

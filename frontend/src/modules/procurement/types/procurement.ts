@@ -59,9 +59,6 @@ export interface Supplier {
   isActive: boolean;
   taxPin?: string | null;
   vatNumber?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  contactPerson?: string | null;
 }
 
 export interface PurchaseRequisition {
