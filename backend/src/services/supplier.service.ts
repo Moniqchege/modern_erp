@@ -25,9 +25,42 @@ export interface CreateSupplierData {
     bankSwiftCode?: string;
 }
 
-export interface UpdateSupplierData extends Partial<CreateSupplierData> {
+export interface UpdateSupplierData
+    extends Omit<
+        Partial<CreateSupplierData>,
+        | "contactPerson"
+        | "phone"
+        | "email"
+        | "address"
+        | "farmLocation"
+        | "certifications"
+        | "businessRegistrationNo"
+        | "taxPin"
+        | "vatNumber"
+        | "bankName"
+        | "bankAccountNo"
+        | "bankBranch"
+        | "bankSwiftCode"
+    > {
+
+    // allow nulls from zod optional().nullable() parsing
+    contactPerson?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    farmLocation?: string | null;
+    certifications?: string | null;
+    businessRegistrationNo?: string | null;
+    taxPin?: string | null;
+    vatNumber?: string | null;
+    bankName?: string | null;
+    bankAccountNo?: string | null;
+    bankBranch?: string | null;
+    bankSwiftCode?: string | null;
+
     isActive?: boolean;
 }
+
 
 /**
  * Create a new supplier
@@ -58,7 +91,7 @@ export async function getAllSuppliers(activeOnly: boolean = false) {
                 select: { rawMaizeBatches: true },
             },
         },
-        orderBy: { name: "asc" },
+        orderBy: { createdAt: "desc" },
     });
 }
 

@@ -22,7 +22,8 @@ export async function publishDomainEvent(event: DomainEventPayload): Promise<voi
       eventType: event.eventType,
       aggregateType: event.aggregateType,
       aggregateId: event.aggregateId,
-      payload: event.payload,
+      payload: event.payload as any,
+
     },
   });
 

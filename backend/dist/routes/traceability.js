@@ -9,6 +9,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.traceabilityRouter = void 0;
 const express_1 = require("express");
 const zod_1 = require("zod");
 const traceability_service_1 = __importDefault(require("../services/traceability.service"));
@@ -273,4 +274,5 @@ router.get("/health", (_req, res) => {
         timestamp: new Date().toISOString(),
     });
 });
+exports.traceabilityRouter = router;
 exports.default = router;

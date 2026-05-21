@@ -39,7 +39,7 @@ const ComplianceDocSchema = z.object({
     "OTHER",
   ]),
   title: z.string().min(1).max(255),
-  fileUrl: z.string().url().optional().nullable(),
+  fileUrl: z.string().url().optional(),
   referenceNo: z.string().max(64).optional().nullable(),
   issuedAt: z.coerce.date().optional(),
   expiresAt: z.coerce.date().optional(),
@@ -117,6 +117,33 @@ suppliersRouter.post("/:id/documents", async (req, res) => {
     res.status(500).json({ message: String(error) });
   }
 });
+
+const ComplianceDocBatchSchema = z.object({
+  documents: z.array(ComplianceDocSchema).min(1),
+});
+
+suppliersRouter.post("/:id/documents/batch", async (req, res) => {
+  const parse = ComplianceDocBatchSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res
+      .status(400)
+      .json({ message: "Invalid body", errors: parse.error.flatten() });
+  }
+
+  try {
+    const supplierId = req.params.id;
+
+    const docs = await Promise.all(
+      parse.data.documents.map((d) => addComplianceDocument(supplierId, d))
+    );
+
+    res.status(201).json({ success: true, documents: docs });
+  } catch (error) {
+    res.status(500).json({ message: String(error) });
+  }
+});
+
+
 
 suppliersRouter.post("/:id/onboarding/advance", async (req, res) => {
   const body = z

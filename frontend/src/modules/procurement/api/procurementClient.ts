@@ -23,6 +23,11 @@ export const procurementApi = {
         method: "POST",
         body: JSON.stringify({ actorName, notes }),
       }),
+    createComplianceDocumentsBatch: (id: string, payload: Record<string, unknown>) =>
+      json(`${SUPPLIERS}/${id}/documents/batch`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
   },
   requisitions: {
     list: (status?: string) =>

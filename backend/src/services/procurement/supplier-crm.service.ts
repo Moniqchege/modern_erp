@@ -82,11 +82,11 @@ export async function addComplianceDocument(
   data: {
     documentType: string;
     title: string;
-    fileUrl?: string;
-    referenceNo?: string;
+    fileUrl?: string | null;
+    referenceNo?: string | null;
     issuedAt?: Date;
     expiresAt?: Date;
-    notes?: string;
+    notes?: string | null;
   }
 ) {
   const status = computeComplianceStatus(data.expiresAt);
@@ -95,12 +95,13 @@ export async function addComplianceDocument(
       supplierId,
       documentType: data.documentType as never,
       title: data.title,
-      fileUrl: data.fileUrl,
-      referenceNo: data.referenceNo,
+      fileUrl: data.fileUrl ?? undefined,
+      referenceNo: data.referenceNo ?? undefined,
       issuedAt: data.issuedAt,
       expiresAt: data.expiresAt,
       status: status as never,
-      notes: data.notes,
+      notes: data.notes ?? undefined,
     },
   });
 }
+

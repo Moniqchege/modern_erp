@@ -11,20 +11,19 @@ exports.getAllSuppliers = getAllSuppliers;
 exports.getSupplierById = getSupplierById;
 exports.updateSupplier = updateSupplier;
 exports.getSupplierPerformance = getSupplierPerformance;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const server_1 = require("../server");
 /**
  * Create a new supplier
  */
 async function createSupplier(data) {
     // Check if supplier code already exists
-    const existing = await prisma.supplier.findUnique({
+    const existing = await server_1.prisma.supplier.findUnique({
         where: { code: data.code },
     });
     if (existing) {
         throw new Error(`Supplier code already exists: ${data.code}`);
     }
-    return prisma.supplier.create({
+    return server_1.prisma.supplier.create({
         data,
     });
 }
@@ -32,21 +31,21 @@ async function createSupplier(data) {
  * Get all suppliers
  */
 async function getAllSuppliers(activeOnly = false) {
-    return prisma.supplier.findMany({
+    return server_1.prisma.supplier.findMany({
         where: activeOnly ? { isActive: true } : undefined,
         include: {
             _count: {
                 select: { rawMaizeBatches: true },
             },
         },
-        orderBy: { name: "asc" },
+        orderBy: { createdAt: "desc" },
     });
 }
 /**
  * Get supplier by ID
  */
 async function getSupplierById(id) {
-    const supplier = await prisma.supplier.findUnique({
+    const supplier = await server_1.prisma.supplier.findUnique({
         where: { id },
         include: {
             rawMaizeBatches: {
@@ -64,7 +63,7 @@ async function getSupplierById(id) {
  * Update supplier
  */
 async function updateSupplier(id, data) {
-    return prisma.supplier.update({
+    return server_1.prisma.supplier.update({
         where: { id },
         data,
     });
@@ -73,7 +72,7 @@ async function updateSupplier(id, data) {
  * Get supplier performance metrics
  */
 async function getSupplierPerformance(supplierId) {
-    const batches = await prisma.rawMaizeBatch.findMany({
+    const batches = await server_1.prisma.rawMaizeBatch.findMany({
         where: { supplierId },
         include: {
             qualityControlLogs: true,
