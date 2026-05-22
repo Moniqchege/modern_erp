@@ -87,12 +87,8 @@ exports.suppliersRouter.get("/", async (req, res) => {
 exports.suppliersRouter.get("/:id", async (req, res) => {
     try {
         const supplier = await supplierService.getSupplierById(req.params.id);
-        await (0, supplier_crm_service_1.syncComplianceDocumentStatuses)(req.params.id);
-        const documents = await server_1.prisma.supplierComplianceDocument.findMany({
-            where: { supplierId: req.params.id },
-            orderBy: { expiresAt: "asc" },
-        });
-        res.status(200).json({ success: true, supplier, documents });
+        // Compliance document syncing removed
+        res.status(200).json({ success: true, supplier, documents: [] });
     }
     catch (error) {
         res.status(404).json({ message: String(error) });
@@ -133,38 +129,39 @@ exports.suppliersRouter.patch("/:id", async (req, res) => {
         res.status(500).json({ message: String(error) });
     }
 });
-exports.suppliersRouter.post("/:id/documents", async (req, res) => {
-    const parse = ComplianceDocSchema.safeParse(req.body);
-    if (!parse.success) {
-        return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
-    }
-    try {
-        const doc = await (0, supplier_crm_service_1.addComplianceDocument)(req.params.id, parse.data);
-        res.status(201).json({ success: true, document: doc });
-    }
-    catch (error) {
-        res.status(500).json({ message: String(error) });
-    }
-});
-const ComplianceDocBatchSchema = zod_1.z.object({
-    documents: zod_1.z.array(ComplianceDocSchema).min(1),
-});
-exports.suppliersRouter.post("/:id/documents/batch", async (req, res) => {
-    const parse = ComplianceDocBatchSchema.safeParse(req.body);
-    if (!parse.success) {
-        return res
-            .status(400)
-            .json({ message: "Invalid body", errors: parse.error.flatten() });
-    }
-    try {
-        const supplierId = req.params.id;
-        const docs = await Promise.all(parse.data.documents.map((d) => (0, supplier_crm_service_1.addComplianceDocument)(supplierId, d)));
-        res.status(201).json({ success: true, documents: docs });
-    }
-    catch (error) {
-        res.status(500).json({ message: String(error) });
-    }
-});
+// Document uploads removed (supplier no longer needs compliance documents)
+// suppliersRouter.post("/:id/documents", async (req, res) => {
+//   const parse = ComplianceDocSchema.safeParse(req.body);
+//   if (!parse.success) {
+//     return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
+//   }
+//   try {
+//     const doc = await addComplianceDocument(req.params.id, parse.data);
+//     res.status(201).json({ success: true, document: doc });
+//   } catch (error) {
+//     res.status(500).json({ message: String(error) });
+//   }
+// });
+// (intentionally left out) Compliance document upload endpoints removed
+//   const parse = ComplianceDocBatchSchema.safeParse(req.body);
+//   if (!parse.success) {
+//     return res
+//       .status(400)
+//       .json({ message: "Invalid body", errors: parse.error.flatten() });
+//   }
+//
+//   try {
+//     const supplierId = req.params.id;
+//
+//     const docs = await Promise.all(
+//       parse.data.documents.map((d) => addComplianceDocument(supplierId, d))
+//     );
+//
+//     res.status(201).json({ success: true, documents: docs });
+//   } catch (error) {
+//     res.status(500).json({ message: String(error) });
+//   }
+// });
 exports.suppliersRouter.post("/:id/onboarding/advance", async (req, res) => {
     const body = zod_1.z
         .object({ actorName: zod_1.z.string().min(1), notes: zod_1.z.string().optional() })

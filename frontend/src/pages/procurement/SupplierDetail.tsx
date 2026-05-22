@@ -1,33 +1,63 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Save, X } from "lucide-react";
 import { StatusBadge } from "../../modules/procurement/components/StatusBadge";
 import { procurementApi } from "../../modules/procurement/api/procurementClient";
 import { ROUTES } from "../../app/router/routes";
 import type { Supplier } from "../../modules/procurement/types/procurement";
 
-interface ComplianceDoc {
-  id: string;
-  title: string;
-  documentType: string;
-  status: string;
-  expiresAt?: string | null;
-}
+type SupplierEditPayload = {
+  contactPerson?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  taxPin?: string | null;
+  vatNumber?: string | null;
+
+  bankName?: string | null;
+  bankAccountNo?: string | null;
+  bankBranch?: string | null;
+  bankSwiftCode?: string | null;
+};
 
 export function SupplierDetail() {
   const { supplierId } = useParams<{ supplierId: string }>();
   const navigate = useNavigate();
+
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [documents, setDocuments] = useState<ComplianceDoc[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isDraft = useMemo(
+    () => supplier?.onboardingStatus === "DRAFT",
+    [supplier]
+  );
+
+  const [form, setForm] = useState<SupplierEditPayload>({});
 
   useEffect(() => {
     if (!supplierId) return;
+
     void procurementApi.suppliers
       .get(supplierId)
       .then((d) => {
-        setSupplier(d.supplier as Supplier);
-        setDocuments((d.documents as ComplianceDoc[]) ?? []);
+        const s = d.supplier as Supplier;
+        setSupplier(s);
+
+        setForm({
+          contactPerson: s.contactPerson ?? null,
+          phone: s.phone ?? null,
+          email: s.email ?? null,
+          taxPin: s.taxPin ?? null,
+          vatNumber: s.vatNumber ?? null,
+
+          bankName: (s as any).bankName ?? null,
+          bankAccountNo: (s as any).bankAccountNo ?? null,
+          bankBranch: (s as any).bankBranch ?? null,
+          bankSwiftCode: (s as any).bankSwiftCode ?? null,
+        });
       })
       .catch(() => setSupplier(null))
       .finally(() => setLoading(false));
@@ -36,11 +66,84 @@ export function SupplierDetail() {
   const advanceOnboarding = async () => {
     if (!supplierId) return;
     try {
-      await procurementApi.suppliers.advanceOnboarding(supplierId, "Procurement Officer");
+      await procurementApi.suppliers.advanceOnboarding(
+        supplierId,
+        "Procurement Officer"
+      );
       const d = await procurementApi.suppliers.get(supplierId);
       setSupplier(d.supplier as Supplier);
+      setEditing(false);
     } catch {
-      /* ignore */
+      // ignore
+    }
+  };
+
+  const startEdit = () => {
+    if (!supplier) return;
+    setError(null);
+    setEditing(true);
+    setForm({
+      contactPerson: supplier.contactPerson ?? null,
+      phone: supplier.phone ?? null,
+      email: supplier.email ?? null,
+      taxPin: supplier.taxPin ?? null,
+      vatNumber: supplier.vatNumber ?? null,
+
+      bankName: (supplier as any).bankName ?? null,
+      bankAccountNo: (supplier as any).bankAccountNo ?? null,
+      bankBranch: (supplier as any).bankBranch ?? null,
+      bankSwiftCode: (supplier as any).bankSwiftCode ?? null,
+    });
+  };
+
+  const cancelEdit = () => {
+    if (!supplier) return;
+    setError(null);
+    setEditing(false);
+    setForm({
+      contactPerson: supplier.contactPerson ?? null,
+      phone: supplier.phone ?? null,
+      email: supplier.email ?? null,
+      taxPin: supplier.taxPin ?? null,
+      vatNumber: supplier.vatNumber ?? null,
+
+      bankName: (supplier as any).bankName ?? null,
+      bankAccountNo: (supplier as any).bankAccountNo ?? null,
+      bankBranch: (supplier as any).bankBranch ?? null,
+      bankSwiftCode: (supplier as any).bankSwiftCode ?? null,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!supplierId) return;
+    if (!supplier) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const payload: SupplierEditPayload = {
+        contactPerson: form.contactPerson ?? null,
+        phone: form.phone ?? null,
+        email: form.email ?? null,
+        taxPin: form.taxPin ?? null,
+        vatNumber: form.vatNumber ?? null,
+
+        bankName: form.bankName ?? null,
+        bankAccountNo: form.bankAccountNo ?? null,
+        bankBranch: form.bankBranch ?? null,
+        bankSwiftCode: form.bankSwiftCode ?? null,
+      };
+
+      await procurementApi.suppliers.update(supplierId, payload);
+
+      const d = await procurementApi.suppliers.get(supplierId);
+      setSupplier(d.supplier as Supplier);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save supplier");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -84,137 +187,192 @@ export function SupplierDetail() {
           <h1 className="text-xl font-black text-slate-900">{supplier.name}</h1>
           <p className="text-xs font-mono text-slate-500 mt-1">{supplier.code}</p>
         </div>
+
         <div className="flex items-center gap-2">
           <StatusBadge status={supplier.onboardingStatus} />
-          {supplier.onboardingStatus !== "ACTIVE" && (
-            <button
-              type="button"
-              onClick={() => void advanceOnboarding()}
-              className="text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg"
-            >
-              Advance onboarding
-            </button>
+
+          {isDraft ? (
+            <>
+              {!editing ? (
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  className="inline-flex items-center gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void saveEdit()}
+                    className="inline-flex items-center gap-2 text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            supplier.onboardingStatus !== "ACTIVE" && (
+              <button
+                type="button"
+                onClick={() => void advanceOnboarding()}
+                className="text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg"
+              >
+                Advance onboarding
+              </button>
+            )
           )}
         </div>
       </div>
+
+      {editing && error && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white border border-slate-200 rounded-xl p-5 text-xs space-y-2">
           <h2 className="font-extrabold text-slate-400 uppercase text-[10px] tracking-widest mb-3">
             Tax & registration
           </h2>
-          <p>
-            <span className="text-slate-500">Tax PIN:</span> {supplier.taxPin ?? "—"}
-          </p>
-          <p>
-            <span className="text-slate-500">VAT:</span> {supplier.vatNumber ?? "—"}
-          </p>
-          <p>
-            <span className="text-slate-500">Email:</span> {supplier.email ?? "—"}
-          </p>
-          <p>
-            <span className="text-slate-500">Phone:</span> {supplier.phone ?? "—"}
-          </p>
-        </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-extrabold text-slate-400 uppercase text-[10px] tracking-widest mb-3">
-              Compliance wallet
-            </h2>
-          </div>
-
-          {/* upload form (metadata only; no binary upload/storage yet) */}
-          <form
-            className="mt-2 mb-4 space-y-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-
-              if (!supplierId) return;
-
-              const form = e.currentTarget;
-              const formData = new FormData(form);
-              const titles = String(formData.get("titles") ?? "")
-                .split("|")
-                .map((s) => s.trim())
-                .filter(Boolean);
-              const documentType = String(formData.get("documentType") ?? "OTHER")
-                .trim();
-
-              if (titles.length === 0) return;
-
-              await procurementApi.suppliers.createComplianceDocumentsBatch(supplierId, {
-                documents: titles.map((title) => ({
-                  documentType,
-                  title,
-                  referenceNo: null,
-                  // fileUrl intentionally omitted until storage exists
-                })),
-              });
-
-              const d = await procurementApi.suppliers.get(supplierId);
-              setDocuments((d.documents as ComplianceDoc[]) ?? []);
-              form.reset();
-            }}
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_170px] gap-2">
+          {!editing ? (
+            <>
+              <p>
+                <span className="text-slate-500">Tax PIN:</span> {supplier.taxPin ?? "—"}
+              </p>
+              <p>
+                <span className="text-slate-500">VAT:</span> {supplier.vatNumber ?? "—"}
+              </p>
+              <p>
+                <span className="text-slate-500">Email:</span> {supplier.email ?? "—"}
+              </p>
+              <p>
+                <span className="text-slate-500">Phone:</span> {supplier.phone ?? "—"}
+              </p>
+            </>
+          ) : (
+            <>
               <label className="block">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
-                  Add file titles (separate with |)
-                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Tax PIN</span>
                 <input
-                  name="titles"
                   className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
-                  placeholder="KEBS 2026|Tax Compliance"
+                  value={form.taxPin ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, taxPin: e.target.value || null }))}
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
-                  Type
-                </span>
-                <select
-                  name="documentType"
+                <span className="text-[10px] font-bold text-slate-500 uppercase">VAT number</span>
+                <input
                   className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
-                  defaultValue="OTHER"
-                >
-                  <option value="FOOD_SAFETY">FOOD_SAFETY</option>
-                  <option value="KEBS_CERTIFICATE">KEBS_CERTIFICATE</option>
-                  <option value="ISO">ISO</option>
-                  <option value="ORGANIC">ORGANIC</option>
-                  <option value="GLOBALGAP">GLOBALGAP</option>
-                  <option value="TAX_COMPLIANCE">TAX_COMPLIANCE</option>
-                  <option value="OTHER">OTHER</option>
-                </select>
+                  value={form.vatNumber ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, vatNumber: e.target.value || null }))}
+                />
               </label>
-            </div>
+              <label className="block">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Email</span>
+                <input
+                  type="email"
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  value={form.email ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value || null }))}
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Phone</span>
+                <input
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  value={form.phone ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value || null }))}
+                />
+              </label>
+            </>
+          )}
+        </div>
 
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="text-xs font-bold bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700"
-              >
-                Add to wallet
-              </button>
-            </div>
-          </form>
+        <div className="bg-white border border-slate-200 rounded-xl p-5 text-xs space-y-2">
+          <h2 className="font-extrabold text-slate-400 uppercase text-[10px] tracking-widest mb-3">
+            Payment details
+          </h2>
 
-          {documents.length === 0 ? (
-            <p className="text-xs text-slate-400">No documents on file</p>
+          {!editing ? (
+            <>
+              <p>
+                <span className="text-slate-500">Bank name:</span>{" "}
+                {(supplier as any).bankName ?? "—"}
+              </p>
+              <p>
+                <span className="text-slate-500">Account number:</span>{" "}
+                {(supplier as any).bankAccountNo ?? "—"}
+              </p>
+              <p>
+                <span className="text-slate-500">Branch:</span>{" "}
+                {(supplier as any).bankBranch ?? "—"}
+              </p>
+              <p>
+                <span className="text-slate-500">SWIFT:</span>{" "}
+                {(supplier as any).bankSwiftCode ?? "—"}
+              </p>
+            </>
           ) : (
-            <ul className="space-y-2 text-xs">
-              {documents.map((doc) => (
-                <li
-                  key={doc.id}
-                  className="flex items-center justify-between border-b border-slate-50 pb-2"
-                >
-                  <span className="font-medium">{doc.title}</span>
-                  <StatusBadge status={doc.status} />
-                </li>
-              ))}
-            </ul>
+            <>
+              <label className="block">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Bank name</span>
+                <input
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  value={form.bankName ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value || null }))}
+                />
+              </label>
+
+              <label className="block mt-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Bank account number</span>
+                <input
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  value={form.bankAccountNo ?? ""}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, bankAccountNo: e.target.value || null }))
+                  }
+                />
+              </label>
+
+              <label className="block mt-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Bank branch</span>
+                <input
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  value={form.bankBranch ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value || null }))}
+                />
+              </label>
+
+              <label className="block mt-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">SWIFT code</span>
+                <input
+                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                  value={form.bankSwiftCode ?? ""}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, bankSwiftCode: e.target.value || null }))
+                  }
+                />
+              </label>
+            </>
           )}
         </div>
       </div>
     </div>
   );
 }
+

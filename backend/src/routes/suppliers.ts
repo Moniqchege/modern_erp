@@ -2,11 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../server";
 import * as supplierService from "../services/supplier.service";
-import {
-  advanceSupplierOnboarding,
-  addComplianceDocument,
-  syncComplianceDocumentStatuses,
-} from "../services/procurement/supplier-crm.service";
+import { advanceSupplierOnboarding } from "../services/procurement/supplier-crm.service";
+
 
 export const suppliersRouter = Router();
 
@@ -28,23 +25,7 @@ const CreateSupplierSchema = z.object({
   bankSwiftCode: z.string().max(32).optional().nullable(),
 });
 
-const ComplianceDocSchema = z.object({
-  documentType: z.enum([
-    "FOOD_SAFETY",
-    "KEBS_CERTIFICATE",
-    "ISO",
-    "ORGANIC",
-    "GLOBALGAP",
-    "TAX_COMPLIANCE",
-    "OTHER",
-  ]),
-  title: z.string().min(1).max(255),
-  fileUrl: z.string().url().optional(),
-  referenceNo: z.string().max(64).optional().nullable(),
-  issuedAt: z.coerce.date().optional(),
-  expiresAt: z.coerce.date().optional(),
-  notes: z.string().max(2000).optional().nullable(),
-});
+
 
 suppliersRouter.get("/", async (req, res) => {
   try {
@@ -59,12 +40,9 @@ suppliersRouter.get("/", async (req, res) => {
 suppliersRouter.get("/:id", async (req, res) => {
   try {
     const supplier = await supplierService.getSupplierById(req.params.id);
-    await syncComplianceDocumentStatuses(req.params.id);
-    const documents = await prisma.supplierComplianceDocument.findMany({
-      where: { supplierId: req.params.id },
-      orderBy: { expiresAt: "asc" },
-    });
-    res.status(200).json({ success: true, supplier, documents });
+    // Compliance document syncing removed
+    res.status(200).json({ success: true, supplier, documents: [] });
+
   } catch (error) {
     res.status(404).json({ message: String(error) });
   }
@@ -105,43 +83,43 @@ suppliersRouter.patch("/:id", async (req, res) => {
   }
 });
 
-suppliersRouter.post("/:id/documents", async (req, res) => {
-  const parse = ComplianceDocSchema.safeParse(req.body);
-  if (!parse.success) {
-    return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
-  }
-  try {
-    const doc = await addComplianceDocument(req.params.id, parse.data);
-    res.status(201).json({ success: true, document: doc });
-  } catch (error) {
-    res.status(500).json({ message: String(error) });
-  }
-});
+// Document uploads removed (supplier no longer needs compliance documents)
+// suppliersRouter.post("/:id/documents", async (req, res) => {
+//   const parse = ComplianceDocSchema.safeParse(req.body);
+//   if (!parse.success) {
+//     return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
+//   }
+//   try {
+//     const doc = await addComplianceDocument(req.params.id, parse.data);
+//     res.status(201).json({ success: true, document: doc });
+//   } catch (error) {
+//     res.status(500).json({ message: String(error) });
+//   }
+// });
 
-const ComplianceDocBatchSchema = z.object({
-  documents: z.array(ComplianceDocSchema).min(1),
-});
 
-suppliersRouter.post("/:id/documents/batch", async (req, res) => {
-  const parse = ComplianceDocBatchSchema.safeParse(req.body);
-  if (!parse.success) {
-    return res
-      .status(400)
-      .json({ message: "Invalid body", errors: parse.error.flatten() });
-  }
+// (intentionally left out) Compliance document upload endpoints removed
 
-  try {
-    const supplierId = req.params.id;
+//   const parse = ComplianceDocBatchSchema.safeParse(req.body);
+//   if (!parse.success) {
+//     return res
+//       .status(400)
+//       .json({ message: "Invalid body", errors: parse.error.flatten() });
+//   }
+//
+//   try {
+//     const supplierId = req.params.id;
+//
+//     const docs = await Promise.all(
+//       parse.data.documents.map((d) => addComplianceDocument(supplierId, d))
+//     );
+//
+//     res.status(201).json({ success: true, documents: docs });
+//   } catch (error) {
+//     res.status(500).json({ message: String(error) });
+//   }
+// });
 
-    const docs = await Promise.all(
-      parse.data.documents.map((d) => addComplianceDocument(supplierId, d))
-    );
-
-    res.status(201).json({ success: true, documents: docs });
-  } catch (error) {
-    res.status(500).json({ message: String(error) });
-  }
-});
 
 
 

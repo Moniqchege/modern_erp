@@ -18,6 +18,11 @@ export const procurementApi = {
     get: (id: string) => json<{ supplier: unknown; documents: unknown[] }>(`${SUPPLIERS}/${id}`),
     create: (body: Record<string, unknown>) =>
       json(`${SUPPLIERS}`, { method: "POST", body: JSON.stringify(body) }),
+    update: (id: string, body: Record<string, unknown>) =>
+      json(`${SUPPLIERS}/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
     advanceOnboarding: (id: string, actorName: string, notes?: string) =>
       json(`${SUPPLIERS}/${id}/onboarding/advance`, {
         method: "POST",

@@ -6,46 +6,6 @@ import { procurementApi } from "../../modules/procurement/api/procurementClient"
 import { ROUTES } from "../../app/router/routes";
 import type { Supplier } from "../../modules/procurement/types/procurement";
 
-// ── types ────────────────────────────────────────────────────────────────────
-
-type ComplianceDocumentType =
-  | "FOOD_SAFETY"
-  | "KEBS_CERTIFICATE"
-  | "ISO"
-  | "ORGANIC"
-  | "GLOBALGAP"
-  | "TAX_COMPLIANCE"
-  | "OTHER";
-
-const COMPLIANCE_DOC_TYPES: ComplianceDocumentType[] = [
-  "FOOD_SAFETY",
-  "KEBS_CERTIFICATE",
-  "ISO",
-  "ORGANIC",
-  "GLOBALGAP",
-  "TAX_COMPLIANCE",
-  "OTHER",
-];
-
-interface DocEntry {
-  file: File;
-  documentType: ComplianceDocumentType;
-  title: string;
-}
-
-// ── mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK: Supplier[] = [
-  {
-    id: "1",
-    code: "SUP-001",
-    name: "Rift Valley Maize Co-op",
-    onboardingStatus: "ACTIVE",
-    isActive: true,
-    taxPin: "P051234567X",
-  },
-];
-
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function Suppliers() {
@@ -57,7 +17,6 @@ export function Suppliers() {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiConnected, setApiConnected] = useState(false);
 
   // supplier fields
   const [code, setCode] = useState("");
@@ -68,8 +27,22 @@ export function Suppliers() {
   const [taxPin, setTaxPin] = useState("");
   const [vatNumber, setVatNumber] = useState("");
 
-  // compliance documents
-  const [docFiles, setDocFiles] = useState<DocEntry[]>([]);
+  // payment details
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNo, setBankAccountNo] = useState("");
+  const [bankBranch, setBankBranch] = useState("");
+  const [bankSwiftCode, setBankSwiftCode] = useState("");
+
+  const MOCK: Supplier[] = [
+    {
+      id: "1",
+      code: "SUP-001",
+      name: "Rift Valley Maize Co-op",
+      onboardingStatus: "ACTIVE",
+      isActive: true,
+      taxPin: "P051234567X",
+    },
+  ];
 
   // ── data loading ────────────────────────────────────────────────────────────
 
@@ -79,10 +52,8 @@ export function Suppliers() {
       const data = await procurementApi.suppliers.list();
       const list = data.suppliers as Supplier[];
       setSuppliers(list.length ? list : MOCK);
-      setApiConnected(list.length > 0);
     } catch {
       setSuppliers(MOCK);
-      setApiConnected(false);
     } finally {
       setLoading(false);
     }
@@ -90,6 +61,7 @@ export function Suppliers() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── helpers ─────────────────────────────────────────────────────────────────
@@ -108,38 +80,23 @@ export function Suppliers() {
     setEmail("");
     setTaxPin("");
     setVatNumber("");
-    setDocFiles([]);
+    setBankName("");
+    setBankAccountNo("");
+    setBankBranch("");
+    setBankSwiftCode("");
     setError(null);
-  };
-
-  const handleAddFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked: DocEntry[] = Array.from(e.target.files ?? []).map((f) => ({
-      file: f,
-      documentType: "OTHER",
-      title: f.name.replace(/\.[^.]+$/, ""),
-    }));
-    setDocFiles((prev) => [...prev, ...picked].slice(0, 5));
-    e.target.value = "";
-  };
-
-  const updateDocEntry = (index: number, patch: Partial<DocEntry>) => {
-    setDocFiles((prev) =>
-      prev.map((entry, i) => (i === index ? { ...entry, ...patch } : entry))
-    );
-  };
-
-  const removeDocEntry = (index: number) => {
-    setDocFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ── form submission ─────────────────────────────────────────────────────────
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!code.trim() || !name.trim()) {
       setError("Code and name are required.");
       return;
     }
+
     setSaving(true);
     setError(null);
 
@@ -151,38 +108,20 @@ export function Suppliers() {
       email: email || null,
       taxPin: taxPin || null,
       vatNumber: vatNumber || null,
+
+      bankName: bankName || null,
+      bankAccountNo: bankAccountNo || null,
+      bankBranch: bankBranch || null,
+      bankSwiftCode: bankSwiftCode || null,
     };
 
     try {
-      const created = await procurementApi.suppliers.create(payload);
-      const supplierId =
-        (created as any).supplier?.id ?? (created as any).id;
-
-      const documents = docFiles
-        .filter((d) => d.title.trim().length > 0)
-        .map((d) => ({
-          documentType: d.documentType,
-          title: d.title.trim(),
-          referenceNo: null,
-          // Important: backend expects fileUrl to be a valid URL when provided.
-          // Do not send `null`; omit it entirely until storage/upload exists.
-          ...(false ? { fileUrl: d.title } : {}),
-        }));
-
-      if (supplierId && documents.length) {
-        await procurementApi.suppliers.createComplianceDocumentsBatch(
-          supplierId,
-          { documents }
-        );
-      }
-
+      await procurementApi.suppliers.create(payload);
       setModalOpen(false);
       resetForm();
       await load();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to create supplier"
-      );
+      setError(err instanceof Error ? err.message : "Failed to create supplier");
     } finally {
       setSaving(false);
     }
@@ -197,7 +136,7 @@ export function Suppliers() {
         <div>
           <h1 className="text-xl font-black text-slate-900">Suppliers & CRM</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Profiles, tax compliance, onboarding, and certificate wallet
+            Profiles, tax compliance, onboarding, and payment details
           </p>
         </div>
         <button
@@ -249,9 +188,7 @@ export function Suppliers() {
                 <tr
                   key={s.id}
                   className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"
-                  onClick={() =>
-                    navigate(ROUTES.PROCUREMENT_SUPPLIER_DETAIL(s.id))
-                  }
+                  onClick={() => navigate(ROUTES.PROCUREMENT_SUPPLIER_DETAIL(s.id))}
                 >
                   <td className="px-4 py-3 font-mono font-bold">{s.code}</td>
                   <td className="px-4 py-3 font-medium">{s.name}</td>
@@ -262,17 +199,16 @@ export function Suppliers() {
                   <td className="px-4 py-3">
                     <span
                       className={
-                        s.isActive
-                          ? "text-emerald-600 font-bold"
-                          : "text-slate-400"
+                        s.isActive ? "text-emerald-600 font-bold" : "text-slate-400"
                       }
                     >
                       {s.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-left">
+                  <td className="px-4 py-3 text-left" onClick={(ev) => ev.stopPropagation()}>
                     <button
                       type="button"
+                      onClick={() => navigate(ROUTES.PROCUREMENT_SUPPLIER_DETAIL(s.id))}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-sm transition-all hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 active:scale-95"
                     >
                       <Eye className="h-3 w-3" />
@@ -283,10 +219,7 @@ export function Suppliers() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-10 text-center text-slate-400"
-                  >
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
                     No suppliers match your search
                   </td>
                 </tr>
@@ -302,9 +235,7 @@ export function Suppliers() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-[820px] border border-slate-200 max-h-[70vh] flex flex-col">
             {/* modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="text-sm font-black text-slate-900">
-                New supplier
-              </h2>
+              <h2 className="text-sm font-black text-slate-900">New supplier</h2>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
@@ -315,10 +246,7 @@ export function Suppliers() {
             </div>
 
             {/* modal body */}
-            <form
-              onSubmit={handleCreate}
-              className="p-6 space-y-4 overflow-y-auto"
-            >
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto">
               {error && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   {error}
@@ -365,9 +293,7 @@ export function Suppliers() {
               {/* phone + email */}
               <div className="grid grid-cols-2 gap-4">
                 <label className="block">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    Phone
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Phone</span>
                   <input
                     className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
                     value={phone}
@@ -375,9 +301,7 @@ export function Suppliers() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    Email
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Email</span>
                   <input
                     type="email"
                     className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
@@ -390,9 +314,7 @@ export function Suppliers() {
               {/* tax PIN + VAT */}
               <div className="grid grid-cols-2 gap-4">
                 <label className="block">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    Tax PIN
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Tax PIN</span>
                   <input
                     className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
                     value={taxPin}
@@ -400,9 +322,7 @@ export function Suppliers() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">
-                    VAT number
-                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">VAT number</span>
                   <input
                     className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
                     value={vatNumber}
@@ -411,84 +331,51 @@ export function Suppliers() {
                 </label>
               </div>
 
-              {/* compliance documents */}
+              {/* payment details */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">
-                      Compliance documents
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      Up to 5 files. Title is pre-filled from filename — edit
-                      as needed.
-                    </p>
-                  </div>
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-50">
-                    <Plus className="h-3 w-3" />
-                    Add file
+                <p className="text-[10px] font-bold text-slate-500 uppercase">
+                  Payment details
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Bank name</span>
                     <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                      className="sr-only"
-                      onChange={handleAddFiles}
+                      className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">
+                      Bank account number
+                    </span>
+                    <input
+                      className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                      value={bankAccountNo}
+                      onChange={(e) => setBankAccountNo(e.target.value)}
                     />
                   </label>
                 </div>
 
-                {docFiles.length === 0 && (
-                  <p className="text-[11px] text-slate-400 text-center py-3">
-                    No files added yet
-                  </p>
-                )}
-
-                {docFiles.map((d, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end"
-                  >
-                    <label className="block">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Title
-                      </span>
-                      <input
-                        className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
-                        value={d.title}
-                        onChange={(e) =>
-                          updateDocEntry(i, { title: e.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Type
-                      </span>
-                      <select
-                        className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
-                        value={d.documentType}
-                        onChange={(e) =>
-                          updateDocEntry(i, {
-                            documentType:
-                              e.target.value as ComplianceDocumentType,
-                          })
-                        }
-                      >
-                        {COMPLIANCE_DOC_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => removeDocEntry(i)}
-                      className="mb-0.5 p-1.5 text-slate-400 hover:text-red-500 rounded"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Bank branch</span>
+                    <input
+                      className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                      value={bankBranch}
+                      onChange={(e) => setBankBranch(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">SWIFT code</span>
+                    <input
+                      className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-xs"
+                      value={bankSwiftCode}
+                      onChange={(e) => setBankSwiftCode(e.target.value)}
+                    />
+                  </label>
+                </div>
               </div>
 
               {/* footer actions */}
@@ -515,3 +402,4 @@ export function Suppliers() {
     </div>
   );
 }
+
