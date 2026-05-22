@@ -59,30 +59,6 @@ interface InventoryItemDetail {
 
 // ─── Mock data (offline fallback) ─────────────────────────────────────────────
 
-const MOCK_DETAIL: InventoryItemDetail = {
-  id: "item_1",
-  sku: "MZ-RAW-01",
-  name: "Raw Maize Grain",
-  description: "Bulk dry maize grain loaded in warehouse silos",
-  type: "RAW_MATERIAL",
-  unit: "KG",
-  quantity: 4250.5,
-  unitPrice: 0.45,
-  createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  updatedAt: new Date().toISOString(),
-  priceHistory: [
-    { id: "ph_3", unitPrice: 0.45, effectiveDate: new Date(Date.now() - 3 * 86400000).toISOString(), createdAt: new Date(Date.now() - 3 * 86400000).toISOString() },
-    { id: "ph_2", unitPrice: 0.42, effectiveDate: new Date(Date.now() - 12 * 86400000).toISOString(), createdAt: new Date(Date.now() - 12 * 86400000).toISOString() },
-    { id: "ph_1", unitPrice: 0.38, effectiveDate: new Date(Date.now() - 28 * 86400000).toISOString(), createdAt: new Date(Date.now() - 28 * 86400000).toISOString() },
-  ],
-  movements: [
-    { id: "mv_4", movementType: "ADJUSTMENT", quantityDelta: -120.0, unitPriceApplied: 0.45, movementAt: new Date(Date.now() - 1 * 86400000).toISOString(), notes: "Manual correction after recount" },
-    { id: "mv_3", movementType: "ISSUE_TO_PRODUCTION", quantityDelta: -800.0, unitPriceApplied: 0.42, movementAt: new Date(Date.now() - 5 * 86400000).toISOString(), notes: "Issued to Line A – PR-2024-014" },
-    { id: "mv_2", movementType: "RECEIPT", quantityDelta: 2000.0, unitPriceApplied: 0.42, movementAt: new Date(Date.now() - 11 * 86400000).toISOString(), notes: "Delivery from Supplier SUP-003" },
-    { id: "mv_1", movementType: "RECEIPT", quantityDelta: 3170.5, unitPriceApplied: 0.38, movementAt: new Date(Date.now() - 28 * 86400000).toISOString(), notes: "Opening balance on catalog creation" },
-  ],
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (n: number, dec = 2) =>
@@ -183,7 +159,6 @@ export function InventoryItemView() {
 
   useEffect(() => {
     if (!itemId) {
-      setItem(MOCK_DETAIL);
       setLoading(false);
       return;
     }
@@ -195,9 +170,7 @@ export function InventoryItemView() {
         const data = await res.json();
         setItem(data.item);
       } catch (e) {
-        // Fall back to mock on any error
-        setItem(MOCK_DETAIL);
-        setError("Could not reach server — showing demo data.");
+        setError("Could not reach server or item not found.");
       } finally {
         setLoading(false);
       }
@@ -215,7 +188,18 @@ export function InventoryItemView() {
     );
   }
 
-  if (!item) return null;
+  if (!item) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f9fafb" }}>
+        <div style={{ textAlign: "center", padding: "40px", background: "#fff", borderRadius: "16px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <Package style={{ width: 48, height: 48, color: "#d1d5db", margin: "0 auto 16px" }} />
+          <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginBottom: "8px" }}>No Item Data</h2>
+          <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "20px" }}>There is no information to display for this inventory item.</p>
+          <button onClick={() => navigate(ROUTES.INVENTORY_CATALOGUE)} style={{ color: "#d97706", fontWeight: 700, fontSize: "14px", background: "none", border: "none", cursor: "pointer" }}>Back to Catalog</button>
+        </div>
+      </div>
+    );
+  }
 
   const typeMeta = TYPE_META[item.type];
   const latestPrice = item.priceHistory[0]?.unitPrice ?? item.unitPrice ?? 0;

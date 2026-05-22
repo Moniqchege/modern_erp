@@ -11,29 +11,8 @@ export interface Customer {
   updatedAt: string;
 }
 
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: "cust_1",
-    name: "Acme Corporation",
-    email: "billing@acme.com",
-    phone: "+1 (555) 019-2834",
-    address: "128 Industrial Pkwy, Detroit, MI 48201",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "cust_2",
-    name: "Starlight Industries",
-    email: "accounting@starlight.io",
-    phone: "+1 (800) 555-0142",
-    address: "400 Skyline Blvd, San Francisco, CA 94107",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
 export function Customers() {
-  const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,7 +32,7 @@ export function Customers() {
       if (response.ok) {
         const data = await response.json();
         if (data && Array.isArray(data.customers)) {
-          setCustomers(data.customers.length > 0 ? data.customers : MOCK_CUSTOMERS);
+          setCustomers(data.customers);
           setApiStatus("connected");
         }
       } else {

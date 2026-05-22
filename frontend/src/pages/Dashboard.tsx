@@ -19,8 +19,8 @@ type DashboardApiResponse = {
   success: boolean;
   stats: {
     rawMaizeStockKg: number;
-    grade1FlourStockKg: number;
-    grade2FlourStockKg: number;
+    finishedGoodsStockKg: number;
+    byProductsStockKg: number;
     avgMillingEfficiencyPct: number;
     avgYieldLossRatePct: number;
   };
@@ -80,8 +80,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         iconColor: "text-amber-600 bg-amber-100",
       },
       {
-        label: "Grade 1 Flour Stock",
-        value: formatKg(s.grade1FlourStockKg),
+        label: "Total Flour Stock",
+        value: formatKg(s.finishedGoodsStockKg),
         change: "+0.00 KG",
         isPositive: true,
         timeframe: "Finished goods on hand",
@@ -90,11 +90,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         iconColor: "text-emerald-600 bg-emerald-100",
       },
       {
-        label: "Grade 2 Flour Stock",
-        value: formatKg(s.grade2FlourStockKg),
-        change: "-0.00 KG",
-        isPositive: false,
-        timeframe: "Finished goods on hand",
+        label: "By-Product Stock",
+        value: formatKg(s.byProductsStockKg),
+        change: "+0.00 KG",
+        isPositive: true,
+        timeframe: "Hulls, jam & germ",
         icon: Warehouse,
         border: "border-sky-100",
         iconColor: "text-sky-600 bg-sky-100",
@@ -135,7 +135,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const chartPoints = useMemo(() => {
     const history = data?.yieldHistory ?? [];
     const values = history.map((h) => h.efficiencyPct);
-    if (values.length < 2) return { path: "M0,22 L100,5", labels: [] as string[] };
+    if (values.length < 2) return { path: "M0,35 L100,35", labels: [] as string[] };
 
     const min = Math.min(...values);
     const max = Math.max(...values);
@@ -279,7 +279,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 d={
                   chartPoints.labels.length
                     ? `M0,35 ${chartPoints.path.replace(/^M/, "L")}`
-                    : "M0,35 L0,22 Q15,15 30,23 T60,10 T85,12 L100,5 L100,35 Z"
+                    : "M0,35 L100,35"
                 }
                 fill="url(#chartGlowLight)"
               />
@@ -293,7 +293,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               />
             </svg>
             <div className="absolute inset-x-0 bottom-0 flex justify-between text-[9px] text-slate-400 font-bold px-1 select-none">
-              {(chartPoints.labels.length ? chartPoints.labels : ["Run #1","Run #2","Run #3","Run #4","Run #5","Run #6"]).slice(0,6).map((lbl, i) => (
+              {chartPoints.labels.slice(0,6).map((lbl, i) => (
                 <span key={i}>{lbl}</span>
               ))}
             </div>

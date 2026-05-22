@@ -380,15 +380,24 @@ CREATE TABLE `ProductionBatch` (
     `id` VARCHAR(191) NOT NULL,
     `batchNumber` VARCHAR(191) NOT NULL,
     `rawMaizeConsumed` DECIMAL(12, 3) NOT NULL,
-    `grade1Produced` DECIMAL(12, 3) NOT NULL,
-    `grade2Produced` DECIMAL(12, 3) NOT NULL,
-    `maizeJamProduced` DECIMAL(12, 3) NOT NULL,
     `wasteLoss` DECIMAL(12, 3) NOT NULL,
     `efficiency` DECIMAL(5, 2) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `ProductionBatch_batchNumber_key`(`batchNumber`),
+    INDEX `ProductionBatch_batchNumber_idx`(`batchNumber`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ProductionBatchOutput` (
+    `id` VARCHAR(191) NOT NULL,
+    `productionBatchId` VARCHAR(191) NOT NULL,
+    `inventoryItemId` VARCHAR(191) NOT NULL,
+    `quantityKg` DECIMAL(12, 3) NOT NULL,
+
+    INDEX `ProductionBatchOutput_productionBatchId_idx`(`productionBatchId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -398,14 +407,10 @@ CREATE TABLE `PackagingRun` (
     `runNumber` VARCHAR(191) NOT NULL,
     `operatorName` VARCHAR(191) NOT NULL,
     `baleWeightKg` DECIMAL(12, 3) NOT NULL DEFAULT 24,
-    `grade1FlourConsumed` DECIMAL(12, 3) NOT NULL,
-    `grade2FlourConsumed` DECIMAL(12, 3) NOT NULL,
     `flourSpillage` DECIMAL(12, 3) NOT NULL DEFAULT 0,
     `packagingMaterialReceived` DECIMAL(12, 3) NOT NULL DEFAULT 0,
     `packagingMaterialConsumed` DECIMAL(12, 3) NOT NULL DEFAULT 0,
     `packagingMaterialDestroyed` DECIMAL(12, 3) NOT NULL DEFAULT 0,
-    `balesProducedGrade1` INTEGER NOT NULL DEFAULT 0,
-    `balesProducedGrade2` INTEGER NOT NULL DEFAULT 0,
     `totalPackagedKg` DECIMAL(12, 3) NOT NULL,
     `yieldPercent` DECIMAL(5, 2) NOT NULL,
     `notes` TEXT NULL,
@@ -919,6 +924,12 @@ ALTER TABLE `DispatchItem` ADD CONSTRAINT `DispatchItem_dispatchLogId_fkey` FORE
 
 -- AddForeignKey
 ALTER TABLE `DispatchItem` ADD CONSTRAINT `DispatchItem_palletId_fkey` FOREIGN KEY (`palletId`) REFERENCES `Pallet`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ProductionBatchOutput` ADD CONSTRAINT `ProductionBatchOutput_productionBatchId_fkey` FOREIGN KEY (`productionBatchId`) REFERENCES `ProductionBatch`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ProductionBatchOutput` ADD CONSTRAINT `ProductionBatchOutput_inventoryItemId_fkey` FOREIGN KEY (`inventoryItemId`) REFERENCES `InventoryItem`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `PackagingRunFinishedProductInput` ADD CONSTRAINT `PackagingRunFinishedProductInput_packagingRunId_fkey` FOREIGN KEY (`packagingRunId`) REFERENCES `PackagingRun`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

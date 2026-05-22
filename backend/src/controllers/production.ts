@@ -32,137 +32,78 @@ export async function processBatch(req: Request, res: Response) {
 
     // We execute everything in a Prisma Transaction to guarantee ACID compliance
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Find or seed the raw Maize inventory item
-      let rawMaize = await tx.inventoryItem.findUnique({
-        where: { sku: "MZ-RAW-01" },
+      // 1. Find the raw material item (Maize)
+      let rawMaize = await tx.inventoryItem.findFirst({
+        where: {
+          OR: [{ sku: "MZ-RAW-01" }, { type: "RAW_MATERIAL" }],
+        },
       });
 
       if (!rawMaize) {
-        // Seed initial raw Maize so first run works immediately
-        rawMaize = await tx.inventoryItem.create({
-          data: {
-            sku: "MZ-RAW-01",
-            name: "Raw Maize",
-            description: "Bulk unprocessed raw maize grain",
-            type: "RAW_MATERIAL",
-            unit: "KG",
-            quantity: 5000.0, // Seed with 5,000 KG
-          },
-        });
-
+        throw new Error("Raw Material item not found. Please create a 'Raw Material' in the catalog first (e.g. Raw Maize).");
       }
 
       // Check for sufficient inventory
       const currentRawQty = Number(rawMaize.quantity);
       if (currentRawQty < rawMaizeConsumed) {
         throw new Error(
-          `Insufficient Raw Maize stock. Available: ${currentRawQty.toFixed(2)} KG, Consumed: ${rawMaizeConsumed.toFixed(2)} KG.`
+          `Insufficient ${rawMaize.name} stock. Available: ${currentRawQty.toFixed(2)} ${rawMaize.unit}, Consumed: ${rawMaizeConsumed.toFixed(2)} ${rawMaize.unit}.`
         );
       }
 
-      // Find or seed finished goods outputs
-      let grade1 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR1-01" } });
-      if (!grade1) {
-        grade1 = await tx.inventoryItem.create({
-          data: {
-            sku: "FL-GR1-01",
-            name: "Grade 1 Maize Flour",
-            description: "Premium fine milled maize flour",
-            type: "FINISHED_GOOD",
-            unit: "KG",
-            quantity: 0.0,
-          },
-        });
+      // Find byproduct item (Jam/Hulls)
+      let maizeJam = await tx.inventoryItem.findFirst({
+        where: {
+          OR: [{ sku: "BY-JAM-03" }, { type: "BY_PRODUCT" }],
+        },
+      });
 
-      }
-
-      let grade2 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR2-02" } });
-      if (!grade2) {
-        grade2 = await tx.inventoryItem.create({
-          data: {
-            sku: "FL-GR2-02",
-            name: "Grade 2 Maize Flour",
-            description: "Standard sifted maize flour",
-            type: "FINISHED_GOOD",
-            unit: "KG",
-            quantity: 0.0,
-          },
-        });
-
-      }
-
-      let maizeJam = await tx.inventoryItem.findUnique({ where: { sku: "BY-JAM-03" } });
-      if (!maizeJam) {
-        maizeJam = await tx.inventoryItem.create({
-          data: {
-            sku: "BY-JAM-03",
-            name: "Maize Jam",
-            description: "Milling by-product, animal feed grade",
-            type: "BY_PRODUCT",
-            unit: "KG",
-            quantity: 0.0,
-          },
-        });
-
+      if (maizeJamProduced > 0 && !maizeJam) {
+        throw new Error("By-product item not found. Please create a 'By-Product' in the catalog first (e.g. Maize Jam).");
       }
 
       // 2. Deduct Raw Material Maize
       const updatedRawMaize = await tx.inventoryItem.update({
-        where: { sku: "MZ-RAW-01" },
+        where: { id: rawMaize.id },
         data: {
           quantity: (currentRawQty - rawMaizeConsumed).toFixed(3),
         },
       });
 
       // 3. Add produced Finished Goods outputs (dynamic)
-      let grade1Produced = 0;
-      let grade2Produced = 0;
+      let totalOutputsKg = 0;
 
       // Apply each finished-good output to its corresponding inventory item
       for (const output of flourOutputs) {
-        const target = await tx.inventoryItem.findUnique({
-          where: { id: output.inventoryItemId },
-        });
-
+        const target = await tx.inventoryItem.findUnique({ where: { id: output.inventoryItemId } });
         if (!target) {
           throw new Error(`Inventory item not found: ${output.inventoryItemId}`);
         }
-        if (target.type !== "FINISHED_GOOD") {
-          throw new Error(`Inventory item ${target.sku} is not FINISHED_GOOD`);
-        }
+        if (target.type !== "FINISHED_GOOD") throw new Error(`Inventory item ${target.sku} is not FINISHED_GOOD`);
 
-        // Update quantity
         await tx.inventoryItem.update({
           where: { id: target.id },
           data: {
             quantity: (Number(target.quantity) + output.quantityKg).toFixed(3),
           },
         });
-
-        // Maintain legacy dashboard fields as a best-effort mapping
-        if (target.sku === "FL-GR1-01") grade1Produced += output.quantityKg;
-        else if (target.sku === "FL-GR2-02") grade2Produced += output.quantityKg;
+        totalOutputsKg += output.quantityKg;
       }
 
-      // Re-read to return updated quantities for the legacy SKUs
-      const updatedGrade1 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR1-01" } });
-      const updatedGrade2 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR2-02" } });
-      if (!updatedGrade1 || !updatedGrade2) {
-        throw new Error("Failed to resolve legacy grade1/grade2 inventory items");
+      let updatedMaizeJam = null;
+      if (maizeJam) {
+        updatedMaizeJam = await tx.inventoryItem.update({
+          where: { id: maizeJam.id },
+          data: {
+            quantity: (Number(maizeJam.quantity) + maizeJamProduced).toFixed(3),
+          },
+        });
       }
-
-
-      const updatedMaizeJam = await tx.inventoryItem.update({
-        where: { sku: "BY-JAM-03" },
-        data: {
-          quantity: (Number(maizeJam.quantity) + maizeJamProduced).toFixed(3),
-        },
-      });
+      totalOutputsKg += maizeJamProduced;
 
       // 4. Calculate Efficiency & Waste
-      const totalOutput = grade1Produced + grade2Produced + maizeJamProduced;
-      const wasteLoss = rawMaizeConsumed - totalOutput;
-      const efficiency = (totalOutput / rawMaizeConsumed) * 100;
+      const wasteLoss = rawMaizeConsumed - totalOutputsKg;
+      const efficiency = (totalOutputsKg / rawMaizeConsumed) * 100;
 
       // 5. Log Production Batch
       const batchNumber = `M-BATCH-${Date.now().toString().slice(-8)}`;
@@ -170,21 +111,29 @@ export async function processBatch(req: Request, res: Response) {
         data: {
           batchNumber,
           rawMaizeConsumed: rawMaizeConsumed.toFixed(3),
-          grade1Produced: grade1Produced.toFixed(3),
-          grade2Produced: grade2Produced.toFixed(3),
-          maizeJamProduced: maizeJamProduced.toFixed(3),
           wasteLoss: wasteLoss.toFixed(3),
           efficiency: efficiency.toFixed(2),
+          outputs: {
+            create: [
+              ...flourOutputs.map(o => ({
+                inventoryItemId: o.inventoryItemId,
+                quantityKg: o.quantityKg.toFixed(3)
+              })),
+              {
+                inventoryItemId: maizeJam.id,
+                quantityKg: maizeJamProduced.toFixed(3)
+              }
+            ]
+          }
         },
+        include: { outputs: { include: { inventoryItem: true } } }
       });
 
       return {
         batch,
         inventory: {
           rawMaize: updatedRawMaize,
-          grade1: updatedGrade1,
-          grade2: updatedGrade2,
-          maizeJam: updatedMaizeJam,
+          maizeJam: updatedMaizeJam || null,
         },
         prevRawQty: currentRawQty,
       };
@@ -197,9 +146,6 @@ export async function processBatch(req: Request, res: Response) {
       batch: {
         ...result.batch,
         rawMaizeConsumed: Number(result.batch.rawMaizeConsumed),
-        grade1Produced: Number(result.batch.grade1Produced),
-        grade2Produced: Number(result.batch.grade2Produced),
-        maizeJamProduced: Number(result.batch.maizeJamProduced),
         wasteLoss: Number(result.batch.wasteLoss),
         efficiency: Number(result.batch.efficiency),
       },

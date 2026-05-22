@@ -69,6 +69,10 @@ export async function processPackaging(req: Request, res: Response) {
 export async function listPackagingRuns(_req: Request, res: Response) {
   try {
     const runs = await prisma.packagingRun.findMany({
+      include: {
+        finishedProductInputs: true,
+        finishedProductOutputs: true,
+      },
       orderBy: { createdAt: "desc" },
       take: 100,
     });

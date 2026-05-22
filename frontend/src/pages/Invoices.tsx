@@ -17,25 +17,8 @@ export interface Invoice {
   createdAt: string;
 }
 
-const MOCK_INVOICES: Invoice[] = [
-  {
-    id: "inv_1",
-    invoiceNumber: "INV-2026-001",
-    subtotal: 4000.00,
-    tax: 250.00,
-    total: 4250.00,
-    status: "PAID",
-    customerId: "cust_1",
-    customer: { name: "Acme Corporation" },
-    createdById: "admin_1",
-    createdBy: { name: "System Admin" },
-    issuedAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-  },
-];
-
 export function Invoices() {
-  const [invoices, setInvoices] = useState<Invoice[]>(MOCK_INVOICES);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -67,7 +50,7 @@ export function Invoices() {
       if (invResp.ok) {
         const invData = await invResp.json();
         if (invData && Array.isArray(invData.invoices)) {
-          setInvoices(invData.invoices.length > 0 ? invData.invoices : MOCK_INVOICES);
+          setInvoices(invData.invoices);
           setApiStatus("connected");
         }
       } else {

@@ -17,12 +17,17 @@ export interface ProductionBatch {
   id: string;
   batchNumber: string;
   rawMaizeConsumed: number;
-  grade1Produced: number;
-  grade2Produced: number;
-  maizeJamProduced: number;
   wasteLoss: number;
   efficiency: number;
   createdAt: string;
+  outputs: Array<{
+    quantityKg: string | number;
+    inventoryItem: {
+      name: string;
+      sku: string;
+      type: string;
+    }
+  }>;
 }
 
 interface InventoryItem {
@@ -36,33 +41,8 @@ interface InventoryItem {
   unitPrice?: number;
 }
 
-const MOCK_BATCHES: ProductionBatch[] = [
-  {
-    id: "b_1",
-    batchNumber: "M-BATCH-832104",
-    rawMaizeConsumed: 500.00,
-    grade1Produced: 320.00,
-    grade2Produced: 120.00,
-    maizeJamProduced: 42.00,
-    wasteLoss: 18.00,
-    efficiency: 96.40,
-    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(), 
-  },
-  {
-    id: "b_2",
-    batchNumber: "M-BATCH-832049",
-    rawMaizeConsumed: 1000.00,
-    grade1Produced: 640.00,
-    grade2Produced: 245.00,
-    maizeJamProduced: 85.00,
-    wasteLoss: 30.00,
-    efficiency: 97.00,
-    createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), 
-  },
-];
-
 export function ProductionForm() {
-  const [batches, setBatches] = useState<ProductionBatch[]>(MOCK_BATCHES);
+  const [batches, setBatches] = useState<ProductionBatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiStatus, setApiStatus] = useState<"idle" | "connected" | "offline">("idle");
@@ -82,7 +62,7 @@ export function ProductionForm() {
       if (response.ok) {
         const data = await response.json();
         if (data && Array.isArray(data.batches)) {
-          setBatches(data.batches.length > 0 ? data.batches : MOCK_BATCHES);
+          setBatches(data.batches);
           setApiStatus("connected");
         }
       } else {
@@ -557,10 +537,8 @@ const mockNew: ProductionBatch = {
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[10px] font-extrabold tracking-widest uppercase">
                 <th className="px-6 py-4.5">Batch Code</th>
                 <th className="px-6 py-4.5">Date & Time</th>
-                <th className="px-6 py-4.5 text-right">Maize Consumed (KG)</th>
-                <th className="px-6 py-4.5 text-right">Grade 1 Flour (KG)</th>
-                <th className="px-6 py-4.5 text-right">Grade 2 Flour (KG)</th>
-                <th className="px-6 py-4.5 text-right">Maize Jam (KG)</th>
+                <th className="px-6 py-4.5 text-right">Input (KG)</th>
+                <th className="px-6 py-4.5">Outputs Produced</th>
                 <th className="px-6 py-4.5 text-right">Waste Loss</th>
                 <th className="px-6 py-4.5 text-center">Yield Efficiency</th>
               </tr>
@@ -592,14 +570,14 @@ const mockNew: ProductionBatch = {
                     <td className="px-6 py-4 text-right font-mono font-bold text-slate-800">
                       {Number(b.rawMaizeConsumed).toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 text-right font-mono text-slate-700">
-                      {Number(b.grade1Produced).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono text-slate-700">
-                      {Number(b.grade2Produced).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono text-slate-700">
-                      {Number(b.maizeJamProduced).toFixed(2)}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {b.outputs?.map((out, idx) => (
+                          <span key={idx} className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold whitespace-nowrap">
+                            {Number(out.quantityKg).toFixed(1)}kg {out.inventoryItem.name}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-amber-600 font-bold">
                       {Number(b.wasteLoss).toFixed(2)}

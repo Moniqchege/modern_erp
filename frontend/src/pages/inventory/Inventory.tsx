@@ -26,32 +26,6 @@ function isBelowReorder(item: InventoryItem): boolean {
   return item.quantity <= item.reorderLevel;
 }
 
-const MOCK_ITEMS: InventoryItem[] = [
-  {
-    id: "item_1", sku: "MZ-RAW-01", name: "Raw Maize Grain",
-    description: "Bulk dry maize grain loaded in warehouse silos",
-    type: "RAW_MATERIAL", unit: "KG", quantity: 4250.50, unitPrice: 0.45,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "item_2", sku: "FL-GR1-01", name: "Grade 1 Maize Flour",
-    description: "Premium fine milled maize flour (domestic retail package ready)",
-    type: "FINISHED_GOOD", unit: "KG", quantity: 1420.00, unitPrice: 1.20,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "item_3", sku: "FL-GR2-02", name: "Grade 2 Maize Flour",
-    description: "Standard sifted flour for retail and commercial baking",
-    type: "FINISHED_GOOD", unit: "KG", quantity: 840.50, unitPrice: 0.90,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "item_4", sku: "BY-JAM-03", name: "Maize Jam",
-    description: "Milling by-product (bran + germ blend), high protein livestock feed",
-    type: "BY_PRODUCT", unit: "KG", quantity: 560.00, unitPrice: 0.30,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-  },
-];
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -324,7 +298,7 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
 // ─── Main Inventory Component ──────────────────────────────────────────────────
 
 export function Inventory({ onViewItem }: InventoryProps) {
-  const [items, setItems] = useState<InventoryItem[]>(MOCK_ITEMS);
+  const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -351,7 +325,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
       if (response.ok) {
         const data = await response.json();
         if (data && Array.isArray(data.items)) {
-          setItems(data.items.length > 0 ? data.items : MOCK_ITEMS);
+          setItems(Array.isArray(data?.items) ? data.items : []);
           setApiStatus("connected");
         }
       } else {
@@ -391,7 +365,10 @@ export function Inventory({ onViewItem }: InventoryProps) {
         });
         if (res.ok) {
           const data = await res.json();
-          if (data?.item) { setItems((p) => [data.item, ...p]); closeAddModal(); }
+          if (data?.item) { setItems((prev) => {
+  const safePrev = prev ?? [];
+  return [data.item, ...safePrev];
+}); closeAddModal(); }
           else setErrorText("Failed to parse server response.");
         } else {
           const err = await res.json();
@@ -416,15 +393,20 @@ export function Inventory({ onViewItem }: InventoryProps) {
   };
 
   const handleEditSaved = (updated: InventoryItem) => {
-    setItems((prev) => prev.map((it) => it.id === updated.id ? updated : it));
-    setEditTarget(null);
-  };
+  setItems((prev) => {
+    const safePrev = prev ?? [];
+    return safePrev.map((it) =>
+      it.id === updated.id ? updated : it
+    );
+  });
+  setEditTarget(null);
+};
 
-  const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase()) ||
-    item.sku.toLowerCase().includes(search.toLowerCase()) ||
-    (item.description?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredItems = (items ?? []).filter((item) =>
+  item.name.toLowerCase().includes(search.toLowerCase()) ||
+  item.sku.toLowerCase().includes(search.toLowerCase()) ||
+  item.description?.toLowerCase().includes(search.toLowerCase())
+);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

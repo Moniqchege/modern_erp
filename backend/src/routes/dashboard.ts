@@ -23,14 +23,12 @@ dashboardRouter.get("/summary", async (_req, res) => {
             .filter((i) => i.sku === "MZ-RAW-01" || i.type === "RAW_MATERIAL")
             .reduce((sum, i) => sum + Number(i.quantity), 0);
 
-        const grade1FlourStockKg = inventoryItems
-            .filter((i) => i.sku === "FL-GR1-01" || i.type === "FINISHED_GOOD")
-            .filter((i) => i.sku === "FL-GR1-01")
+        const finishedGoodsStockKg = inventoryItems
+            .filter((i) => i.type === "FINISHED_GOOD")
             .reduce((sum, i) => sum + Number(i.quantity), 0);
 
-        const grade2FlourStockKg = inventoryItems
-            .filter((i) => i.sku === "FL-GR2-02" || i.type === "FINISHED_GOOD")
-            .filter((i) => i.sku === "FL-GR2-02")
+        const byProductsStockKg = inventoryItems
+            .filter((i) => i.type === "BY_PRODUCT")
             .reduce((sum, i) => sum + Number(i.quantity), 0);
 
         // Production-derived stats (legacy MVP model)
@@ -102,8 +100,8 @@ dashboardRouter.get("/summary", async (_req, res) => {
         const payload = {
             stats: {
                 rawMaizeStockKg,
-                grade1FlourStockKg,
-                grade2FlourStockKg,
+                finishedGoodsStockKg,
+                byProductsStockKg,
                 avgMillingEfficiencyPct: avgEff,
                 avgYieldLossRatePct: Math.abs(avgYieldLossRatePct),
             },
@@ -116,5 +114,3 @@ dashboardRouter.get("/summary", async (_req, res) => {
         res.status(500).json({ success: false, message: "Failed to fetch dashboard summary", error: String(error) });
     }
 });
-
-
