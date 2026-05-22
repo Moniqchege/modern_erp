@@ -1,16 +1,4 @@
 "use strict";
-/**
- * TRACEABILITY SERVICE
- *
- * Core service for bi-directional traceability in food processing ERP.
- * Implements HACCP/ISO 22000 compliant tracking from farm gate to retail shelf.
- *
- * Key Features:
- * - Forward traceability: Track raw materials through production to final delivery
- * - Backward traceability: Trace finished products back to source suppliers
- * - Mass balance validation with variance alerts
- * - FIFO enforcement for inventory picking
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.receiveRawMaize = receiveRawMaize;
 exports.performQualityControl = performQualityControl;

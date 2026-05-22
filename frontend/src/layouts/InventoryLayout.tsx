@@ -100,10 +100,10 @@ export function InventoryLayout() {
         <div className="p-6 border-b border-slate-200/80">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center shadow-md shadow-orange-500/25">
-              <Boxes className="h-5 w-5 text-white" />
+              <Boxes className="h-5 w-5 text-white" onClick={() => navigate("/app")} />
             </div>
             <div>
-              <span className="text-base font-black text-slate-900 tracking-tight block">Inventory</span>
+              <span className="text-base font-black text-slate-900 tracking-tight block" onClick={() => navigate("/app")}>Inventory</span>
               <span className="text-[10px] text-orange-700 font-bold tracking-wider uppercase">
                 Stock & Operations
               </span>

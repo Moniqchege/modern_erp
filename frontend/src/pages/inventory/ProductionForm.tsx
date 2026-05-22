@@ -156,14 +156,17 @@ const rawMaterials = inventoryItems.filter(
     if (isInvalidInput || isOutputExceeded) return;
 
     const payload = {
-  rawMaizeConsumed: inputMaize,
-  outputs: Object.entries(productionOutputs).map(
-    ([inventoryItemId, quantity]) => ({
-      inventoryItemId,
-      quantity: parseFloat(quantity) || 0,
-    })
-  ),
-};
+      rawMaizeConsumed: inputMaize,
+      flourOutputs: finishedGoods.map((item) => ({
+        inventoryItemId: item.id,
+        quantityKg: parseFloat(productionOutputs[item.id] || "0") || 0,
+      })),
+      maizeJamProduced: (() => {
+        const jamItem = byProducts.find((i) => i.sku === "BY-JAM-03") || byProducts[0];
+        if (!jamItem) return 0;
+        return parseFloat(productionOutputs[jamItem.id] || "0") || 0;
+      })(),
+    };
 
     setSubmitting(true);
     setErrorMessage(null);

@@ -229,13 +229,30 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
     // Receipts into dynamic bale items
     for (const out of input.flourPackedOutputs) {
       if (out.balesProduced <= 0) continue;
+
+      // If frontend didn't specify bale item id yet, fall back to the first bale item (legacy assumption).
+      // This prevents "Inventory item not found" errors when packedBaleInventoryItemId is "".
+      const baleItemId = out.packedBaleInventoryItemId || (await tx.inventoryItem.findFirst({
+        where: {
+          type: "FINISHED_GOOD",
+          // Avoid unit filtering (Prisma unit enum type may not include "BALE" in your DB seed)
+        },
+        select: { id: true },
+        orderBy: { createdAt: "asc" },
+      }))?.id;
+
+      if (!baleItemId) {
+        throw new Error("Bale inventory item not found. Please configure packedBaleInventoryItemId or seed a BALE item.");
+      }
+
       await applyMovement(tx, {
-        itemId: out.packedBaleInventoryItemId,
+        itemId: baleItemId,
         movementType: "RECEIPT",
         quantityDelta: out.balesProduced,
         packagingRunId: run.id,
         notes: `${out.balesProduced} bales @ ${baleWeight}kg — ${runNumber}`,
       });
+
 
       // legacy mapping can be done by checking bale sku
       const baleItem = await tx.inventoryItem.findUnique({ where: { id: out.packedBaleInventoryItemId } });

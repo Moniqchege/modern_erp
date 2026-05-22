@@ -8,14 +8,27 @@ const server_1 = require("../server");
 const packaging_service_1 = require("../services/packaging.service");
 exports.ProcessPackagingSchema = zod_1.z.object({
     operatorName: zod_1.z.string().min(1).max(120),
-    grade1FlourConsumed: zod_1.z.number().nonnegative(),
-    grade2FlourConsumed: zod_1.z.number().nonnegative(),
+    // Dynamic flour types consumed (bulk, FINISHED_GOOD inventory items)
+    flourConsumption: zod_1.z
+        .array(zod_1.z.object({
+        flourInventoryItemId: zod_1.z.string().min(1),
+        consumedKg: zod_1.z.number().nonnegative(),
+    }))
+        .min(1, "At least one flour consumption row is required"),
+    // Optional spillage total (kg). Will be distributed proportionally across flourConsumption.
     flourSpillage: zod_1.z.number().nonnegative().default(0),
+    // Packaging materials (still uses the single PKG-MAT-01 inventory item in current backend)
     packagingMaterialReceived: zod_1.z.number().nonnegative().optional(),
     packagingMaterialConsumed: zod_1.z.number().nonnegative(),
     packagingMaterialDestroyed: zod_1.z.number().nonnegative().optional(),
-    balesProducedGrade1: zod_1.z.number().int().nonnegative(),
-    balesProducedGrade2: zod_1.z.number().int().nonnegative(),
+    // Dynamic bale outputs per flour type
+    flourPackedOutputs: zod_1.z
+        .array(zod_1.z.object({
+        flourInventoryItemId: zod_1.z.string().min(1),
+        packedBaleInventoryItemId: zod_1.z.string().min(0).optional().default(""),
+        balesProduced: zod_1.z.number().int().nonnegative(),
+    }))
+        .default([]),
     baleWeightKg: zod_1.z.number().positive().optional(),
     notes: zod_1.z.string().max(2000).optional(),
 });
@@ -29,6 +42,11 @@ async function processPackaging(req, res) {
             });
         }
         const run = await (0, packaging_service_1.processPackagingRun)(parse.data);
+        if (!run) {
+            return res.status(404).json({
+                message: "Packaging run could not be created",
+            });
+        }
         res.status(201).json({
             message: "Packaging run recorded successfully",
             run: (0, packaging_service_1.formatPackagingRun)(run),

@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../server";
-import {
-  formatPackagingRun,
-  processPackagingRun,
-} from "../services/packaging.service";
+import { formatPackagingRun, processPackagingRun } from "../services/packaging.service";
+
 
 export const ProcessPackagingSchema = z.object({
   operatorName: z.string().min(1).max(120),
@@ -32,7 +30,7 @@ export const ProcessPackagingSchema = z.object({
     .array(
       z.object({
         flourInventoryItemId: z.string().min(1),
-        packedBaleInventoryItemId: z.string().min(1),
+        packedBaleInventoryItemId: z.string().min(0).optional().default(""),
         balesProduced: z.number().int().nonnegative(),
       })
     )
