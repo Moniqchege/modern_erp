@@ -2,11 +2,19 @@ export const ROUTES = {
     DASHBOARD: "/dashboard",
 
     INVENTORY: "/inventory",
-    INVENTORY_NEW: "/inventory/new",
-    INVENTORY_DETAIL: (id: string) => `/inventory/${id}`,
-    INVENTORY_EDIT: (id: string) => `/inventory/${id}/edit`,
+    INVENTORY_CATALOGUE: "/inventory/catalogue",
+    INVENTORY_NEW: "/inventory/catalogue/new",
+    INVENTORY_DETAIL: (id: string) => `/inventory/catalogue/${id}`,
+    INVENTORY_EDIT: (id: string) => `/inventory/catalogue/${id}/edit`,
+    INVENTORY_PRODUCTION: "/inventory/production",
+    INVENTORY_PACKAGING: "/inventory/packaging",
+    INVENTORY_REPORTS: "/inventory/reports",
 
-    PRODUCTION: "/production",
+    /** @deprecated Use INVENTORY_PRODUCTION */
+    PRODUCTION: "/inventory/production",
+    /** @deprecated Use INVENTORY_PACKAGING */
+    PACKAGING: "/inventory/packaging",
+
     CUSTOMERS: "/customers",
     INVOICES: "/invoices",
 
@@ -21,4 +29,3 @@ export const ROUTES = {
 
     ROOT: "/",
 } as const;
-

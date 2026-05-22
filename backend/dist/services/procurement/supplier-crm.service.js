@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.advanceSupplierOnboarding = advanceSupplierOnboarding;
+exports.approveSupplierOnboarding = approveSupplierOnboarding;
+exports.rejectSupplierOnboarding = rejectSupplierOnboarding;
 exports.syncComplianceDocumentStatuses = syncComplianceDocumentStatuses;
 exports.addComplianceDocument = addComplianceDocument;
 const server_1 = require("../../server");
@@ -13,6 +15,32 @@ const ONBOARDING_FLOW = [
     "FINANCE_APPROVAL",
     "ACTIVE",
 ];
+function isPendingOnboarding(status) {
+    return status === "DRAFT" || status === "QA_AUDIT" || status === "FINANCE_APPROVAL";
+}
+async function writeSupplierOnboardingAudit(params) {
+    const { supplierId, beforeStatus, afterStatus, actorName } = params;
+    await server_1.prisma.procurementAuditLog.create({
+        data: {
+            entityType: "Supplier",
+            entityId: supplierId,
+            action: "STATUS_CHANGE",
+            actorName,
+            supplierId,
+            beforeState: { onboardingStatus: beforeStatus },
+            afterState: { onboardingStatus: afterStatus },
+        },
+    });
+}
+async function publishOnboardingChanged(params) {
+    const { supplierId, from, to } = params;
+    await (0, eventBus_1.publishDomainEvent)({
+        eventType: procurementEventTypes_1.PROCUREMENT_EVENTS.SUPPLIER_ONBOARDING_CHANGED,
+        aggregateType: "Supplier",
+        aggregateId: supplierId,
+        payload: { from, to },
+    });
+}
 async function advanceSupplierOnboarding(supplierId, actorName, notes) {
     const supplier = await server_1.prisma.supplier.findUnique({ where: { id: supplierId } });
     if (!supplier)
@@ -27,32 +55,84 @@ async function advanceSupplierOnboarding(supplierId, actorName, notes) {
         data.qaApprovedAt = null;
     if (next === "FINANCE_APPROVAL")
         data.qaApprovedAt = new Date();
+    // Rule: pending onboarding => inactive
     if (next === "ACTIVE") {
         data.financeApprovedAt = new Date();
         data.activatedAt = new Date();
         data.isActive = true;
+        data.lockedAt = null;
+        data.lockedBy = null;
+    }
+    else {
+        data.isActive = false;
     }
     const updated = await server_1.prisma.supplier.update({
         where: { id: supplierId },
         data: data,
     });
-    await server_1.prisma.procurementAuditLog.create({
+    await writeSupplierOnboardingAudit({
+        supplierId,
+        beforeStatus: supplier.onboardingStatus,
+        afterStatus: next,
+        actorName,
+    });
+    await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: next });
+    return updated;
+}
+async function approveSupplierOnboarding(supplierId, actorName, notes) {
+    const supplier = await server_1.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier)
+        throw new Error("Supplier not found");
+    if (!isPendingOnboarding(supplier.onboardingStatus)) {
+        throw new Error(`Cannot approve from status ${supplier.onboardingStatus}`);
+    }
+    const next = "ACTIVE";
+    const updated = await server_1.prisma.supplier.update({
+        where: { id: supplierId },
         data: {
-            entityType: "Supplier",
-            entityId: supplierId,
-            action: "STATUS_CHANGE",
-            actorName,
-            supplierId,
-            beforeState: { onboardingStatus: supplier.onboardingStatus },
-            afterState: { onboardingStatus: next },
+            onboardingStatus: next,
+            onboardingNotes: notes,
+            financeApprovedAt: new Date(),
+            activatedAt: new Date(),
+            isActive: true,
+            lockedAt: null,
+            lockedBy: null,
         },
     });
-    await (0, eventBus_1.publishDomainEvent)({
-        eventType: procurementEventTypes_1.PROCUREMENT_EVENTS.SUPPLIER_ONBOARDING_CHANGED,
-        aggregateType: "Supplier",
-        aggregateId: supplierId,
-        payload: { from: supplier.onboardingStatus, to: next },
+    await writeSupplierOnboardingAudit({
+        supplierId,
+        beforeStatus: supplier.onboardingStatus,
+        afterStatus: next,
+        actorName,
     });
+    await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: next });
+    return updated;
+}
+async function rejectSupplierOnboarding(supplierId, actorName, notes) {
+    const supplier = await server_1.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier)
+        throw new Error("Supplier not found");
+    if (!isPendingOnboarding(supplier.onboardingStatus)) {
+        throw new Error(`Cannot reject from status ${supplier.onboardingStatus}`);
+    }
+    const next = "REJECTED";
+    const updated = await server_1.prisma.supplier.update({
+        where: { id: supplierId },
+        data: {
+            onboardingStatus: next,
+            onboardingNotes: notes,
+            isActive: false,
+            lockedAt: null,
+            lockedBy: null,
+        },
+    });
+    await writeSupplierOnboardingAudit({
+        supplierId,
+        beforeStatus: supplier.onboardingStatus,
+        afterStatus: next,
+        actorName,
+    });
+    await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: next });
     return updated;
 }
 async function syncComplianceDocumentStatuses(supplierId) {

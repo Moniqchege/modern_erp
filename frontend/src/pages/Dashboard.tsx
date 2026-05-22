@@ -172,7 +172,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
        <div className="flex items-center gap-3 relative z-10 shrink-0">
   <button 
-    onClick={() => navigate(`/production`)}
+    onClick={() => navigate(`/inventory/production`)}
     className="flex items-center gap-1 !bg-[#ffa255] hover:!bg-[#f2c096] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md active:scale-95"
   >
     <Plus className="h-4 w-4" />
@@ -180,7 +180,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   </button>
 
   <button 
-    onClick={() => navigate(`/inventory`)} 
+    onClick={() => navigate(`/inventory/catalogue`)} 
     className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs px-6 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm"
   >
     Manage Inventory
@@ -339,7 +339,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
 
           <button 
-            onClick={() => navigate(`/production`)}
+            onClick={() => navigate(`/inventory/production`)}
             className="w-full text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-xs font-bold text-slate-655 hover:text-slate-800 transition-colors"
           >
             Show milling batch log

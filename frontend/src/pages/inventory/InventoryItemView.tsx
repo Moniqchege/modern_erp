@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { ROUTES } from "../../app/router/routes";
 import {
   ArrowLeft,
   Package,
@@ -27,7 +28,12 @@ interface PriceHistoryEntry {
 
 interface MovementEntry {
   id: string;
-  movementType: "RECEIPT" | "ISSUE_TO_PRODUCTION" | "SALES_DISPATCH" | "ADJUSTMENT";
+  movementType:
+    | "RECEIPT"
+    | "ISSUE_TO_PRODUCTION"
+    | "ISSUE_TO_PACKAGING"
+    | "SALES_DISPATCH"
+    | "ADJUSTMENT";
   quantityDelta: number;
   unitPriceApplied: number;
   movementAt: string;
@@ -43,6 +49,8 @@ interface InventoryItemDetail {
   unit: "KG" | "BAG";
   quantity: number;
   unitPrice: number | null;
+  reorderLevel?: number | null;
+  reorderQuantity?: number | null;
   createdAt: string;
   updatedAt: string;
   priceHistory: PriceHistoryEntry[];
@@ -105,6 +113,7 @@ const fmtDateTime = (iso: string) =>
 const MOVEMENT_META: Record<MovementEntry["movementType"], { label: string; color: string; bg: string; sign: "+" | "−" }> = {
   RECEIPT:            { label: "Receipt",          color: "#16a34a", bg: "#f0fdf4", sign: "+" },
   ISSUE_TO_PRODUCTION:{ label: "To Production",    color: "#d97706", bg: "#fffbeb", sign: "−" },
+  ISSUE_TO_PACKAGING: { label: "To Packaging",     color: "#0891b2", bg: "#ecfeff", sign: "−" },
   SALES_DISPATCH:     { label: "Sales Dispatch",   color: "#2563eb", bg: "#eff6ff", sign: "−" },
   ADJUSTMENT:         { label: "Adjustment",       color: "#7c3aed", bg: "#faf5ff", sign: "±" as any },
 };
@@ -218,27 +227,25 @@ export function InventoryItemView() {
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(145deg, #fafafa 0%, #f3f4f6 100%)",
+      background: "transparent",
       fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
-      paddingBottom: 60,
     }}>
-      {/* ── Topbar ── */}
+      {/* Content header (inside InventoryLayout main area) */}
       <div style={{
         background: "#fff",
-        borderBottom: "1px solid #e5e7eb",
-        padding: "0 32px",
-        height: 60,
+        border: "1px solid #e5e7eb",
+        borderRadius: 16,
+        padding: "14px 18px",
+        height: "auto",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        position: "sticky",
-        top: 0,
         zIndex: 30,
         boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+        marginBottom: 20,
       }}>
         <button
-          onClick={() => navigate("/inventory")}
+          onClick={() => navigate(ROUTES.INVENTORY_CATALOGUE)}
 
           style={{
             display: "flex", alignItems: "center", gap: 6,
@@ -272,7 +279,7 @@ export function InventoryItemView() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1060, margin: "0", padding: "32px 0 0" }}>
+      <div style={{ maxWidth: 1060, margin: "0" }}>
 
         {/* ── Error banner ── */}
         {error && (
@@ -340,7 +347,11 @@ export function InventoryItemView() {
             icon={<Activity style={{ width: 18, height: 18 }} />}
             label="Quantity on Hand"
             value={`${fmt(item.quantity)} ${item.unit}`}
-            sub={item.quantity < (item.type === "RAW_MATERIAL" ? 500 : 100) ? "⚠ Below reorder threshold" : "In stock"}
+            sub={
+              item.reorderLevel != null && item.quantity <= item.reorderLevel
+                ? `⚠ Below reorder (${item.reorderLevel} ${item.unit})`
+                : "In stock"
+            }
           />
           <StatCard
             icon={<DollarSign style={{ width: 18, height: 18 }} />}

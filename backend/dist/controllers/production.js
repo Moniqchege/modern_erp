@@ -4,6 +4,7 @@ exports.ProcessBatchSchema = void 0;
 exports.processBatch = processBatch;
 const zod_1 = require("zod");
 const server_1 = require("../server");
+const inventory_alert_service_1 = require("../services/inventory-alert.service");
 // Schema for production batch validation
 exports.ProcessBatchSchema = zod_1.z.object({
     rawMaizeConsumed: zod_1.z.number().positive("Consumed maize must be greater than 0"),
@@ -136,8 +137,10 @@ async function processBatch(req, res) {
                     grade2: updatedGrade2,
                     maizeJam: updatedMaizeJam,
                 },
+                prevRawQty: currentRawQty,
             };
         });
+        await (0, inventory_alert_service_1.checkReorderAlert)(result.inventory.rawMaize.id, result.prevRawQty);
         res.status(201).json({
             message: "Production batch processed successfully",
             batch: {

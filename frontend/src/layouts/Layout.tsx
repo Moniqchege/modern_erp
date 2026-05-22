@@ -1,8 +1,6 @@
 import React from "react";
 import {
   LayoutDashboard,
-  Package,
-  Factory,
   Users,
   FileText,
   Search,
@@ -12,12 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export type NavKey =
-  | "dashboard"
-  | "inventory"
-  | "production"
-  | "customers"
-  | "invoices";
+export type NavKey = "dashboard" | "customers" | "invoices";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -38,18 +31,6 @@ const navItems: NavItem[] = [
     label: "Dashboard", 
     icon: LayoutDashboard,
     description: "Milling plant statistics" 
-  },
-  { 
-    key: "inventory", 
-    label: "Inventory Catalog", 
-    icon: Package,
-    description: "Raw material & flour stocks" 
-  },
-  { 
-    key: "production", 
-    label: "Production / Milling", 
-    icon: Factory,
-    description: "Process raw maize batches" 
   },
   { 
     key: "customers", 

@@ -160,3 +160,33 @@ exports.suppliersRouter.post("/:id/onboarding/advance", async (req, res) => {
         res.status(400).json({ message: String(error) });
     }
 });
+exports.suppliersRouter.post("/:id/onboarding/approve", async (req, res) => {
+    const body = zod_1.z
+        .object({ actorName: zod_1.z.string().min(1), notes: zod_1.z.string().optional() })
+        .safeParse(req.body);
+    if (!body.success) {
+        return res.status(400).json({ message: "actorName required" });
+    }
+    try {
+        const supplier = await (0, supplier_crm_service_1.approveSupplierOnboarding)(req.params.id, body.data.actorName, body.data.notes);
+        res.status(200).json({ success: true, supplier });
+    }
+    catch (error) {
+        res.status(400).json({ message: String(error) });
+    }
+});
+exports.suppliersRouter.post("/:id/onboarding/reject", async (req, res) => {
+    const body = zod_1.z
+        .object({ actorName: zod_1.z.string().min(1), notes: zod_1.z.string().optional() })
+        .safeParse(req.body);
+    if (!body.success) {
+        return res.status(400).json({ message: "actorName required" });
+    }
+    try {
+        const supplier = await (0, supplier_crm_service_1.rejectSupplierOnboarding)(req.params.id, body.data.actorName, body.data.notes);
+        res.status(200).json({ success: true, supplier });
+    }
+    catch (error) {
+        res.status(400).json({ message: String(error) });
+    }
+});

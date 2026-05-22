@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../server";
+import { checkReorderAlert } from "../services/inventory-alert.service";
 
 // Schema for production batch validation
 export const ProcessBatchSchema = z.object({
@@ -155,8 +156,11 @@ export async function processBatch(req: Request, res: Response) {
           grade2: updatedGrade2,
           maizeJam: updatedMaizeJam,
         },
+        prevRawQty: currentRawQty,
       };
     });
+
+    await checkReorderAlert(result.inventory.rawMaize.id, result.prevRawQty);
 
     res.status(201).json({
       message: "Production batch processed successfully",

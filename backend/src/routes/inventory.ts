@@ -1,8 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../server";
+import { checkReorderAlert } from "../services/inventory-alert.service";
+import {
+  generateInventoryReportBuffer,
+  REPORT_TYPES,
+  ReportType,
+} from "../services/inventory-reports.service";
+import { getInventoryDashboardAnalytics } from "../services/inventory-dashboard.service";
 
 export const inventoryRouter = Router();
+
+const optionalDecimal = z.number().nonnegative().optional().nullable();
 
 const CreateInventoryItemSchema = z.object({
   sku: z.string().min(1).max(64),
@@ -12,6 +21,8 @@ const CreateInventoryItemSchema = z.object({
   unit: z.enum(["KG", "BAG"]).optional().default("KG"),
   quantity: z.number().nonnegative().optional().default(0.0),
   unitPrice: z.number().nonnegative().optional(),
+  reorderLevel: optionalDecimal,
+  reorderQuantity: optionalDecimal,
 });
 
 const UpdateInventoryItemSchema = z.object({
@@ -20,27 +31,85 @@ const UpdateInventoryItemSchema = z.object({
   quantity: z.number().nonnegative().optional(),
   unitPrice: z.number().nonnegative().optional(),
   adjustmentNote: z.string().max(500).optional().nullable(),
+  reorderLevel: optionalDecimal,
+  reorderQuantity: optionalDecimal,
 });
 
 type CreateInventoryItemInput = z.infer<typeof CreateInventoryItemSchema>;
 type UpdateInventoryItemInput = z.infer<typeof UpdateInventoryItemSchema>;
 
-// Helper to convert Prisma Decimal fields to numbers for simpler frontend consumption
-const formatPrismaItem = (item: any) => ({
+const formatPrismaItem = (item: {
+  quantity: unknown;
+  reorderLevel?: unknown;
+  reorderQuantity?: unknown;
+  unitPrice?: number | null;
+  [key: string]: unknown;
+}) => ({
   ...item,
   quantity: Number(item.quantity),
+  reorderLevel: item.reorderLevel != null ? Number(item.reorderLevel) : null,
+  reorderQuantity: item.reorderQuantity != null ? Number(item.reorderQuantity) : null,
   unitPrice: item.unitPrice != null ? Number(item.unitPrice) : undefined,
 });
 
-const formatMovement = (m: any) => ({
+const formatMovement = (m: {
+  quantityDelta: unknown;
+  unitPriceApplied: unknown;
+  [key: string]: unknown;
+}) => ({
   ...m,
   quantityDelta: Number(m.quantityDelta),
   unitPriceApplied: Number(m.unitPriceApplied),
 });
 
-const formatPriceHistory = (p: any) => ({
+const formatPriceHistory = (p: { unitPrice: unknown; [key: string]: unknown }) => ({
   ...p,
   unitPrice: Number(p.unitPrice),
+});
+
+function decimalOrNull(value: number | null | undefined) {
+  if (value == null) return null;
+  return value.toFixed(3);
+}
+
+// GET inventory module dashboard analytics
+inventoryRouter.get("/dashboard", async (_req, res) => {
+  try {
+    const data = await getInventoryDashboardAnalytics();
+    res.status(200).json({ success: true, ...data });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch inventory dashboard", error: String(error) });
+  }
+});
+
+// GET report catalog
+inventoryRouter.get("/reports", (_req, res) => {
+  res.status(200).json({ reports: REPORT_TYPES });
+});
+
+// GET Excel export
+inventoryRouter.get("/reports/:reportType", async (req, res) => {
+  try {
+    const reportType = req.params.reportType as ReportType;
+    const valid = REPORT_TYPES.some((r) => r.id === reportType);
+    if (!valid) {
+      return res.status(400).json({ message: "Unknown report type", available: REPORT_TYPES.map((r) => r.id) });
+    }
+
+    const { from, to } = req.query;
+    const buffer = await generateInventoryReportBuffer(
+      reportType,
+      typeof from === "string" ? from : undefined,
+      typeof to === "string" ? to : undefined
+    );
+
+    const filename = `inventory-${reportType}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to generate report", error: String(error) });
+  }
 });
 
 // GET all items
@@ -140,10 +209,11 @@ inventoryRouter.post("/", async (req, res) => {
         type: input.type,
         unit: input.unit,
         quantity: input.quantity.toFixed(3),
+        reorderLevel: decimalOrNull(input.reorderLevel ?? null),
+        reorderQuantity: decimalOrNull(input.reorderQuantity ?? null),
       },
     });
 
-    // Record opening stock movement if quantity > 0
     if (input.quantity > 0) {
       await prisma.inventoryMovement.create({
         data: {
@@ -156,7 +226,6 @@ inventoryRouter.post("/", async (req, res) => {
       });
     }
 
-    // Record initial price history
     if (input.unitPrice != null && input.unitPrice > 0) {
       await prisma.inventoryPriceHistory.create({
         data: {
@@ -167,6 +236,8 @@ inventoryRouter.post("/", async (req, res) => {
       });
     }
 
+    await checkReorderAlert(created.id, input.quantity);
+
     res.status(201).json({
       item: formatPrismaItem({ ...created, unitPrice: input.unitPrice ?? null }),
     });
@@ -175,7 +246,7 @@ inventoryRouter.post("/", async (req, res) => {
   }
 });
 
-// PATCH update item (name, description, quantity adjustment, price update)
+// PATCH update item
 inventoryRouter.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -194,21 +265,24 @@ inventoryRouter.patch("/:id", async (req, res) => {
       return res.status(404).json({ message: "Inventory item not found" });
     }
 
-    // Build scalar update payload
-    const updateData: Record<string, any> = {};
+    const previousQty = Number(existing.quantity);
+    const updateData: Record<string, unknown> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
+    if (input.reorderLevel !== undefined) {
+      updateData.reorderLevel = decimalOrNull(input.reorderLevel);
+    }
+    if (input.reorderQuantity !== undefined) {
+      updateData.reorderQuantity = decimalOrNull(input.reorderQuantity);
+    }
 
-    // Quantity adjustment — record a movement for the delta
     if (input.quantity !== undefined) {
-      const currentQty = Number(existing.quantity);
       const newQty = input.quantity;
-      const delta = newQty - currentQty;
+      const delta = newQty - previousQty;
 
       updateData.quantity = newQty.toFixed(3);
 
       if (delta !== 0) {
-        // Fetch latest price for costing
         const latestPrice = await prisma.inventoryPriceHistory.findFirst({
           where: { itemId: id },
           orderBy: { effectiveDate: "desc" },
@@ -231,7 +305,6 @@ inventoryRouter.patch("/:id", async (req, res) => {
       data: updateData,
     });
 
-    // Price history — only add a new entry if the price actually changed
     let newUnitPrice: number | null = null;
     if (input.unitPrice !== undefined) {
       const latestPrice = await prisma.inventoryPriceHistory.findFirst({
@@ -258,6 +331,8 @@ inventoryRouter.patch("/:id", async (req, res) => {
       });
       newUnitPrice = latestPrice ? Number(latestPrice.unitPrice) : null;
     }
+
+    await checkReorderAlert(id, previousQty);
 
     res.status(200).json({
       item: formatPrismaItem({ ...updated, unitPrice: newUnitPrice }),

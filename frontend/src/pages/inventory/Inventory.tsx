@@ -4,6 +4,7 @@ import {
   AlertCircle, RefreshCw, Pencil, Eye, X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ROUTES } from "../../app/router/routes";
 
 export interface InventoryItem {
   id: string;
@@ -14,8 +15,15 @@ export interface InventoryItem {
   unit: "KG" | "BAG";
   quantity: number;
   unitPrice?: number | null;
+  reorderLevel?: number | null;
+  reorderQuantity?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+function isBelowReorder(item: InventoryItem): boolean {
+  if (item.reorderLevel == null) return false;
+  return item.quantity <= item.reorderLevel;
 }
 
 const MOCK_ITEMS: InventoryItem[] = [
@@ -92,6 +100,12 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
   const [description, setDescription] = useState(item.description ?? "");
   const [quantity, setQuantity] = useState<number>(item.quantity);
   const [unitPrice, setUnitPrice] = useState<number>(item.unitPrice ?? 0);
+  const [reorderLevel, setReorderLevel] = useState<string>(
+    item.reorderLevel != null ? String(item.reorderLevel) : ""
+  );
+  const [reorderQuantity, setReorderQuantity] = useState<string>(
+    item.reorderQuantity != null ? String(item.reorderQuantity) : ""
+  );
   const [adjustmentNote, setAdjustmentNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -109,6 +123,8 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
       description: description.trim() || null,
       quantity,
       unitPrice,
+      reorderLevel: reorderLevel.trim() === "" ? null : parseFloat(reorderLevel),
+      reorderQuantity: reorderQuantity.trim() === "" ? null : parseFloat(reorderQuantity),
       ...(quantityChanged && adjustmentNote ? { adjustmentNote } : {}),
     };
 
@@ -139,6 +155,8 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
         description: payload.description,
         quantity: payload.quantity,
         unitPrice: payload.unitPrice,
+        reorderLevel: payload.reorderLevel,
+        reorderQuantity: payload.reorderQuantity,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -225,6 +243,36 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                Reorder level ({item.unit}) <span className="text-slate-300 font-normal">optional</span>
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                placeholder="Alert when at or below"
+                value={reorderLevel}
+                onChange={(e) => setReorderLevel(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-orange-400"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                Reorder qty <span className="text-slate-300 font-normal">optional</span>
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                value={reorderQuantity}
+                onChange={(e) => setReorderQuantity(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-orange-400"
+              />
+            </div>
+          </div>
+
           {/* Adjustment note — shown only if quantity changed */}
           {quantityChanged && (
             <div className="space-y-1 animate-in fade-in duration-200">
@@ -292,6 +340,8 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [unit, setUnit] = useState<"KG" | "BAG">("KG");
   const [quantity, setQuantity] = useState<number>(0);
   const [unitPrice, setUnitPrice] = useState<number>(0.0);
+  const [reorderLevel, setReorderLevel] = useState<string>("");
+  const [reorderQuantity, setReorderQuantity] = useState<string>("");
 
   const navigate = useNavigate();
   const fetchInventory = async () => {
@@ -319,7 +369,17 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sku || !name) { setErrorText("SKU and Name are required."); return; }
-    const payload = { sku, name, description: description || undefined, type, unit, quantity, unitPrice };
+    const payload = {
+      sku,
+      name,
+      description: description || undefined,
+      type,
+      unit,
+      quantity,
+      unitPrice,
+      reorderLevel: reorderLevel.trim() === "" ? null : parseFloat(reorderLevel),
+      reorderQuantity: reorderQuantity.trim() === "" ? null : parseFloat(reorderQuantity),
+    };
     setErrorText(null);
 
     if (apiStatus === "connected") {
@@ -351,7 +411,8 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const closeAddModal = () => {
     setIsAddModalOpen(false);
     setSku(""); setName(""); setDescription(""); setType("FINISHED_GOOD");
-    setUnit("KG"); setQuantity(0); setUnitPrice(0); setErrorText(null);
+    setUnit("KG"); setQuantity(0); setUnitPrice(0);
+    setReorderLevel(""); setReorderQuantity(""); setErrorText(null);
   };
 
   const handleEditSaved = (updated: InventoryItem) => {
@@ -445,7 +506,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
                   </tr>
                 ) : (
                   filteredItems.map((item) => {
-                    const isLowStock = item.quantity <= (item.type === "RAW_MATERIAL" ? 500 : 100);
+                    const isLowStock = isBelowReorder(item);
                     const isOutOfStock = item.quantity === 0;
 
                     return (
@@ -481,7 +542,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
                             {/* View */}
                             <button
                               title="View item details"
-                              onClick={() => navigate(`/inventory/${item.id}`)}
+                              onClick={() => navigate(ROUTES.INVENTORY_DETAIL(item.id))}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 text-[10px] font-bold text-slate-500 hover:text-indigo-600 transition-all active:scale-95"
                             >
                               <Eye className="h-3 w-3" />
@@ -589,6 +650,21 @@ export function Inventory({ onViewItem }: InventoryProps) {
                   <input type="number" step="0.01" min="0" value={unitPrice}
                     onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Reorder level (optional)</label>
+                  <input type="number" step="0.01" min="0" placeholder="Email alert threshold"
+                    value={reorderLevel} onChange={(e) => setReorderLevel(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Reorder qty (optional)</label>
+                  <input type="number" step="0.01" min="0" value={reorderQuantity}
+                    onChange={(e) => setReorderQuantity(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500" />
                 </div>
               </div>
 

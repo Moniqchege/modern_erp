@@ -29,7 +29,7 @@ export function ModuleLanding() {
     },
     {
       title: "Inventory Management",
-      subtitle: "Catalog & stock movements",
+      subtitle: "Dashboard, stock, milling, packaging & reports",
       icon: Boxes,
       to: "/inventory",
     },
