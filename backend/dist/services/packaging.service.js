@@ -165,10 +165,10 @@ async function processPackagingRun(input) {
             const baleItemId = out.packedBaleInventoryItemId || (await tx.inventoryItem.findFirst({
                 where: {
                     type: "FINISHED_GOOD",
-                    // unit values are controlled by seed/catalog; use string cast to match Prisma enum type
-                    unit: "BALE",
+                    // Avoid unit filtering (Prisma unit enum type may not include "BALE" in your DB seed)
                 },
                 select: { id: true },
+                orderBy: { createdAt: "asc" },
             }))?.id;
             if (!baleItemId) {
                 throw new Error("Bale inventory item not found. Please configure packedBaleInventoryItemId or seed a BALE item.");

@@ -1,8 +1,7 @@
 # TODO
 
-## Packaging endpoint fix
-- [ ] Update backend schema/logic so `packedBaleInventoryItemId` can be omitted or empty and is auto-derived
-- [ ] Add safe defaulting in `processPackaging`/`processPackagingRun` for empty string bale ids
-- [ ] Update frontend payload to never send empty `packedBaleInventoryItemId`
-- [ ] Add minimal tests / run manual validation with sample payload
+- [x] Inspect backend packaging controller/service response shape
+- [x] Inspect frontend PackagingForm table rendering for “Recent runs”
+- [x] Add/update run table to match POST payload/run response fields
+- [x] Build frontend and backend to verify no TS/compile errors
 
