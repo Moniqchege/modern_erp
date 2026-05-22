@@ -1,19 +1,26 @@
-# TODO - Supplier status unification + lock
+# TODO - Flour Types (catalogued FINISHED_GOOD) support
 
-## Planned changes
-- [x] Update Prisma `Supplier` model to support locking (lockedAt, lockedBy).
+## Backend
+- [ ] Update production controller `/api/production` to accept dynamic `flourOutputs` (FINISHED_GOOD) and keep `maizeJamProduced` fixed as `BY-JAM-03`.
+- [ ] Update traceability production-run `/api/traceability/production-run` to accept dynamic `flourOutputs` (FINISHED_GOOD) and keep jam as `BY-JAM-03`.
+- [ ] Update packaging `/api/packaging` to accept dynamic `flourConsumption` + `flourPackedOutputs` (for each flour type: select bale inventory item + bales qty), while keeping `baleWeightKg` global.
+- [ ] Update production/packaging form UIs to render dynamic flour-type fields.
 
-- [ ] Add backend route `POST /api/procurement/suppliers/:id/lock`.
-- [ ] Implement lock service logic with audit logging.
-- [ ] Derive a single supplier table status (backend+frontend):
+- [ ] Update dashboard KPIs and analytics to remove hardcoded grade1/grade2 and instead aggregate finished goods dynamically.
 
-  - PENDING = onboardingStatus in DRAFT/QA_AUDIT/FINANCE_APPROVAL
-  - ACTIVE = onboardingStatus ACTIVE AND NOT locked
-  - LOCKED = onboardingStatus ACTIVE AND locked
-  - INACTIVE = onboardingStatus in REJECTED/SUSPENDED OR other non-approval states per your rule
-- [ ] Update `Suppliers.tsx` to remove separate isActive column and show only one status.
-- [ ] Add Lock button on ACTIVE rows (i.e., derived status ACTIVE).
-- [ ] Update `StatusBadge.tsx` styles for PENDING/ACTIVE/INACTIVE/LOCKED.
-- [ ] Update API client to include lock action.
-- [ ] Run backend + frontend build/typecheck.
+
+## Frontend
+- [ ] Fetch flour types from inventory (filter `type === FINISHED_GOOD`).
+- [ ] Update Production form to render one output quantity input per flour type.
+- [ ] Update Packaging form to render:
+  - consumedKg per flour type
+  - packed output: for each flour type, select/enter bale item (bale inventory item) and balesQty.
+
+## Data / Integration
+- [ ] Ensure catalogue includes bale inventory items as `FINISHED_GOOD` (or `BY_PRODUCT` if that’s your convention) and user selects them for packaging output.
+- [ ] Run Prisma migration/regenerate if schema changes are required (prefer minimal changes; only API/logic refactor if possible).
+
+## Testing
+- [ ] Run backend typecheck/build.
+- [ ] Smoke test: create inventory items (Yetu Plus, Uwezo 1/2, Xpress + bale items), run production, then packaging, verify inventory quantities and movements.
 

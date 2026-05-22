@@ -25,6 +25,17 @@ export interface ProductionBatch {
   createdAt: string;
 }
 
+interface InventoryItem {
+  id: string;
+  sku: string;
+  name: string;
+  description?: string;
+  type: "RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT";
+  unit: string;
+  quantity: number;
+  unitPrice?: number;
+}
+
 const MOCK_BATCHES: ProductionBatch[] = [
   {
     id: "b_1",
@@ -35,7 +46,7 @@ const MOCK_BATCHES: ProductionBatch[] = [
     maizeJamProduced: 42.00,
     wasteLoss: 18.00,
     efficiency: 96.40,
-    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(), // 15 mins ago
+    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(), 
   },
   {
     id: "b_2",
@@ -46,7 +57,7 @@ const MOCK_BATCHES: ProductionBatch[] = [
     maizeJamProduced: 85.00,
     wasteLoss: 30.00,
     efficiency: 97.00,
-    createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), // 3 hours ago
+    createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), 
   },
 ];
 
@@ -58,11 +69,11 @@ export function ProductionForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Form inputs
   const [rawMaizeConsumed, setRawMaizeConsumed] = useState<string>("0");
-  const [grade1Produced, setGrade1Produced] = useState<string>("0");
-  const [grade2Produced, setGrade2Produced] = useState<string>("0");
-  const [maizeJamProduced, setMaizeJamProduced] = useState<string>("0");
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [productionOutputs, setProductionOutputs] = useState<
+  Record<string, string>
+>({});
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -84,18 +95,55 @@ export function ProductionForm() {
     }
   };
 
+  const fetchInventory = async () => {
+  try {
+    const response = await fetch("/api/inventory");
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch inventory");
+    }
+
+    const data = await response.json();
+    setInventoryItems(data.items || []);
+    const initialOutputs: Record<string, string> = {};
+    data.items.forEach((item: InventoryItem) => {
+      if (
+        item.type === "FINISHED_GOOD" ||
+        item.type === "BY_PRODUCT"
+      ) {
+        initialOutputs[item.id] = "0";
+      }
+    });
+
+    setProductionOutputs(initialOutputs);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
   useEffect(() => {
     fetchBatches();
+    fetchInventory();
   }, []);
+
+const finishedGoods = inventoryItems.filter(
+  (item) => item.type === "FINISHED_GOOD"
+);
+
+const byProducts = inventoryItems.filter(
+  (item) => item.type === "BY_PRODUCT"
+);
+
+const rawMaterials = inventoryItems.filter(
+  (item) => item.type === "RAW_MATERIAL"
+);
 
   // Parse inputs safely
   const inputMaize = parseFloat(rawMaizeConsumed) || 0;
-  const outG1 = parseFloat(grade1Produced) || 0;
-  const outG2 = parseFloat(grade2Produced) || 0;
-  const outJam = parseFloat(maizeJamProduced) || 0;
-
-  // Real-time computations
-  const totalOutput = outG1 + outG2 + outJam;
+  const totalOutput = Object.values(productionOutputs).reduce(
+  (sum, value) => sum + (parseFloat(value) || 0),
+  0
+);
   const wasteLoss = inputMaize > 0 ? inputMaize - totalOutput : 0;
   const efficiency = inputMaize > 0 ? (totalOutput / inputMaize) * 100 : 0;
   const lossPercentage = inputMaize > 0 ? (wasteLoss / inputMaize) * 100 : 0;
@@ -108,11 +156,14 @@ export function ProductionForm() {
     if (isInvalidInput || isOutputExceeded) return;
 
     const payload = {
-      rawMaizeConsumed: inputMaize,
-      grade1Produced: outG1,
-      grade2Produced: outG2,
-      maizeJamProduced: outJam,
-    };
+  rawMaizeConsumed: inputMaize,
+  outputs: Object.entries(productionOutputs).map(
+    ([inventoryItemId, quantity]) => ({
+      inventoryItemId,
+      quantity: parseFloat(quantity) || 0,
+    })
+  ),
+};
 
     setSubmitting(true);
     setErrorMessage(null);
@@ -143,17 +194,32 @@ export function ProductionForm() {
     } else {
       // Simulate locally
       setTimeout(() => {
-        const mockNew: ProductionBatch = {
-          id: `local_b_${Date.now()}`,
-          batchNumber: `M-BATCH-${Date.now().toString().slice(-6)}`,
-          rawMaizeConsumed: inputMaize,
-          grade1Produced: outG1,
-          grade2Produced: outG2,
-          maizeJamProduced: outJam,
-          wasteLoss,
-          efficiency,
-          createdAt: new Date().toISOString(),
-        };
+        const grade1Item = finishedGoods[0];
+const grade2Item = finishedGoods[1];
+const maizeJamItem = byProducts[0];
+
+const mockNew: ProductionBatch = {
+  id: `local_b_${Date.now()}`,
+  batchNumber: `M-BATCH-${Date.now().toString().slice(-6)}`,
+
+  rawMaizeConsumed: inputMaize,
+
+  grade1Produced: grade1Item
+    ? parseFloat(productionOutputs[grade1Item.id] || "0")
+    : 0,
+
+  grade2Produced: grade2Item
+    ? parseFloat(productionOutputs[grade2Item.id] || "0")
+    : 0,
+
+  maizeJamProduced: maizeJamItem
+    ? parseFloat(productionOutputs[maizeJamItem.id] || "0")
+    : 0,
+
+  wasteLoss,
+  efficiency,
+  createdAt: new Date().toISOString(),
+};
 
         setBatches((prev) => [mockNew, ...prev]);
         setSuccessMessage(`Demo Mode: Milled batch logged locally as ${mockNew.batchNumber}.`);
@@ -164,11 +230,21 @@ export function ProductionForm() {
   };
 
   const resetForm = () => {
-    setRawMaizeConsumed("0");
-    setGrade1Produced("0");
-    setGrade2Produced("0");
-    setMaizeJamProduced("0");
-  };
+  setRawMaizeConsumed("0");
+
+  const clearedOutputs: Record<string, string> = {};
+
+  inventoryItems.forEach((item) => {
+    if (
+      item.type === "FINISHED_GOOD" ||
+      item.type === "BY_PRODUCT"
+    ) {
+      clearedOutputs[item.id] = "0";
+    }
+  });
+
+  setProductionOutputs(clearedOutputs);
+};
 
   const getEfficiencyBadge = (eff: number) => {
     if (eff >= 96) {
@@ -270,49 +346,83 @@ export function ProductionForm() {
                   <span>FINISHED PRODUCTS & BY-PRODUCTS</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold text-slate-455 uppercase">Grade 1 Flour (KG)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={grade1Produced}
-                      onChange={(e) => setGrade1Produced(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono"
-                    />
-                    <span className="block text-[8px] text-slate-400">SKU: FL-GR1-01</span>
-                  </div>
+                <div className="space-y-5">
+  {/* Finished Goods */}
+  {finishedGoods.length > 0 && (
+    <div>
+      <h3 className="text-[10px] font-black uppercase text-emerald-700 mb-1">
+        Finished Goods
+      </h3>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold text-slate-455 uppercase">Grade 2 Flour (KG)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={grade2Produced}
-                      onChange={(e) => setGrade2Produced(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono"
-                    />
-                    <span className="block text-[8px] text-slate-400">SKU: FL-GR2-02</span>
-                  </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {finishedGoods.map((item) => (
+          <div key={item.id} className="space-y-1">
+            <label className="text-[9px] font-extrabold text-slate-455 uppercase">
+              {item.name} ({item.unit})
+            </label>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold text-slate-455 uppercase">Maize Jam (KG)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={maizeJamProduced}
-                      onChange={(e) => setMaizeJamProduced(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono"
-                    />
-                    <span className="block text-[8px] text-slate-400">SKU: BY-JAM-03</span>
-                  </div>
-                </div>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              value={productionOutputs[item.id] || "0"}
+              onChange={(e) =>
+                setProductionOutputs((prev) => ({
+                  ...prev,
+                  [item.id]: e.target.value,
+                }))
+              }
+              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono"
+            />
+
+            <span className="block text-[8px] text-slate-400">
+              SKU: {item.sku}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {/* By Products */}
+  {byProducts.length > 0 && (
+    <div>
+      <h3 className="text-[10px] font-black uppercase text-amber-700 mb-1">
+        By Products
+      </h3>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {byProducts.map((item) => (
+          <div key={item.id} className="space-y-1">
+            <label className="text-[9px] font-extrabold text-slate-455 uppercase">
+              {item.name} ({item.unit})
+            </label>
+
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              value={productionOutputs[item.id] || "0"}
+              onChange={(e) =>
+                setProductionOutputs((prev) => ({
+                  ...prev,
+                  [item.id]: e.target.value,
+                }))
+              }
+              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono"
+            />
+
+            <span className="block text-[8px] text-slate-400">
+              SKU: {item.sku}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
               </div>
 
               {isOutputExceeded && (

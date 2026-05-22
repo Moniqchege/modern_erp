@@ -3,22 +3,30 @@ import { prisma } from "../server";
 import { checkReorderAlert } from "./inventory-alert.service";
 
 const BALE_WEIGHT_KG = 24;
-const GRADE1_SKU = "FL-GR1-01";
-const GRADE2_SKU = "FL-GR2-02";
 const PKG_MAT_SKU = "PKG-MAT-01";
-const GRADE1_BALE_SKU = "FL-GR1-BALE-24";
-const GRADE2_BALE_SKU = "FL-GR2-BALE-24";
 
 export type ProcessPackagingInput = {
   operatorName: string;
-  grade1FlourConsumed: number;
-  grade2FlourConsumed: number;
+
+  // Dynamic flour types consumed
+  flourConsumption: Array<{
+    flourInventoryItemId: string;
+    consumedKg: number;
+  }>;
+
   flourSpillage: number;
+
   packagingMaterialReceived?: number;
   packagingMaterialConsumed: number;
   packagingMaterialDestroyed?: number;
-  balesProducedGrade1: number;
-  balesProducedGrade2: number;
+
+  // Dynamic bale outputs mapping
+  flourPackedOutputs: Array<{
+    flourInventoryItemId: string;
+    packedBaleInventoryItemId: string;
+    balesProduced: number;
+  }>;
+
   baleWeightKg?: number;
   notes?: string;
 };
@@ -89,125 +97,102 @@ async function applyMovement(
 
 export async function processPackagingRun(input: ProcessPackagingInput) {
   const baleWeight = input.baleWeightKg ?? BALE_WEIGHT_KG;
-  const totalFlourIn =
-    input.grade1FlourConsumed + input.grade2FlourConsumed + input.flourSpillage;
-  const totalPackagedKg =
-    input.balesProducedGrade1 * baleWeight + input.balesProducedGrade2 * baleWeight;
-  const yieldPercent =
-    totalFlourIn > 0 ? (totalPackagedKg / totalFlourIn) * 100 : 0;
+
+  const totalFlourBulkIn = input.flourConsumption.reduce((s, r) => s + r.consumedKg, 0);
+  const totalFlourIn = totalFlourBulkIn + input.flourSpillage;
+
+  const totalBales = input.flourPackedOutputs.reduce((s, r) => s + r.balesProduced, 0);
+  const totalPackagedKg = totalBales * baleWeight;
+
+  const yieldPercent = totalFlourIn > 0 ? (totalPackagedKg / totalFlourIn) * 100 : 0;
 
   if (totalFlourIn <= 0) {
     throw new Error("Enter flour consumed or spillage for this packaging run.");
   }
 
   if (totalPackagedKg > totalFlourIn + 0.01) {
-    throw new Error("Packaged output cannot exceed total flour input (incl. spillage).");
+    throw new Error("Packaged output cannot exceed total flour input (incl. spillage).\n");
   }
+
+  // Legacy fields best-effort mapping (keeps existing packagingRun table columns usable)
+  // We only know grade SKUs historically; dynamic mapping still credits correct inventory items.
+  const LEGACY_GRADE1_FLOUR_SKU = "FL-GR1-01";
+  const LEGACY_GRADE2_FLOUR_SKU = "FL-GR2-02";
+
+  const LEGACY_GRADE1_BALE_SKU = "FL-GR1-BALE-24";
+  const LEGACY_GRADE2_BALE_SKU = "FL-GR2-BALE-24";
 
   return prisma.$transaction(async (tx) => {
     const runNumber = `PKG-${Date.now().toString().slice(-8)}`;
 
+    // Create run row using legacy columns for now (best-effort)
     const run = await tx.packagingRun.create({
       data: {
         runNumber,
         operatorName: input.operatorName,
         baleWeightKg: baleWeight.toFixed(3),
-        grade1FlourConsumed: input.grade1FlourConsumed.toFixed(3),
-        grade2FlourConsumed: input.grade2FlourConsumed.toFixed(3),
+        grade1FlourConsumed: 0,
+        grade2FlourConsumed: 0,
         flourSpillage: input.flourSpillage.toFixed(3),
         packagingMaterialReceived: (input.packagingMaterialReceived ?? 0).toFixed(3),
         packagingMaterialConsumed: input.packagingMaterialConsumed.toFixed(3),
         packagingMaterialDestroyed: (input.packagingMaterialDestroyed ?? 0).toFixed(3),
-        balesProducedGrade1: input.balesProducedGrade1,
-        balesProducedGrade2: input.balesProducedGrade2,
+        balesProducedGrade1: 0,
+        balesProducedGrade2: 0,
         totalPackagedKg: totalPackagedKg.toFixed(3),
         yieldPercent: yieldPercent.toFixed(2),
         notes: input.notes,
       },
     });
 
-    const grade1 = await ensureItem(tx, GRADE1_SKU, {
-      name: "Grade 1 Maize Flour",
-      description: "Bulk milled grade 1 flour",
-      type: "FINISHED_GOOD",
-      unit: "KG",
-    });
-    const grade2 = await ensureItem(tx, GRADE2_SKU, {
-      name: "Grade 2 Maize Flour",
-      description: "Bulk milled grade 2 flour",
-      type: "FINISHED_GOOD",
-      unit: "KG",
-    });
     const pkgMat = await ensureItem(tx, PKG_MAT_SKU, {
       name: "Packaging Material",
       description: "Sacks, labels and packaging consumables",
       type: "RAW_MATERIAL",
       unit: "KG",
     });
-    const g1Bales = await ensureItem(tx, GRADE1_BALE_SKU, {
-      name: "Grade 1 Flour Bales (24kg)",
-      description: "Packaged grade 1 flour bales",
-      type: "FINISHED_GOOD",
-      unit: "BAG",
-    });
-    const g2Bales = await ensureItem(tx, GRADE2_BALE_SKU, {
-      name: "Grade 2 Flour Bales (24kg)",
-      description: "Packaged grade 2 flour bales",
-      type: "FINISHED_GOOD",
-      unit: "BAG",
-    });
 
     const alertItems: Array<{ id: string; prev: number }> = [];
 
-    if (input.grade1FlourConsumed > 0) {
-      const r = await applyMovement(tx, {
-        itemId: grade1.id,
-        movementType: "ISSUE_TO_PACKAGING",
-        quantityDelta: -input.grade1FlourConsumed,
-        packagingRunId: run.id,
-        notes: `Packaging run ${runNumber} — bulk G1 flour`,
-      });
-      alertItems.push({ id: grade1.id, prev: r.prevQty });
-    }
+    // Build spillage distribution proportional to consumedKg
+    const flourRows = input.flourConsumption.map((r) => ({ ...r }));
+    const baseSum = totalFlourBulkIn;
 
-    if (input.grade2FlourConsumed > 0) {
-      const r = await applyMovement(tx, {
-        itemId: grade2.id,
-        movementType: "ISSUE_TO_PACKAGING",
-        quantityDelta: -input.grade2FlourConsumed,
-        packagingRunId: run.id,
-        notes: `Packaging run ${runNumber} — bulk G2 flour`,
-      });
-      alertItems.push({ id: grade2.id, prev: r.prevQty });
-    }
+    for (const row of flourRows) {
+      if (row.consumedKg <= 0) continue;
 
-    if (input.flourSpillage > 0) {
-      const flourBase = input.grade1FlourConsumed + input.grade2FlourConsumed;
-      const spillG1 =
-        flourBase > 0
-          ? input.flourSpillage * (input.grade1FlourConsumed / flourBase)
-          : input.flourSpillage;
-      const spillG2 = input.flourSpillage - spillG1;
-      if (spillG1 > 0.001) {
-        await applyMovement(tx, {
-          itemId: grade1.id,
-          movementType: "ADJUSTMENT",
-          quantityDelta: -spillG1,
-          packagingRunId: run.id,
-          notes: `Packaging flour spillage ${runNumber}`,
-        });
+      // ISSUE bulk flour consumption
+      const rMove = await applyMovement(tx, {
+        itemId: row.flourInventoryItemId,
+        movementType: "ISSUE_TO_PACKAGING",
+        quantityDelta: -row.consumedKg,
+        packagingRunId: run.id,
+        notes: `Packaging run ${runNumber} — bulk flour`,
+      });
+      alertItems.push({ id: row.flourInventoryItemId, prev: rMove.prevQty });
+
+      // legacy grade fields best-effort
+      const flourItem = await tx.inventoryItem.findUnique({ where: { id: row.flourInventoryItemId } });
+      if (flourItem?.sku === LEGACY_GRADE1_FLOUR_SKU) {
+        run.grade1FlourConsumed = undefined as any;
       }
-      if (spillG2 > 0.001) {
-        await applyMovement(tx, {
-          itemId: grade2.id,
-          movementType: "ADJUSTMENT",
-          quantityDelta: -spillG2,
-          packagingRunId: run.id,
-          notes: `Packaging flour spillage ${runNumber}`,
-        });
+
+      // ADJUST for allocated spillage portion
+      if (input.flourSpillage > 0 && baseSum > 0) {
+        const allocatedSpill = (input.flourSpillage * row.consumedKg) / baseSum;
+        if (allocatedSpill > 0.001) {
+          await applyMovement(tx, {
+            itemId: row.flourInventoryItemId,
+            movementType: "ADJUSTMENT",
+            quantityDelta: -allocatedSpill,
+            packagingRunId: run.id,
+            notes: `Packaging flour spillage ${runNumber}`,
+          });
+        }
       }
     }
 
+    // Packaging materials movements
     if ((input.packagingMaterialReceived ?? 0) > 0) {
       const r = await applyMovement(tx, {
         itemId: pkgMat.id,
@@ -241,31 +226,38 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       alertItems.push({ id: pkgMat.id, prev: r.prevQty });
     }
 
-    if (input.balesProducedGrade1 > 0) {
+    // Receipts into dynamic bale items
+    for (const out of input.flourPackedOutputs) {
+      if (out.balesProduced <= 0) continue;
       await applyMovement(tx, {
-        itemId: g1Bales.id,
+        itemId: out.packedBaleInventoryItemId,
         movementType: "RECEIPT",
-        quantityDelta: input.balesProducedGrade1,
+        quantityDelta: out.balesProduced,
         packagingRunId: run.id,
-        notes: `${input.balesProducedGrade1} bales @ ${baleWeight}kg — ${runNumber}`,
+        notes: `${out.balesProduced} bales @ ${baleWeight}kg — ${runNumber}`,
       });
-    }
 
-    if (input.balesProducedGrade2 > 0) {
-      await applyMovement(tx, {
-        itemId: g2Bales.id,
-        movementType: "RECEIPT",
-        quantityDelta: input.balesProducedGrade2,
-        packagingRunId: run.id,
-        notes: `${input.balesProducedGrade2} bales @ ${baleWeight}kg — ${runNumber}`,
-      });
+      // legacy mapping can be done by checking bale sku
+      const baleItem = await tx.inventoryItem.findUnique({ where: { id: out.packedBaleInventoryItemId } });
+      if (baleItem?.sku === LEGACY_GRADE1_BALE_SKU) {
+        await tx.packagingRun.update({
+          where: { id: run.id },
+          data: { balesProducedGrade1: out.balesProduced },
+        });
+      }
+      if (baleItem?.sku === LEGACY_GRADE2_BALE_SKU) {
+        await tx.packagingRun.update({
+          where: { id: run.id },
+          data: { balesProducedGrade2: out.balesProduced },
+        });
+      }
     }
 
     for (const { id, prev } of alertItems) {
       await checkReorderAlert(id, prev);
     }
 
-    return run;
+    return tx.packagingRun.findUnique({ where: { id: run.id } })!;
   });
 }
 

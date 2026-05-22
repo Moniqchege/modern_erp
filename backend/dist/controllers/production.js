@@ -8,8 +8,12 @@ const inventory_alert_service_1 = require("../services/inventory-alert.service")
 // Schema for production batch validation
 exports.ProcessBatchSchema = zod_1.z.object({
     rawMaizeConsumed: zod_1.z.number().positive("Consumed maize must be greater than 0"),
-    grade1Produced: zod_1.z.number().nonnegative("Grade 1 flour produced must be at least 0"),
-    grade2Produced: zod_1.z.number().nonnegative("Grade 2 flour produced must be at least 0"),
+    flourOutputs: zod_1.z
+        .array(zod_1.z.object({
+        inventoryItemId: zod_1.z.string().min(1),
+        quantityKg: zod_1.z.number().nonnegative("Quantity must be >= 0"),
+    }))
+        .min(1, "At least one flour output is required"),
     maizeJamProduced: zod_1.z.number().nonnegative("Maize Jam produced must be at least 0"),
 });
 async function processBatch(req, res) {
@@ -21,7 +25,7 @@ async function processBatch(req, res) {
                 errors: parse.error.flatten(),
             });
         }
-        const { rawMaizeConsumed, grade1Produced, grade2Produced, maizeJamProduced } = parse.data;
+        const { rawMaizeConsumed, flourOutputs, maizeJamProduced } = parse.data;
         // We execute everything in a Prisma Transaction to guarantee ACID compliance
         const result = await server_1.prisma.$transaction(async (tx) => {
             // 1. Find or seed the raw Maize inventory item
@@ -93,19 +97,39 @@ async function processBatch(req, res) {
                     quantity: (currentRawQty - rawMaizeConsumed).toFixed(3),
                 },
             });
-            // 3. Add produced Finished Goods & By-Products
-            const updatedGrade1 = await tx.inventoryItem.update({
-                where: { sku: "FL-GR1-01" },
-                data: {
-                    quantity: (Number(grade1.quantity) + grade1Produced).toFixed(3),
-                },
-            });
-            const updatedGrade2 = await tx.inventoryItem.update({
-                where: { sku: "FL-GR2-02" },
-                data: {
-                    quantity: (Number(grade2.quantity) + grade2Produced).toFixed(3),
-                },
-            });
+            // 3. Add produced Finished Goods outputs (dynamic)
+            let grade1Produced = 0;
+            let grade2Produced = 0;
+            // Apply each finished-good output to its corresponding inventory item
+            for (const output of flourOutputs) {
+                const target = await tx.inventoryItem.findUnique({
+                    where: { id: output.inventoryItemId },
+                });
+                if (!target) {
+                    throw new Error(`Inventory item not found: ${output.inventoryItemId}`);
+                }
+                if (target.type !== "FINISHED_GOOD") {
+                    throw new Error(`Inventory item ${target.sku} is not FINISHED_GOOD`);
+                }
+                // Update quantity
+                await tx.inventoryItem.update({
+                    where: { id: target.id },
+                    data: {
+                        quantity: (Number(target.quantity) + output.quantityKg).toFixed(3),
+                    },
+                });
+                // Maintain legacy dashboard fields as a best-effort mapping
+                if (target.sku === "FL-GR1-01")
+                    grade1Produced += output.quantityKg;
+                else if (target.sku === "FL-GR2-02")
+                    grade2Produced += output.quantityKg;
+            }
+            // Re-read to return updated quantities for the legacy SKUs
+            const updatedGrade1 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR1-01" } });
+            const updatedGrade2 = await tx.inventoryItem.findUnique({ where: { sku: "FL-GR2-02" } });
+            if (!updatedGrade1 || !updatedGrade2) {
+                throw new Error("Failed to resolve legacy grade1/grade2 inventory items");
+            }
             const updatedMaizeJam = await tx.inventoryItem.update({
                 where: { sku: "BY-JAM-03" },
                 data: {

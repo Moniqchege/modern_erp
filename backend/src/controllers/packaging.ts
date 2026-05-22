@@ -8,14 +8,36 @@ import {
 
 export const ProcessPackagingSchema = z.object({
   operatorName: z.string().min(1).max(120),
-  grade1FlourConsumed: z.number().nonnegative(),
-  grade2FlourConsumed: z.number().nonnegative(),
+
+  // Dynamic flour types consumed (bulk, FINISHED_GOOD inventory items)
+  flourConsumption: z
+    .array(
+      z.object({
+        flourInventoryItemId: z.string().min(1),
+        consumedKg: z.number().nonnegative(),
+      })
+    )
+    .min(1, "At least one flour consumption row is required"),
+
+  // Optional spillage total (kg). Will be distributed proportionally across flourConsumption.
   flourSpillage: z.number().nonnegative().default(0),
+
+  // Packaging materials (still uses the single PKG-MAT-01 inventory item in current backend)
   packagingMaterialReceived: z.number().nonnegative().optional(),
   packagingMaterialConsumed: z.number().nonnegative(),
   packagingMaterialDestroyed: z.number().nonnegative().optional(),
-  balesProducedGrade1: z.number().int().nonnegative(),
-  balesProducedGrade2: z.number().int().nonnegative(),
+
+  // Dynamic bale outputs per flour type
+  flourPackedOutputs: z
+    .array(
+      z.object({
+        flourInventoryItemId: z.string().min(1),
+        packedBaleInventoryItemId: z.string().min(1),
+        balesProduced: z.number().int().nonnegative(),
+      })
+    )
+    .default([]),
+
   baleWeightKg: z.number().positive().optional(),
   notes: z.string().max(2000).optional(),
 });
@@ -31,6 +53,11 @@ export async function processPackaging(req: Request, res: Response) {
     }
 
     const run = await processPackagingRun(parse.data);
+    if (!run) {
+      return res.status(404).json({
+        message: "Packaging run could not be created",
+      });
+    }
     res.status(201).json({
       message: "Packaging run recorded successfully",
       run: formatPackagingRun(run),

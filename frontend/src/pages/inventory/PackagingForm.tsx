@@ -15,19 +15,33 @@ export interface PackagingRun {
   runNumber: string;
   operatorName: string;
   baleWeightKg: number;
-  grade1FlourConsumed: number;
-  grade2FlourConsumed: number;
   flourSpillage: number;
   packagingMaterialReceived: number;
   packagingMaterialConsumed: number;
   packagingMaterialDestroyed: number;
-  balesProducedGrade1: number;
-  balesProducedGrade2: number;
   totalPackagedKg: number;
   yieldPercent: number;
   notes?: string | null;
   createdAt: string;
 }
+
+interface InventoryItem {
+  id: string;
+  sku: string;
+  name: string;
+  description?: string;
+  type: "RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT";
+  unit: string;
+  quantity: number;
+  unitPrice?: number;
+}
+
+type FlourConsumptionRow = { flourInventoryItemId: string; consumedKg: number };
+type FlourPackedOutputRow = {
+  flourInventoryItemId: string;
+  packedBaleInventoryItemId: string;
+  balesProduced: number;
+};
 
 const BALE_KG = 24;
 
@@ -39,24 +53,27 @@ export function PackagingForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+
   const [operatorName, setOperatorName] = useState("");
-  const [grade1FlourConsumed, setGrade1FlourConsumed] = useState("0");
-  const [grade2FlourConsumed, setGrade2FlourConsumed] = useState("0");
+
   const [flourSpillage, setFlourSpillage] = useState("0");
   const [packagingMaterialReceived, setPackagingMaterialReceived] = useState("0");
   const [packagingMaterialConsumed, setPackagingMaterialConsumed] = useState("0");
   const [packagingMaterialDestroyed, setPackagingMaterialDestroyed] = useState("0");
-  const [balesProducedGrade1, setBalesProducedGrade1] = useState("0");
-  const [balesProducedGrade2, setBalesProducedGrade2] = useState("0");
+
+  const [flourConsumptionRows, setFlourConsumptionRows] = useState<FlourConsumptionRow[]>([]);
+  const [flourPackedOutputs, setFlourPackedOutputs] = useState<FlourPackedOutputRow[]>([]);
+
   const [notes, setNotes] = useState("");
 
-  const g1 = parseFloat(grade1FlourConsumed) || 0;
-  const g2 = parseFloat(grade2FlourConsumed) || 0;
   const spill = parseFloat(flourSpillage) || 0;
-  const b1 = parseInt(balesProducedGrade1, 10) || 0;
-  const b2 = parseInt(balesProducedGrade2, 10) || 0;
-  const totalInput = g1 + g2 + spill;
-  const totalPackaged = (b1 + b2) * BALE_KG;
+  const totalFlourConsumed = flourConsumptionRows.reduce((s, r) => s + (Number(r.consumedKg) || 0), 0);
+  const totalInput = totalFlourConsumed + spill;
+
+  const totalBales = flourPackedOutputs.reduce((s, r) => s + (Number(r.balesProduced) || 0), 0);
+  const totalPackaged = totalBales * BALE_KG;
+
   const yieldPct = totalInput > 0 ? (totalPackaged / totalInput) * 100 : 0;
   const isInvalid = !operatorName.trim() || totalInput <= 0;
   const outputExceeded = totalPackaged > totalInput + 0.01;
@@ -81,9 +98,56 @@ export function PackagingForm() {
     }
   };
 
+const fetchInventory = async () => {
+  try {
+    const res = await fetch("/api/inventory");
+    if (!res.ok) throw new Error("Failed to fetch inventory");
+
+    const data = await res.json();
+    const items: InventoryItem[] = data.items || [];
+
+    setInventoryItems(items);
+
+    const flourItems = items.filter(
+      (item) =>
+        item.type === "FINISHED_GOOD" &&
+        item.unit.toUpperCase() === "KG"
+    );
+
+    const baleItems = items.filter(
+      (item) =>
+        item.type === "FINISHED_GOOD" &&
+        ["BAG", "BALE"].includes(item.unit.toUpperCase())
+    );
+
+    const defaultBaleId = baleItems[0]?.id ?? "";
+
+    setFlourConsumptionRows(
+      flourItems.map((item) => ({
+        flourInventoryItemId: item.id,
+        consumedKg: 0,
+      }))
+    );
+
+    setFlourPackedOutputs(
+      flourItems.map((item) => ({
+        flourInventoryItemId: item.id,
+        packedBaleInventoryItemId: defaultBaleId,
+        balesProduced: 0,
+      }))
+    );
+
+  } catch (error) {
+    console.error(error);
+    setApiStatus("offline");
+  }
+};
+
   useEffect(() => {
     fetchRuns();
+    fetchInventory();
   }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,14 +159,19 @@ export function PackagingForm() {
 
     const payload = {
       operatorName: operatorName.trim(),
-      grade1FlourConsumed: g1,
-      grade2FlourConsumed: g2,
+      flourConsumption: flourConsumptionRows.map((r) => ({
+        flourInventoryItemId: r.flourInventoryItemId,
+        consumedKg: Number(r.consumedKg) || 0,
+      })),
       flourSpillage: spill,
       packagingMaterialReceived: parseFloat(packagingMaterialReceived) || 0,
       packagingMaterialConsumed: parseFloat(packagingMaterialConsumed) || 0,
       packagingMaterialDestroyed: parseFloat(packagingMaterialDestroyed) || 0,
-      balesProducedGrade1: b1,
-      balesProducedGrade2: b2,
+      flourPackedOutputs: flourPackedOutputs.map((r) => ({
+        flourInventoryItemId: r.flourInventoryItemId,
+        packedBaleInventoryItemId: r.packedBaleInventoryItemId,
+        balesProduced: Number(r.balesProduced) || 0,
+      })),
       baleWeightKg: BALE_KG,
       notes: notes.trim() || undefined,
     };
@@ -121,15 +190,15 @@ export function PackagingForm() {
       setSuccessMessage(`Run ${data.run?.runNumber ?? ""} recorded.`);
       if (data.run) setRuns((prev) => [data.run, ...prev]);
       setOperatorName("");
-      setGrade1FlourConsumed("0");
-      setGrade2FlourConsumed("0");
       setFlourSpillage("0");
       setPackagingMaterialReceived("0");
       setPackagingMaterialConsumed("0");
       setPackagingMaterialDestroyed("0");
-      setBalesProducedGrade1("0");
-      setBalesProducedGrade2("0");
       setNotes("");
+
+      setFlourConsumptionRows((prev) => prev.map((r) => ({ ...r, consumedKg: 0 })));
+      setFlourPackedOutputs((prev) => prev.map((r) => ({ ...r, balesProduced: 0 })));
+
     } catch {
       setErrorMessage("Network error.");
     } finally {
@@ -187,29 +256,37 @@ export function PackagingForm() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">Grade 1 flour used (kg)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={grade1FlourConsumed}
-                onChange={(e) => setGrade1FlourConsumed(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">Grade 2 flour used (kg)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={grade2FlourConsumed}
-                onChange={(e) => setGrade2FlourConsumed(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
+          <div className="space-y-3">
+            <div className="text-[9px] font-extrabold text-slate-400 uppercase">Flour types consumed (kg)</div>
+            {flourConsumptionRows.length === 0 ? (
+              <p className="text-[10px] text-slate-500">No finished-good flour types found in catalogue.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {flourConsumptionRows.map((row, idx) => (
+                  <div key={row.flourInventoryItemId} className="space-y-1">
+                    <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                      {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={String(row.consumedKg)}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setFlourConsumptionRows((prev) =>
+                          prev.map((r, i) => (i === idx ? { ...r, consumedKg: v } : r))
+                        );
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                    <span className="block text-[8px] text-slate-400">
+                      SKU: {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -248,8 +325,8 @@ export function PackagingForm() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase flex items-center gap-1">
-                <Trash2 className="h-3 w-3" /> Destroyed
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                Pkg Destroyed
               </label>
               <input
                 type="number"
@@ -262,29 +339,33 @@ export function PackagingForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">G1 bales ({BALE_KG} kg)</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={balesProducedGrade1}
-                onChange={(e) => setBalesProducedGrade1(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">G2 bales ({BALE_KG} kg)</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={balesProducedGrade2}
-                onChange={(e) => setBalesProducedGrade2(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
-              />
-            </div>
+          <div className="space-y-3">
+            <div className="text-[9px] font-extrabold text-slate-400 uppercase">Bale outputs per flour type</div>
+            {flourPackedOutputs.length === 0 ? null : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {flourPackedOutputs.map((row, idx) => (
+                  <div key={`${row.flourInventoryItemId}-${idx}`} className="space-y-1">
+                    <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                      {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name} Bale Output
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={String(row.balesProduced)}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10) || 0;
+                        setFlourPackedOutputs((prev) =>
+                          prev.map((r, i) => (i === idx ? { ...r, balesProduced: v } : r))
+                        );
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-slate-500">Bale SKU selection will be added next; for now the first bale item found is used as default.</p>
           </div>
 
           <div className="space-y-1">
@@ -357,8 +438,7 @@ export function PackagingForm() {
                 <tr>
                   <th className="px-4 py-3">Run</th>
                   <th className="px-4 py-3">Operator</th>
-                  <th className="px-4 py-3 text-right">G1 / G2 kg</th>
-                  <th className="px-4 py-3 text-right">Bales</th>
+                  <th className="px-4 py-3 text-right">Packaged kg</th>
                   <th className="px-4 py-3 text-right">Spill</th>
                   <th className="px-4 py-3 text-right">Yield</th>
                 </tr>
@@ -368,15 +448,8 @@ export function PackagingForm() {
                   <tr key={r.id} className="text-slate-600">
                     <td className="px-4 py-3 font-mono font-bold">{r.runNumber}</td>
                     <td className="px-4 py-3">{r.operatorName}</td>
-                    <td className="px-4 py-3 text-right font-mono">
-                      {r.grade1FlourConsumed.toFixed(1)} / {r.grade2FlourConsumed.toFixed(1)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">
-                      {r.balesProducedGrade1} + {r.balesProducedGrade2}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-amber-700">
-                      {r.flourSpillage.toFixed(1)}
-                    </td>
+                    <td className="px-4 py-3 text-right font-mono">{r.totalPackagedKg.toFixed(1)} KG</td>
+                    <td className="px-4 py-3 text-right font-mono text-amber-700">{r.flourSpillage.toFixed(1)}</td>
                     <td className="px-4 py-3 text-right font-mono">{r.yieldPercent.toFixed(1)}%</td>
                   </tr>
                 ))}
