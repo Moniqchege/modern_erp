@@ -57,23 +57,6 @@ const CreateSupplierSchema = zod_1.z.object({
     bankBranch: zod_1.z.string().max(128).optional().nullable(),
     bankSwiftCode: zod_1.z.string().max(32).optional().nullable(),
 });
-const ComplianceDocSchema = zod_1.z.object({
-    documentType: zod_1.z.enum([
-        "FOOD_SAFETY",
-        "KEBS_CERTIFICATE",
-        "ISO",
-        "ORGANIC",
-        "GLOBALGAP",
-        "TAX_COMPLIANCE",
-        "OTHER",
-    ]),
-    title: zod_1.z.string().min(1).max(255),
-    fileUrl: zod_1.z.string().url().optional(),
-    referenceNo: zod_1.z.string().max(64).optional().nullable(),
-    issuedAt: zod_1.z.coerce.date().optional(),
-    expiresAt: zod_1.z.coerce.date().optional(),
-    notes: zod_1.z.string().max(2000).optional().nullable(),
-});
 exports.suppliersRouter.get("/", async (req, res) => {
     try {
         const activeOnly = req.query.activeOnly === "true";

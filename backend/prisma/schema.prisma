@@ -183,8 +183,13 @@ model Supplier {
   financeApprovedAt      DateTime?
   activatedAt            DateTime?
 
+  // Locking (maker/checker 1:1): only allow locking when onboarding is approved (onboardingStatus = ACTIVE)
+  lockedAt               DateTime?
+  lockedBy               String?
+
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
+
   updatedAt       DateTime  @updatedAt
 
   rawMaizeBatches       RawMaizeBatch[]

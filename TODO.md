@@ -1,15 +1,19 @@
-- [x] Remove document upload UI + logic from Suppliers.tsx
-- [x] Add bank/payment fields (bank name, account no, branch, swift) to Suppliers.tsx
-- [x] Remove document wallet UI + logic from SupplierDetail.tsx
+# TODO - Supplier status unification + lock
 
-- [x] Show payment/bank info on SupplierDetail.tsx
+## Planned changes
+- [x] Update Prisma `Supplier` model to support locking (lockedAt, lockedBy).
 
+- [ ] Add backend route `POST /api/procurement/suppliers/:id/lock`.
+- [ ] Implement lock service logic with audit logging.
+- [ ] Derive a single supplier table status (backend+frontend):
 
-- [x] Add Edit button + draft edit form in SupplierDetail.tsx (only when onboardingStatus === DRAFT)
-
-- [x] Update backend suppliers routes to disable/remove compliance document endpoints
-
-- [ ] Run frontend build/typecheck and backend test/lint
-- [ ] Smoke test flows: create supplier, view supplier, edit draft, no document upload endpoints
-
+  - PENDING = onboardingStatus in DRAFT/QA_AUDIT/FINANCE_APPROVAL
+  - ACTIVE = onboardingStatus ACTIVE AND NOT locked
+  - LOCKED = onboardingStatus ACTIVE AND locked
+  - INACTIVE = onboardingStatus in REJECTED/SUSPENDED OR other non-approval states per your rule
+- [ ] Update `Suppliers.tsx` to remove separate isActive column and show only one status.
+- [ ] Add Lock button on ACTIVE rows (i.e., derived status ACTIVE).
+- [ ] Update `StatusBadge.tsx` styles for PENDING/ACTIVE/INACTIVE/LOCKED.
+- [ ] Update API client to include lock action.
+- [ ] Run backend + frontend build/typecheck.
 

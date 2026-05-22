@@ -30,10 +30,27 @@ export function SupplierDetail() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isDraft = useMemo(
-    () => supplier?.onboardingStatus === "DRAFT",
-    [supplier]
-  );
+  const supplierIdSafe = supplierId ?? "";
+
+  const onboardingApprovalState = useMemo(() => {
+    if (!supplier) return null;
+    if (supplier.onboardingStatus === "REJECTED") return "rejected" as const;
+    if (
+      supplier.onboardingStatus === "ACTIVE" || supplier.isActive
+    )
+      return "approved" as const;
+    return "pending" as const;
+  }, [supplier]);
+
+
+  const supplierActivationState = useMemo(() => {
+    if (!supplier) return null;
+    // lockedAt => locked
+    const lockedAt = (supplier as any).lockedAt as string | null | undefined;
+    if (lockedAt) return "locked" as const;
+    if (supplier.isActive) return "active" as const;
+    return "inactive" as const;
+  }, [supplier]);
 
   const [form, setForm] = useState<SupplierEditPayload>({});
 
@@ -191,50 +208,91 @@ export function SupplierDetail() {
         <div className="flex items-center gap-2">
           <StatusBadge status={supplier.onboardingStatus} />
 
-          {isDraft ? (
+          {!editing ? (
             <>
-              {!editing ? (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="inline-flex items-center gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+
+              {supplierActivationState === "active" && (
                 <button
                   type="button"
-                  onClick={startEdit}
-                  className="inline-flex items-center gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50"
+                  onClick={() => {
+                    setError("Lock endpoint not implemented yet in backend");
+                  }}
+                  className="inline-flex items-center gap-2 text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit
+                  Lock
                 </button>
-              ) : (
-                <div className="flex items-center gap-2">
+              )}
+
+              {onboardingApprovalState === "pending" && (
+                <>
                   <button
                     type="button"
-                    disabled={saving}
-                    onClick={() => void saveEdit()}
-                    className="inline-flex items-center gap-2 text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                    onClick={async () => {
+                      try {
+                          await procurementApi.suppliers.approveOnboarding(
+                          supplierIdSafe,
+                          "Procurement Officer"
+                        );
+                        const d = await procurementApi.suppliers.get(supplierIdSafe);
+                        setSupplier(d.supplier as Supplier);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg"
                   >
-                    <Save className="h-3.5 w-3.5" />
-                    {saving ? "Saving…" : "Save"}
+                    Approve
                   </button>
                   <button
                     type="button"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+                    onClick={async () => {
+                      try {
+                        await procurementApi.suppliers.rejectOnboarding(
+                          supplierId,
+                          "Procurement Officer"
+                        );
+                        const d = await procurementApi.suppliers.get(supplierId);
+                        setSupplier(d.supplier as Supplier);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 text-xs font-bold bg-rose-600 text-white px-3 py-1.5 rounded-lg"
                   >
-                    <X className="h-3.5 w-3.5" />
-                    Cancel
+                    Reject
                   </button>
-                </div>
+                </>
               )}
             </>
           ) : (
-            supplier.onboardingStatus !== "ACTIVE" && (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => void advanceOnboarding()}
-                className="text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg"
+                disabled={saving}
+                onClick={() => void saveEdit()}
+                className="inline-flex items-center gap-2 text-xs font-bold bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
               >
-                Advance onboarding
+                <Save className="h-3.5 w-3.5" />
+                {saving ? "Saving…" : "Save"}
               </button>
-            )
+              <button
+                type="button"
+                onClick={cancelEdit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            </div>
           )}
         </div>
       </div>

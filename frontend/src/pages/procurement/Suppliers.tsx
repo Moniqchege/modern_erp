@@ -3,15 +3,35 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Search, Loader2, X, Eye } from "lucide-react";
 import { StatusBadge } from "../../modules/procurement/components/StatusBadge";
 import { procurementApi } from "../../modules/procurement/api/procurementClient";
+
 import { ROUTES } from "../../app/router/routes";
 import type { Supplier } from "../../modules/procurement/types/procurement";
+
+type SupplierWithLock = Supplier & { lockedAt?: string | null };
+
 
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function Suppliers() {
   const navigate = useNavigate();
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const getTableStatus = (s: Supplier) => {
+    // Maker/checker 1:1: onboarding is represented as table state.
+    if (s.onboardingStatus === "ACTIVE") {
+      return (s as any).lockedAt ? "LOCKED" : "ACTIVE";
+    }
+
+    if (s.onboardingStatus === "REJECTED" || s.onboardingStatus === "SUSPENDED") {
+      return "INACTIVE";
+    }
+
+    // DRAFT / QA_AUDIT / FINANCE_APPROVAL => pending onboarding
+    return "PENDING";
+  };
+
+
+  const [suppliers, setSuppliers] = useState<SupplierWithLock[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -180,6 +200,7 @@ export function Suppliers() {
                 <th className="px-4 py-3">Tax PIN</th>
                 <th className="px-4 py-3">Onboarding</th>
                 <th className="px-4 py-3">Status</th>
+
                 <th className="px-4 py-3 w-24">Actions</th>
               </tr>
             </thead>
@@ -194,18 +215,29 @@ export function Suppliers() {
                   <td className="px-4 py-3 font-medium">{s.name}</td>
                   <td className="px-4 py-3">{s.taxPin ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={s.onboardingStatus} />
+                    <StatusBadge status={getTableStatus(s)} />
                   </td>
+
                   <td className="px-4 py-3">
                     <span
                       className={
-                        s.isActive ? "text-emerald-600 font-bold" : "text-slate-400"
+                        getTableStatus(s) === "ACTIVE"
+                          ? "text-emerald-600 font-bold"
+                          : getTableStatus(s) === "LOCKED"
+                            ? "text-indigo-700 font-bold"
+                            : getTableStatus(s) === "PENDING"
+                              ? "text-amber-700 font-bold"
+                              : "text-slate-400"
                       }
                     >
-                      {s.isActive ? "Active" : "Inactive"}
+                      {getTableStatus(s)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-left" onClick={(ev) => ev.stopPropagation()}>
+                    {/* Lock moved to SupplierDetail view screen */}
+                    {/* {getTableStatus(s) === "ACTIVE" && ( ... )} */}
+
+
                     <button
                       type="button"
                       onClick={() => navigate(ROUTES.PROCUREMENT_SUPPLIER_DETAIL(s.id))}
@@ -215,6 +247,7 @@ export function Suppliers() {
                       View
                     </button>
                   </td>
+
                 </tr>
               ))}
               {filtered.length === 0 && (

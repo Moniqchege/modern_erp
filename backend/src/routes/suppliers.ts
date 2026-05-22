@@ -2,7 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../server";
 import * as supplierService from "../services/supplier.service";
-import { advanceSupplierOnboarding } from "../services/procurement/supplier-crm.service";
+import {
+  advanceSupplierOnboarding,
+  approveSupplierOnboarding,
+  rejectSupplierOnboarding,
+} from "../services/procurement/supplier-crm.service";
 
 
 export const suppliersRouter = Router();
@@ -141,3 +145,42 @@ suppliersRouter.post("/:id/onboarding/advance", async (req, res) => {
     res.status(400).json({ message: String(error) });
   }
 });
+
+suppliersRouter.post("/:id/onboarding/approve", async (req, res) => {
+  const body = z
+    .object({ actorName: z.string().min(1), notes: z.string().optional() })
+    .safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ message: "actorName required" });
+  }
+  try {
+    const supplier = await approveSupplierOnboarding(
+      req.params.id,
+      body.data.actorName,
+      body.data.notes
+    );
+    res.status(200).json({ success: true, supplier });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});
+
+suppliersRouter.post("/:id/onboarding/reject", async (req, res) => {
+  const body = z
+    .object({ actorName: z.string().min(1), notes: z.string().optional() })
+    .safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ message: "actorName required" });
+  }
+  try {
+    const supplier = await rejectSupplierOnboarding(
+      req.params.id,
+      body.data.actorName,
+      body.data.notes
+    );
+    res.status(200).json({ success: true, supplier });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});
+

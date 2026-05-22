@@ -28,6 +28,16 @@ export const procurementApi = {
         method: "POST",
         body: JSON.stringify({ actorName, notes }),
       }),
+    approveOnboarding: (id: string, actorName: string, notes?: string) =>
+      json(`${SUPPLIERS}/${id}/onboarding/approve`, {
+        method: "POST",
+        body: JSON.stringify({ actorName, notes }),
+      }),
+    rejectOnboarding: (id: string, actorName: string, notes?: string) =>
+      json(`${SUPPLIERS}/${id}/onboarding/reject`, {
+        method: "POST",
+        body: JSON.stringify({ actorName, notes }),
+      }),
     createComplianceDocumentsBatch: (id: string, payload: Record<string, unknown>) =>
       json(`${SUPPLIERS}/${id}/documents/batch`, {
         method: "POST",
