@@ -45,16 +45,8 @@ export async function getInventoryDashboardAnalytics() {
     }),
   ]);
 
-  const stockByType = {
-    RAW_MATERIAL: 0,
-    FINISHED_GOOD: 0,
-    BY_PRODUCT: 0,
-  };
-  const qtyByType = {
-    RAW_MATERIAL: 0,
-    FINISHED_GOOD: 0,
-    BY_PRODUCT: 0,
-  };
+  const stockByType: Record<string, number> = {};
+  const qtyByType: Record<string, number> = {};
   let totalValuation = 0;
   let totalSkus = items.length;
   let outOfStock = 0;

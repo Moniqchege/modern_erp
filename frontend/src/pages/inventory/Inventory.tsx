@@ -11,7 +11,23 @@ export interface InventoryItem {
   sku: string;
   name: string;
   description: string | null;
-  type: "RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT";
+  type:
+    | "RAW_MATERIAL"
+    | "FINISHED_GOOD"
+    | "BY_PRODUCT"
+    | "PACKETS_2KG"
+    | "PACKETS_1KG"
+    | "KHAKI_BALER_2KG"
+    | "KHAKI_BALER_1KG"
+    | "NYLON_BALER_1KG"
+    | "NYLON_BALER_2KG"
+    | "BAG_5KG"
+    | "BAG_10KG"
+    | "LAMINATED_BALER"
+    | "BAG_50KG"
+    | "BAG_90KG"
+    | "CLEAR_TAPES"
+    | "GLUE";
   unit: string;
   store?: string;
   quantity: number;
@@ -46,6 +62,12 @@ function getTypeBadge(itemType: string) {
           Raw Material
         </span>
       );
+    case "FINISHED_GOOD":
+      return (
+        <span className="inline-block text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/50 px-2 py-0.5 rounded-lg select-none">
+          Finished Good
+        </span>
+      );
     case "BY_PRODUCT":
       return (
         <span className="inline-block text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/50 px-2 py-0.5 rounded-lg select-none">
@@ -54,8 +76,8 @@ function getTypeBadge(itemType: string) {
       );
     default:
       return (
-        <span className="inline-block text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/50 px-2 py-0.5 rounded-lg select-none">
-          Finished Good
+        <span className="inline-block text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/50 px-2 py-0.5 rounded-lg select-none">
+          {itemType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}
         </span>
       );
   }
@@ -311,7 +333,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState<"RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT">("FINISHED_GOOD");
+  const [type, setType] = useState<InventoryItem["type"]>("FINISHED_GOOD");
   const [store, setStore] = useState("MAIN_STORE");
   const [unit, setUnit] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(0);
@@ -624,6 +646,19 @@ const filteredUnits =
                     <option value="RAW_MATERIAL">Raw Material</option>
                     <option value="FINISHED_GOOD">Finished Good</option>
                     <option value="BY_PRODUCT">By-Product</option>
+                    <option value="PACKETS_2KG">2kg Packets</option>
+                    <option value="PACKETS_1KG">1kg Packets</option>
+                    <option value="KHAKI_BALER_2KG">2kg Khaki Baler</option>
+                    <option value="KHAKI_BALER_1KG">1kg Khaki Baler</option>
+                    <option value="NYLON_BALER_1KG">1kg Nylon Baler</option>
+                    <option value="NYLON_BALER_2KG">2kg Nylon Baler</option>
+                    <option value="BAG_5KG">5kg Bag</option>
+                    <option value="BAG_10KG">10kg Bag</option>
+                    <option value="LAMINATED_BALER">Laminated Baler</option>
+                    <option value="BAG_50KG">50kg Bag</option>
+                    <option value="BAG_90KG">90Kg Bag</option>
+                    <option value="CLEAR_TAPES">Clear Tapes</option>
+                    <option value="GLUE">Glue</option>
                   </select>
                 </div>
                 <div className="space-y-1">

@@ -45,7 +45,23 @@ interface InventoryItemDetail {
   sku: string;
   name: string;
   description: string | null;
-  type: "RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT";
+  type:
+    | "RAW_MATERIAL"
+    | "FINISHED_GOOD"
+    | "BY_PRODUCT"
+    | "PACKETS_2KG"
+    | "PACKETS_1KG"
+    | "KHAKI_BALER_2KG"
+    | "KHAKI_BALER_1KG"
+    | "NYLON_BALER_1KG"
+    | "NYLON_BALER_2KG"
+    | "BAG_5KG"
+    | "BAG_10KG"
+    | "LAMINATED_BALER"
+    | "BAG_50KG"
+    | "BAG_90KG"
+    | "CLEAR_TAPES"
+    | "GLUE";
   unit: string;
   quantity: number;
   unitPrice: number | null;
@@ -94,7 +110,7 @@ const MOVEMENT_META: Record<MovementEntry["movementType"], { label: string; colo
   ADJUSTMENT:         { label: "Adjustment",       color: "#7c3aed", bg: "#faf5ff", sign: "±" as any },
 };
 
-const TYPE_META = {
+const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
   RAW_MATERIAL: { label: "Raw Material",  color: "#92400e", bg: "#fef3c7" },
   FINISHED_GOOD:{ label: "Finished Good", color: "#065f46", bg: "#d1fae5" },
   BY_PRODUCT:   { label: "By-Product",    color: "#4c1d95", bg: "#ede9fe" },
