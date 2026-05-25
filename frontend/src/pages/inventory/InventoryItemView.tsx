@@ -46,7 +46,7 @@ interface InventoryItemDetail {
   name: string;
   description: string | null;
   type: "RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT";
-  unit: "KG" | "BAG";
+  unit: string;
   quantity: number;
   unitPrice: number | null;
   reorderLevel?: number | null;

@@ -12,7 +12,8 @@ export interface InventoryItem {
   name: string;
   description: string | null;
   type: "RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT";
-  unit: "KG" | "BAG";
+  unit: string;
+  store?: string;
   quantity: number;
   unitPrice?: number | null;
   reorderLevel?: number | null;
@@ -311,11 +312,32 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"RAW_MATERIAL" | "FINISHED_GOOD" | "BY_PRODUCT">("FINISHED_GOOD");
-  const [unit, setUnit] = useState<"KG" | "BAG">("KG");
+  const [store, setStore] = useState("MAIN_STORE");
+  const [unit, setUnit] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(0);
   const [unitPrice, setUnitPrice] = useState<number>(0.0);
   const [reorderLevel, setReorderLevel] = useState<string>("");
   const [reorderQuantity, setReorderQuantity] = useState<string>("");
+
+  const UNIT_OPTIONS = [
+  "KG",
+  "PIECES",
+  "BAG",
+  "BALE",
+  "GRAMS",
+  "L",
+  "MT",
+  "UNIT",
+];
+
+const [showUnitDropdown, setShowUnitDropdown] = useState(false);
+
+const filteredUnits =
+  unit.trim() === ""
+    ? UNIT_OPTIONS
+    : UNIT_OPTIONS.filter((u) =>
+        u.toLowerCase().includes(unit.toLowerCase())
+      );
 
   const navigate = useNavigate();
   const fetchInventory = async () => {
@@ -348,7 +370,8 @@ export function Inventory({ onViewItem }: InventoryProps) {
       name,
       description: description || undefined,
       type,
-      unit,
+      store,
+      unit: unit || "KG",
       quantity,
       unitPrice,
       reorderLevel: reorderLevel.trim() === "" ? null : parseFloat(reorderLevel),
@@ -378,7 +401,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
     } else {
       setItems((p) => [{
         id: `local_${Date.now()}`, sku, name,
-        description: description || null, type, unit, quantity, unitPrice,
+        description: description || null, type, store, unit, quantity, unitPrice,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       }, ...p]);
       closeAddModal();
@@ -388,7 +411,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const closeAddModal = () => {
     setIsAddModalOpen(false);
     setSku(""); setName(""); setDescription(""); setType("FINISHED_GOOD");
-    setUnit("KG"); setQuantity(0); setUnitPrice(0);
+    setStore("MAIN_STORE"); setUnit("KG"); setQuantity(0); setUnitPrice(0);
     setReorderLevel(""); setReorderQuantity(""); setErrorText(null);
   };
 
@@ -555,8 +578,8 @@ export function Inventory({ onViewItem }: InventoryProps) {
       {/* ── Add Item Modal ── */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 w-full max-w-3xl rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 w-full max-w-3xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
                   <Package className="h-4 w-4" />
@@ -571,7 +594,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
               </button>
             </div>
 
-            <form onSubmit={handleAddItem} className="p-6 space-y-4">
+            <form onSubmit={handleAddItem} className="p-5 space-y-4 overflow-y-auto flex-1">
               {errorText && (
                 <div className="flex gap-2 bg-rose-50 border border-rose-100 p-3 rounded-lg text-[10px] text-rose-600 font-bold">
                   <AlertCircle className="h-4 w-4 shrink-0" />{errorText}
@@ -604,14 +627,61 @@ export function Inventory({ onViewItem }: InventoryProps) {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Unit of Measure</label>
-                  <select value={unit} onChange={(e) => setUnit(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-bold">
-                    <option value="KG">Kilograms (KG)</option>
-                    <option value="BAG">Bags (BAG)</option>
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Destination Store</label>
+                  <select value={store} onChange={(e) => setStore(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800">
+                    <option value="RAW_MATERIALS_STORE">Raw Materials Store</option>
+                    <option value="MAIN_STORE">Main Store</option>
+                    <option value="PACKAGING_STORE">Packaging Store</option>
                   </select>
                 </div>
               </div>
+
+             <div className="space-y-1 relative">
+  <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+    Unit of Measure
+  </label>
+
+  <input
+    type="text"
+    value={unit}
+    onFocus={() => setShowUnitDropdown(true)}
+    onChange={(e) => {
+      setUnit(e.target.value.toUpperCase());
+      setShowUnitDropdown(true);
+    }}
+    onBlur={() => {
+      // delay so click can register
+      setTimeout(() => setShowUnitDropdown(false), 150);
+    }}
+    placeholder="Search or type unit (KG, BAG...)"
+    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-bold"
+  />
+
+  {showUnitDropdown && (
+    <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+      {filteredUnits.length > 0 ? (
+        filteredUnits.map((u) => (
+          <button
+            key={u}
+            type="button"
+            onMouseDown={() => {
+              setUnit(u);
+              setShowUnitDropdown(false);
+            }}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 text-slate-700 font-medium"
+          >
+            {u}
+          </button>
+        ))
+      ) : (
+        <div className="px-3 py-2 text-xs text-slate-400">
+          No matching units
+        </div>
+      )}
+    </div>
+  )}
+</div>
 
               <div className="space-y-1">
                 <label className="text-[9px] font-extrabold text-slate-400 uppercase">Description</label>
@@ -621,12 +691,6 @@ export function Inventory({ onViewItem }: InventoryProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Opening Balance Stock</label>
-                  <input type="number" step="0.01" min="0" value={quantity}
-                    onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono" />
-                </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-extrabold text-slate-400 uppercase">Selling Unit Price (ksh)</label>
                   <input type="number" step="0.01" min="0" value={unitPrice}
@@ -650,7 +714,7 @@ export function Inventory({ onViewItem }: InventoryProps) {
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 pt-4 flex justify-end gap-2.5">
+              <div className="border-t border-slate-200 pt-4 flex justify-end gap-2.5 sticky bottom-0 bg-white pb-1">
                 <button type="button" onClick={closeAddModal}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2 rounded-lg text-xs font-bold transition-all active:scale-95">
                   Cancel
