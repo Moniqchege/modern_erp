@@ -228,7 +228,11 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Unit Price ($)</label>
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                {item.type !== "FINISHED_GOOD" && item.type !== "BY_PRODUCT"
+                    ? "Buying Unit Price (ksh)"
+                    : "Selling Unit Price (ksh)"}
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -334,6 +338,9 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<InventoryItem["type"]>("FINISHED_GOOD");
+
+  const isBuyingPrice = (type: InventoryItem["type"]) =>
+  type !== "FINISHED_GOOD" && type !== "BY_PRODUCT";
   const [store, setStore] = useState("MAIN_STORE");
   const [unit, setUnit] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(0);
@@ -518,8 +525,8 @@ const filteredUnits =
                   <th className="px-6 py-4">SKU Code</th>
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Item Name & Details</th>
-                  <th className="px-6 py-4 text-right">Qty In Stock</th>
-                  <th className="px-6 py-4 text-right">Unit Price</th>
+                  <th className="px-6 py-4">Qty In Stock</th>
+                  <th className="px-6 py-4 truncate">Unit Price</th>
                   <th className="px-6 py-4 text-center">Status</th>
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
@@ -538,19 +545,19 @@ const filteredUnits =
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/40 transition-colors py-4">
-                        <td className="px-6 py-4 font-mono text-[#000] font-bold select-all">{item.sku}</td>
-                        <td>{getTypeBadge(item.type)}</td>
+                        <td className="px-6 py-4 font-mono text-[#000] truncate font-bold select-all">{item.sku}</td>
+                        <td className="truncate">{getTypeBadge(item.type)}</td>
                         <td className="px-6 py-4 max-w-xs">
                           <div className="font-bold text-slate-800">{item.name}</div>
                           <div className="text-slate-400 text-[10px] truncate mt-0.5" title={item.description ?? ""}>
                             {item.description ?? "No description provided"}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-left font-extrabold font-mono text-slate-900">
+                        <td className="px-6 py-4 text-left font-extrabold truncate font-mono text-slate-900">
                           {item.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}{" "}
                           <span className="text-[10px] text-slate-400 font-sans font-bold">{item.unit}</span>
                         </td>
-                        <td className="px-6 py-4 text-left font-mono font-bold text-slate-700">
+                        <td className="px-6 py-4 text-left font-mono truncate font-bold text-slate-700">
                           {item.unitPrice != null ? `ksh ${item.unitPrice.toFixed(2)}` : "—"}
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -652,9 +659,9 @@ const filteredUnits =
                     <option value="KHAKI_BALER_1KG">1kg Khaki Baler</option>
                     <option value="NYLON_BALER_1KG">1kg Nylon Baler</option>
                     <option value="NYLON_BALER_2KG">2kg Nylon Baler</option>
+                    <option value="LAMINATED_BALER">Laminated Baler</option>
                     <option value="BAG_5KG">5kg Bag</option>
                     <option value="BAG_10KG">10kg Bag</option>
-                    <option value="LAMINATED_BALER">Laminated Baler</option>
                     <option value="BAG_50KG">50kg Bag</option>
                     <option value="BAG_90KG">90Kg Bag</option>
                     <option value="CLEAR_TAPES">Clear Tapes</option>
@@ -665,8 +672,8 @@ const filteredUnits =
                   <label className="text-[9px] font-extrabold text-slate-400 uppercase">Destination Store</label>
                   <select value={store} onChange={(e) => setStore(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800">
-                    <option value="RAW_MATERIALS_STORE">Raw Materials Store</option>
-                    <option value="MAIN_STORE">Main Store</option>
+                    <option value="RAW_MATERIALS_STORE">Main Store</option>
+                    <option value="MAIN_STORE">Maize Store</option>
                     <option value="PACKAGING_STORE">Packaging Store</option>
                   </select>
                 </div>
@@ -727,7 +734,24 @@ const filteredUnits =
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Selling Unit Price (ksh)</label>
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                Quantity ({unit})
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                value={quantity}
+                onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/20"
+              />
+            </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                    {type !== "FINISHED_GOOD" && type !== "BY_PRODUCT"
+                    ? "Buying Unit Price (ksh)"
+                    : "Selling Unit Price (ksh)"}
+                  </label>
                   <input type="number" step="0.01" min="0" value={unitPrice}
                     onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono" />

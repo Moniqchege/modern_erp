@@ -62,7 +62,7 @@ const formatMovement = (m: {
   unitPriceApplied: Number(m.unitPriceApplied),
 });
 
-const formatPriceHistory = (p: { unitPrice: unknown; [key: string]: unknown }) => ({
+const formatPriceHistory = (p: { unitPrice: unknown;[key: string]: unknown }) => ({
   ...p,
   unitPrice: Number(p.unitPrice),
 });
@@ -226,14 +226,20 @@ inventoryRouter.post("/", async (req, res) => {
       });
     }
 
+    // Persist price history.
+    // For FINISHED_GOOD & BY_PRODUCT we treat this as *selling* price.
+    // For other procurement categories (RAW_MATERIAL), treat it as *buying* price.
     if (input.unitPrice != null && input.unitPrice > 0) {
-      await prisma.inventoryPriceHistory.create({
-        data: {
-          itemId: created.id,
-          unitPrice: input.unitPrice.toFixed(2),
-          effectiveDate: new Date(),
-        },
-      });
+      const isBuyingPrice = input.type === "RAW_MATERIAL";
+      if (isBuyingPrice || input.type === "FINISHED_GOOD" || input.type === "BY_PRODUCT") {
+        await prisma.inventoryPriceHistory.create({
+          data: {
+            itemId: created.id,
+            unitPrice: input.unitPrice.toFixed(2),
+            effectiveDate: new Date(),
+          },
+        });
+      }
     }
 
     await checkReorderAlert(created.id, input.quantity);
@@ -314,6 +320,8 @@ inventoryRouter.patch("/:id", async (req, res) => {
 
       const latestPriceValue = latestPrice ? Number(latestPrice.unitPrice) : null;
 
+      // For RAW_MATERIAL we treat unitPrice as buying price.
+      // For FINISHED_GOOD & BY_PRODUCT it remains selling price.
       if (latestPriceValue === null || Math.abs(latestPriceValue - input.unitPrice) > 0.001) {
         await prisma.inventoryPriceHistory.create({
           data: {
