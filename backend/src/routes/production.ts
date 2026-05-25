@@ -8,6 +8,7 @@ export const productionRouter = Router();
 productionRouter.get("/", async (_req, res) => {
   try {
     const batches = await prisma.productionBatch.findMany({
+      include: { outputs: { include: { inventoryItem: true } } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -15,9 +16,6 @@ productionRouter.get("/", async (_req, res) => {
     const formatted = batches.map((b) => ({
       ...b,
       rawMaizeConsumed: Number(b.rawMaizeConsumed),
-      grade1Produced: Number(b.grade1Produced),
-      grade2Produced: Number(b.grade2Produced),
-      maizeJamProduced: Number(b.maizeJamProduced),
       wasteLoss: Number(b.wasteLoss),
       efficiency: Number(b.efficiency),
     }));

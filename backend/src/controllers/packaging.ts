@@ -3,6 +3,12 @@ import { z } from "zod";
 import { prisma } from "../server";
 import { formatPackagingRun, processPackagingRun } from "../services/packaging.service";
 
+// Helper to clean up the response from formatPackagingRun if it still includes legacy fields
+const cleanPackagingRunResponse = (run: any) => {
+  const { grade1FlourConsumed, grade2FlourConsumed, ...rest } = run;
+  return rest;
+};
+
 
 export const ProcessPackagingSchema = z.object({
   operatorName: z.string().min(1).max(120),
@@ -58,7 +64,7 @@ export async function processPackaging(req: Request, res: Response) {
     }
     res.status(201).json({
       message: "Packaging run recorded successfully",
-      run: formatPackagingRun(run),
+      run: cleanPackagingRunResponse(formatPackagingRun(run)),
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to process packaging run";
@@ -70,13 +76,21 @@ export async function listPackagingRuns(_req: Request, res: Response) {
   try {
     const runs = await prisma.packagingRun.findMany({
       include: {
-        finishedProductInputs: true,
-        finishedProductOutputs: true,
+        finishedProductInputs: {
+          include: {
+            inventoryItem: true
+          }
+        },
+        finishedProductOutputs: {
+          include: {
+            inventoryItem: true
+          }
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
-    res.status(200).json({ runs: runs.map(formatPackagingRun) });
+    res.status(200).json({ runs: runs.map(r => cleanPackagingRunResponse(formatPackagingRun(r))) });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch packaging runs", error: String(error) });
   }

@@ -23,6 +23,24 @@ export interface PackagingRun {
   yieldPercent: number;
   notes?: string | null;
   createdAt: string;
+  finishedProductInputs: Array<{
+    consumedKg: number;
+    inventoryItem: {
+      name: string;
+      sku: string;
+      type: string;
+      unit: string;
+    };
+  }>;
+  finishedProductOutputs: Array<{
+    balesProduced: number;
+    inventoryItem: {
+      name: string;
+      sku: string;
+      type: string;
+      unit: string;
+    };
+  }>;
 }
 
 interface InventoryItem {
@@ -278,7 +296,7 @@ const fetchInventory = async () => {
                           prev.map((r, i) => (i === idx ? { ...r, consumedKg: v } : r))
                         );
                       }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-800"
                     />
                     <span className="block text-[8px] text-slate-400">
                       SKU: {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name}
@@ -297,7 +315,7 @@ const fetchInventory = async () => {
               step="0.01"
               value={flourSpillage}
               onChange={(e) => setFlourSpillage(e.target.value)}
-              className="w-full bg-slate-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-amber-500"
+                className="w-full bg-slate-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-amber-500 text-slate-800"
             />
           </div>
 
@@ -310,7 +328,7 @@ const fetchInventory = async () => {
                 step="0.01"
                 value={packagingMaterialReceived}
                 onChange={(e) => setPackagingMaterialReceived(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
               />
             </div>
             <div className="space-y-1">
@@ -321,7 +339,7 @@ const fetchInventory = async () => {
                 step="0.01"
                 value={packagingMaterialConsumed}
                 onChange={(e) => setPackagingMaterialConsumed(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
               />
             </div>
             <div className="space-y-1">
@@ -334,7 +352,7 @@ const fetchInventory = async () => {
                 step="0.01"
                 value={packagingMaterialDestroyed}
                 onChange={(e) => setPackagingMaterialDestroyed(e.target.value)}
-                className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+                className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
               />
             </div>
           </div>
@@ -359,7 +377,7 @@ const fetchInventory = async () => {
                           prev.map((r, i) => (i === idx ? { ...r, balesProduced: v } : r))
                         );
                       }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
                     />
                   </div>
                 ))}
@@ -374,7 +392,7 @@ const fetchInventory = async () => {
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs resize-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs resize-none text-slate-800"
             />
           </div>
 
@@ -441,6 +459,8 @@ const fetchInventory = async () => {
                   <th className="px-4 py-3 text-right">Packaged kg</th>
                   <th className="px-4 py-3 text-right">Spill</th>
                   <th className="px-4 py-3 text-right">Yield</th>
+                  <th className="px-4 py-3">Flour Consumed</th>
+                  <th className="px-4 py-3">Bales Produced</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -451,6 +471,24 @@ const fetchInventory = async () => {
                     <td className="px-4 py-3 text-right font-mono">{r.totalPackagedKg.toFixed(1)} KG</td>
                     <td className="px-4 py-3 text-right font-mono text-amber-700">{r.flourSpillage.toFixed(1)}</td>
                     <td className="px-4 py-3 text-right font-mono">{r.yieldPercent.toFixed(1)}%</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {r.finishedProductInputs?.map((input, idx) => (
+                          <span key={idx} className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold whitespace-nowrap">
+                            {input.consumedKg.toFixed(1)}kg {input.inventoryItem.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {r.finishedProductOutputs?.map((output, idx) => (
+                          <span key={idx} className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold whitespace-nowrap">
+                            {output.balesProduced} {output.inventoryItem.unit} of {output.inventoryItem.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

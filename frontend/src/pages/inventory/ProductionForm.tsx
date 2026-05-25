@@ -17,17 +17,10 @@ export interface ProductionBatch {
   id: string;
   batchNumber: string;
   rawMaizeConsumed: number;
-  wasteLoss: number;
-  efficiency: number;
   createdAt: string;
-  outputs: Array<{
-    quantityKg: string | number;
-    inventoryItem: {
-      name: string;
-      sku: string;
-      type: string;
-    }
-  }>;
+  wasteLoss: number; // Moved here for clarity, was implicitly part of the batch object
+  efficiency: number; // Moved here for clarity, was implicitly part of the batch object
+  outputs: Array<{ quantityKg: string | number; inventoryItem: { name: string; sku: string; type: string; } }>;
 }
 
 interface InventoryItem {
@@ -142,8 +135,8 @@ const rawMaterials = inventoryItems.filter(
         quantityKg: parseFloat(productionOutputs[item.id] || "0") || 0,
       })),
       maizeJamProduced: (() => {
-        const jamItem = byProducts.find((i) => i.sku === "BY-JAM-03") || byProducts[0];
-        if (!jamItem) return 0;
+        const jamItem = byProducts[0]; // Assuming the first by-product is "Maize Jam" or the primary one
+        if (!jamItem) return 0; // No by-product item defined in inventory
         return parseFloat(productionOutputs[jamItem.id] || "0") || 0;
       })(),
     };
@@ -177,32 +170,24 @@ const rawMaterials = inventoryItems.filter(
     } else {
       // Simulate locally
       setTimeout(() => {
-        const grade1Item = finishedGoods[0];
-const grade2Item = finishedGoods[1];
-const maizeJamItem = byProducts[0];
-
-const mockNew: ProductionBatch = {
-  id: `local_b_${Date.now()}`,
-  batchNumber: `M-BATCH-${Date.now().toString().slice(-6)}`,
-
-  rawMaizeConsumed: inputMaize,
-
-  grade1Produced: grade1Item
-    ? parseFloat(productionOutputs[grade1Item.id] || "0")
-    : 0,
-
-  grade2Produced: grade2Item
-    ? parseFloat(productionOutputs[grade2Item.id] || "0")
-    : 0,
-
-  maizeJamProduced: maizeJamItem
-    ? parseFloat(productionOutputs[maizeJamItem.id] || "0")
-    : 0,
-
-  wasteLoss,
-  efficiency,
-  createdAt: new Date().toISOString(),
-};
+        const mockNew: ProductionBatch = {
+          id: `local_b_${Date.now()}`,
+          batchNumber: `M-BATCH-${Date.now().toString().slice(-6)}`,
+          rawMaizeConsumed: inputMaize,
+          outputs: [
+            ...finishedGoods.map(item => ({
+              quantityKg: parseFloat(productionOutputs[item.id] || "0"),
+              inventoryItem: { name: item.name, sku: item.sku, type: item.type }
+            })),
+            ...byProducts.map(item => ({
+              quantityKg: parseFloat(productionOutputs[item.id] || "0"),
+              inventoryItem: { name: item.name, sku: item.sku, type: item.type }
+            }))
+          ].filter(o => Number(o.quantityKg) > 0), // Filter out zero quantity outputs
+          wasteLoss,
+          efficiency,
+          createdAt: new Date().toISOString(),
+        };
 
         setBatches((prev) => [mockNew, ...prev]);
         setSuccessMessage(`Demo Mode: Milled batch logged locally as ${mockNew.batchNumber}.`);

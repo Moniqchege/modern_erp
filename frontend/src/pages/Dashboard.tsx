@@ -31,6 +31,12 @@ type DashboardApiResponse = {
     yieldEfficiency: number;
     variancePercent: number;
   }>;
+  recentProduction: Array<{
+    batchNumber: string;
+    efficiency: number;
+    rawMaizeConsumed: number;
+    createdAt: string;
+  }>;
 };
 
 function formatKg(n: number) {
@@ -80,8 +86,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         iconColor: "text-amber-600 bg-amber-100",
       },
       {
-        label: "Total Flour Stock",
-        value: formatKg(s.finishedGoodsStockKg),
+        label: "Grade 1 Flour Stock",
+        value: formatKg(s.grade1FlourStockKg),
         change: "+0.00 KG",
         isPositive: true,
         timeframe: "Finished goods on hand",
@@ -90,11 +96,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         iconColor: "text-emerald-600 bg-emerald-100",
       },
       {
-        label: "By-Product Stock",
-        value: formatKg(s.byProductsStockKg),
-        change: "+0.00 KG",
-        isPositive: true,
-        timeframe: "Hulls, jam & germ",
+        label: "Grade 2 Flour Stock",
+        value: formatKg(s.grade2FlourStockKg),
+        change: "-0.00 KG",
+        isPositive: false,
+        timeframe: "Finished goods on hand",
         icon: Warehouse,
         border: "border-sky-100",
         iconColor: "text-sky-600 bg-sky-100",
