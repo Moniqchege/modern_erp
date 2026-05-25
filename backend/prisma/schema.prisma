@@ -23,7 +23,23 @@ enum ItemType {
   RAW_MATERIAL
   FINISHED_GOOD
   BY_PRODUCT
+
+  // Procurement / purchased inputs
+  PACKETS_2KG
+  PACKETS_1KG
+  KHAKI_BALER_2KG
+  KHAKI_BALER_1KG
+  NYLON_BALER_1KG
+  NYLON_BALER_2KG
+  BAG_5KG
+  BAG_10KG
+  LAMINATED_BALER
+  BAG_50KG
+  BAG_90KG
+  CLEAR_TAPES
+  GLUE
 }
+
 
 enum UnitOfMeasure {
   KG
@@ -97,18 +113,25 @@ enum InventoryMovementType {
   ADJUSTMENT
 }
 
-model InventoryPriceHistory {
-  id     String        @id @default(cuid())
-  itemId String
-  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  unitPrice     Decimal  @db.Decimal(10, 2)
-  effectiveDate DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([itemId, effectiveDate])
+enum InventoryPriceType {
+  BUYING
+  SELLING
 }
+
+model InventoryPriceHistory {
+  id     String              @id @default(cuid())
+  itemId String
+  item   InventoryItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  priceType     InventoryPriceType
+  unitPrice     Decimal            @db.Decimal(10, 2)
+  effectiveDate DateTime
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([itemId, priceType, effectiveDate])
+}
+
 
 model InventoryItem {
   id          String        @id @default(cuid())

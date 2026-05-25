@@ -25,6 +25,7 @@ async function getInventoryDashboardAnalytics() {
             select: { movementAt: true, movementType: true, quantityDelta: true },
         }),
         server_1.prisma.productionBatch.findMany({
+            include: { outputs: { include: { inventoryItem: true } } },
             orderBy: { createdAt: "desc" },
             take: 8,
         }),
@@ -36,16 +37,8 @@ async function getInventoryDashboardAnalytics() {
             where: { reorderLevel: { not: null } },
         }),
     ]);
-    const stockByType = {
-        RAW_MATERIAL: 0,
-        FINISHED_GOOD: 0,
-        BY_PRODUCT: 0,
-    };
-    const qtyByType = {
-        RAW_MATERIAL: 0,
-        FINISHED_GOOD: 0,
-        BY_PRODUCT: 0,
-    };
+    const stockByType = {};
+    const qtyByType = {};
     let totalValuation = 0;
     let totalSkus = items.length;
     let outOfStock = 0;
@@ -152,15 +145,20 @@ async function getInventoryDashboardAnalytics() {
             movementAt: m.movementAt,
             notes: m.notes,
         })),
-        recentProduction: productionBatches.slice(0, 5).map((b) => ({
-            batchNumber: b.batchNumber,
-            rawMaizeConsumed: Number(b.rawMaizeConsumed),
-            grade1Produced: Number(b.grade1Produced),
-            grade2Produced: Number(b.grade2Produced),
-            wasteLoss: Number(b.wasteLoss),
-            efficiency: Number(b.efficiency),
-            createdAt: b.createdAt,
-        })),
+        recentProduction: productionBatches.slice(0, 5).map((b) => {
+            // Map dynamic outputs back to grade fields for UI compatibility
+            const g1 = b.outputs.find(o => o.inventoryItem.sku === "FL-GR1-01")?.quantityKg || 0;
+            const g2 = b.outputs.find(o => o.inventoryItem.sku === "FL-GR2-02")?.quantityKg || 0;
+            return {
+                batchNumber: b.batchNumber,
+                rawMaizeConsumed: Number(b.rawMaizeConsumed),
+                grade1Produced: Number(g1),
+                grade2Produced: Number(g2),
+                wasteLoss: Number(b.wasteLoss),
+                efficiency: Number(b.efficiency),
+                createdAt: b.createdAt,
+            };
+        }),
         recentPackaging: packagingRuns.slice(0, 5).map((r) => ({
             runNumber: r.runNumber,
             operatorName: r.operatorName,

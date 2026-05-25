@@ -71,17 +71,32 @@ async function processPackagingRun(input) {
                 runNumber,
                 operatorName: input.operatorName,
                 baleWeightKg: baleWeight.toFixed(3),
-                grade1FlourConsumed: 0,
-                grade2FlourConsumed: 0,
                 flourSpillage: input.flourSpillage.toFixed(3),
                 packagingMaterialReceived: (input.packagingMaterialReceived ?? 0).toFixed(3),
                 packagingMaterialConsumed: input.packagingMaterialConsumed.toFixed(3),
                 packagingMaterialDestroyed: (input.packagingMaterialDestroyed ?? 0).toFixed(3),
-                balesProducedGrade1: 0,
-                balesProducedGrade2: 0,
                 totalPackagedKg: totalPackagedKg.toFixed(3),
                 yieldPercent: yieldPercent.toFixed(2),
                 notes: input.notes,
+                finishedProductInputs: {
+                    create: await Promise.all(input.flourConsumption.map(async (c) => {
+                        const item = await tx.inventoryItem.findUnique({ where: { id: c.flourInventoryItemId } });
+                        return {
+                            finishedProductName: item?.sku || "Unknown",
+                            flourConsumedKg: c.consumedKg.toFixed(3)
+                        };
+                    }))
+                },
+                finishedProductOutputs: {
+                    create: await Promise.all(input.flourPackedOutputs.map(async (o) => {
+                        const item = await tx.inventoryItem.findUnique({ where: { id: o.packedBaleInventoryItemId } });
+                        return {
+                            finishedProductName: item?.sku || "Unknown",
+                            balesProduced: o.balesProduced,
+                            packagedKg: (o.balesProduced * baleWeight).toFixed(3)
+                        };
+                    }))
+                }
             },
         });
         const pkgMat = await ensureItem(tx, PKG_MAT_SKU, {

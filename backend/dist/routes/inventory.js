@@ -13,7 +13,24 @@ const CreateInventoryItemSchema = zod_1.z.object({
     sku: zod_1.z.string().min(1).max(64),
     name: zod_1.z.string().min(1).max(255),
     description: zod_1.z.string().max(1000).optional().nullable(),
-    type: zod_1.z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "BY_PRODUCT"]).optional().default("FINISHED_GOOD"),
+    type: zod_1.z.enum([
+        "RAW_MATERIAL",
+        "FINISHED_GOOD",
+        "BY_PRODUCT",
+        "PACKETS_2KG",
+        "PACKETS_1KG",
+        "KHAKI_BALER_2KG",
+        "KHAKI_BALER_1KG",
+        "NYLON_BALER_1KG",
+        "NYLON_BALER_2KG",
+        "BAG_5KG",
+        "BAG_10KG",
+        "LAMINATED_BALER",
+        "BAG_50KG",
+        "BAG_90KG",
+        "CLEAR_TAPES",
+        "GLUE",
+    ]).optional().default("FINISHED_GOOD"),
     unit: zod_1.z.enum(["KG", "BAG"]).optional().default("KG"),
     quantity: zod_1.z.number().nonnegative().optional().default(0.0),
     unitPrice: zod_1.z.number().nonnegative().optional(),
@@ -184,14 +201,33 @@ exports.inventoryRouter.post("/", async (req, res) => {
                 },
             });
         }
+        // Persist price history.
+        // For FINISHED_GOOD & BY_PRODUCT we treat this as *selling* price.
+        // For other procurement categories (RAW_MATERIAL), treat it as *buying* price.
         if (input.unitPrice != null && input.unitPrice > 0) {
-            await server_1.prisma.inventoryPriceHistory.create({
-                data: {
-                    itemId: created.id,
-                    unitPrice: input.unitPrice.toFixed(2),
-                    effectiveDate: new Date(),
-                },
-            });
+            const isBuyingPrice = input.type === "RAW_MATERIAL" ||
+                input.type === "PACKETS_2KG" ||
+                input.type === "PACKETS_1KG" ||
+                input.type === "KHAKI_BALER_2KG" ||
+                input.type === "KHAKI_BALER_1KG" ||
+                input.type === "NYLON_BALER_1KG" ||
+                input.type === "NYLON_BALER_2KG" ||
+                input.type === "BAG_5KG" ||
+                input.type === "BAG_10KG" ||
+                input.type === "LAMINATED_BALER" ||
+                input.type === "BAG_50KG" ||
+                input.type === "BAG_90KG" ||
+                input.type === "CLEAR_TAPES" ||
+                input.type === "GLUE";
+            if (isBuyingPrice || input.type === "FINISHED_GOOD" || input.type === "BY_PRODUCT") {
+                await server_1.prisma.inventoryPriceHistory.create({
+                    data: {
+                        itemId: created.id,
+                        unitPrice: input.unitPrice.toFixed(2),
+                        effectiveDate: new Date(),
+                    },
+                });
+            }
         }
         await (0, inventory_alert_service_1.checkReorderAlert)(created.id, input.quantity);
         res.status(201).json({
@@ -261,6 +297,25 @@ exports.inventoryRouter.patch("/:id", async (req, res) => {
                 orderBy: { effectiveDate: "desc" },
             });
             const latestPriceValue = latestPrice ? Number(latestPrice.unitPrice) : null;
+            // Treat purchased input catalogue types as buying price.
+            // For FINISHED_GOOD & BY_PRODUCT it remains selling price.
+            const isBuyingPrice = input.type === "RAW_MATERIAL" ||
+                input.type === "PACKETS_2KG" ||
+                input.type === "PACKETS_1KG" ||
+                input.type === "KHAKI_BALER_2KG" ||
+                input.type === "KHAKI_BALER_1KG" ||
+                input.type === "NYLON_BALER_1KG" ||
+                input.type === "NYLON_BALER_2KG" ||
+                input.type === "BAG_5KG" ||
+                input.type === "BAG_10KG" ||
+                input.type === "LAMINATED_BALER" ||
+                input.type === "BAG_50KG" ||
+                input.type === "BAG_90KG" ||
+                input.type === "CLEAR_TAPES" ||
+                input.type === "GLUE";
+            // If it is a buying price type, store it in price history.
+            // If it's finished/byproduct, store it too (selling price semantics).
+            // (We keep storing both for now; semantics are distinguished by catalogue type for later ledger use).
             if (latestPriceValue === null || Math.abs(latestPriceValue - input.unitPrice) > 0.001) {
                 await server_1.prisma.inventoryPriceHistory.create({
                     data: {

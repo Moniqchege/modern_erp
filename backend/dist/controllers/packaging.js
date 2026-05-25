@@ -6,6 +6,11 @@ exports.listPackagingRuns = listPackagingRuns;
 const zod_1 = require("zod");
 const server_1 = require("../server");
 const packaging_service_1 = require("../services/packaging.service");
+// Helper to clean up the response from formatPackagingRun if it still includes legacy fields
+const cleanPackagingRunResponse = (run) => {
+    const { grade1FlourConsumed, grade2FlourConsumed, ...rest } = run;
+    return rest;
+};
 exports.ProcessPackagingSchema = zod_1.z.object({
     operatorName: zod_1.z.string().min(1).max(120),
     // Dynamic flour types consumed (bulk, FINISHED_GOOD inventory items)
@@ -49,7 +54,7 @@ async function processPackaging(req, res) {
         }
         res.status(201).json({
             message: "Packaging run recorded successfully",
-            run: (0, packaging_service_1.formatPackagingRun)(run),
+            run: cleanPackagingRunResponse((0, packaging_service_1.formatPackagingRun)(run)),
         });
     }
     catch (error) {
@@ -60,10 +65,22 @@ async function processPackaging(req, res) {
 async function listPackagingRuns(_req, res) {
     try {
         const runs = await server_1.prisma.packagingRun.findMany({
+            include: {
+                finishedProductInputs: {
+                    include: {
+                        inventoryItem: true
+                    }
+                },
+                finishedProductOutputs: {
+                    include: {
+                        inventoryItem: true
+                    }
+                },
+            },
             orderBy: { createdAt: "desc" },
             take: 100,
         });
-        res.status(200).json({ runs: runs.map(packaging_service_1.formatPackagingRun) });
+        res.status(200).json({ runs: runs.map(r => cleanPackagingRunResponse((0, packaging_service_1.formatPackagingRun)(r))) });
     }
     catch (error) {
         res.status(500).json({ message: "Failed to fetch packaging runs", error: String(error) });

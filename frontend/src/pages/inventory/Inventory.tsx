@@ -6,6 +6,29 @@ import {
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../../app/router/routes";
 
+const BUYING_PRICE_TYPES: ReadonlySet<InventoryItem["type"]> = new Set([
+  "RAW_MATERIAL",
+  "PACKETS_2KG",
+  "PACKETS_1KG",
+  "KHAKI_BALER_2KG",
+  "KHAKI_BALER_1KG",
+  "NYLON_BALER_1KG",
+  "NYLON_BALER_2KG",
+  "LAMINATED_BALER",
+  "BAG_5KG",
+  "BAG_10KG",
+  "BAG_50KG",
+  "BAG_90KG",
+  "CLEAR_TAPES",
+  "GLUE",
+]);
+
+function getPriceLabel(type: InventoryItem["type"]): string {
+  return BUYING_PRICE_TYPES.has(type)
+    ? "Buying Unit Price (ksh)"
+    : "Selling Unit Price (ksh)";
+}
+
 export interface InventoryItem {
   id: string;
   sku: string;
@@ -229,9 +252,7 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                {item.type !== "FINISHED_GOOD" && item.type !== "BY_PRODUCT"
-                    ? "Buying Unit Price (ksh)"
-                    : "Selling Unit Price (ksh)"}
+                {getPriceLabel(item.type)}
               </label>
               <input
                 type="number"
@@ -339,8 +360,6 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [description, setDescription] = useState("");
   const [type, setType] = useState<InventoryItem["type"]>("FINISHED_GOOD");
 
-  const isBuyingPrice = (type: InventoryItem["type"]) =>
-  type !== "FINISHED_GOOD" && type !== "BY_PRODUCT";
   const [store, setStore] = useState("MAIN_STORE");
   const [unit, setUnit] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(0);
@@ -675,6 +694,7 @@ const filteredUnits =
                     <option value="RAW_MATERIALS_STORE">Main Store</option>
                     <option value="MAIN_STORE">Maize Store</option>
                     <option value="PACKAGING_STORE">Packaging Store</option>
+                    <option value="DISPATCH_STORE">Dispatch Store</option>
                   </select>
                 </div>
               </div>
@@ -748,9 +768,7 @@ const filteredUnits =
             </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-                    {type !== "FINISHED_GOOD" && type !== "BY_PRODUCT"
-                    ? "Buying Unit Price (ksh)"
-                    : "Selling Unit Price (ksh)"}
+                    {getPriceLabel(type)}
                   </label>
                   <input type="number" step="0.01" min="0" value={unitPrice}
                     onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}

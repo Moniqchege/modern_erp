@@ -17,7 +17,24 @@ const CreateInventoryItemSchema = z.object({
   sku: z.string().min(1).max(64),
   name: z.string().min(1).max(255),
   description: z.string().max(1000).optional().nullable(),
-  type: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "BY_PRODUCT"]).optional().default("FINISHED_GOOD"),
+  type: z.enum([
+    "RAW_MATERIAL",
+    "FINISHED_GOOD",
+    "BY_PRODUCT",
+    "PACKETS_2KG",
+    "PACKETS_1KG",
+    "KHAKI_BALER_2KG",
+    "KHAKI_BALER_1KG",
+    "NYLON_BALER_1KG",
+    "NYLON_BALER_2KG",
+    "BAG_5KG",
+    "BAG_10KG",
+    "LAMINATED_BALER",
+    "BAG_50KG",
+    "BAG_90KG",
+    "CLEAR_TAPES",
+    "GLUE",
+  ]).optional().default("FINISHED_GOOD"),
   unit: z.enum(["KG", "BAG"]).optional().default("KG"),
   quantity: z.number().nonnegative().optional().default(0.0),
   unitPrice: z.number().nonnegative().optional(),
@@ -62,15 +79,39 @@ const formatMovement = (m: {
   unitPriceApplied: Number(m.unitPriceApplied),
 });
 
-const formatPriceHistory = (p: { unitPrice: unknown;[key: string]: unknown }) => ({
+const formatPriceHistory = (p: { unitPrice: unknown; priceType: unknown;[key: string]: unknown }) => ({
   ...p,
   unitPrice: Number(p.unitPrice),
+  priceType: p.priceType,
 });
+
 
 function decimalOrNull(value: number | null | undefined) {
   if (value == null) return null;
   return value.toFixed(3);
 }
+
+function getPriceTypeForItemType(type: string): "BUYING" | "SELLING" {
+  const buying = [
+    "RAW_MATERIAL",
+    "PACKETS_2KG",
+    "PACKETS_1KG",
+    "KHAKI_BALER_2KG",
+    "KHAKI_BALER_1KG",
+    "NYLON_BALER_1KG",
+    "NYLON_BALER_2KG",
+    "BAG_5KG",
+    "BAG_10KG",
+    "LAMINATED_BALER",
+    "BAG_50KG",
+    "BAG_90KG",
+    "CLEAR_TAPES",
+    "GLUE",
+  ];
+
+  return buying.includes(type) ? "BUYING" : "SELLING";
+}
+
 
 // GET inventory module dashboard analytics
 inventoryRouter.get("/dashboard", async (_req, res) => {
@@ -123,16 +164,23 @@ inventoryRouter.get("/", async (_req, res) => {
           take: 1,
         },
       },
+
     });
 
-    const formatted = items.map((item) => ({
-      ...formatPrismaItem(item),
-      unitPrice:
-        item.priceHistory.length > 0
-          ? Number(item.priceHistory[0].unitPrice)
-          : null,
-      priceHistory: undefined,
-    }));
+    const formatted = items.map((item) => {
+      const priceType = getPriceTypeForItemType(item.type);
+      const priceRow =
+        item.priceHistory.length > 0 && item.priceHistory[0].priceType === priceType
+          ? item.priceHistory[0]
+          : null;
+
+      return {
+        ...formatPrismaItem(item),
+        unitPrice: priceRow ? Number(priceRow.unitPrice) : null,
+        priceHistory: undefined,
+      };
+    });
+
 
     res.status(200).json({ items: formatted });
   } catch (error) {
@@ -163,8 +211,14 @@ inventoryRouter.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "Inventory item not found" });
     }
 
-    const latestPrice =
-      item.priceHistory.length > 0 ? Number(item.priceHistory[0].unitPrice) : null;
+    const priceType = getPriceTypeForItemType(item.type);
+    const priceRow =
+      item.priceHistory.length > 0 && item.priceHistory[0].priceType === priceType
+        ? item.priceHistory[0]
+        : null;
+
+    const latestPrice = priceRow ? Number(priceRow.unitPrice) : null;
+
 
     res.status(200).json({
       item: {
@@ -179,7 +233,6 @@ inventoryRouter.get("/:id", async (req, res) => {
   }
 });
 
-// POST a new item
 inventoryRouter.post("/", async (req, res) => {
   try {
     const parse = CreateInventoryItemSchema.safeParse(req.body);
@@ -225,21 +278,18 @@ inventoryRouter.post("/", async (req, res) => {
         },
       });
     }
-
-    // Persist price history.
-    // For FINISHED_GOOD & BY_PRODUCT we treat this as *selling* price.
-    // For other procurement categories (RAW_MATERIAL), treat it as *buying* price.
     if (input.unitPrice != null && input.unitPrice > 0) {
-      const isBuyingPrice = input.type === "RAW_MATERIAL";
-      if (isBuyingPrice || input.type === "FINISHED_GOOD" || input.type === "BY_PRODUCT") {
-        await prisma.inventoryPriceHistory.create({
-          data: {
-            itemId: created.id,
-            unitPrice: input.unitPrice.toFixed(2),
-            effectiveDate: new Date(),
-          },
-        });
-      }
+      const priceType = getPriceTypeForItemType(input.type);
+
+      await prisma.inventoryPriceHistory.create({
+        data: {
+          itemId: created.id,
+          priceType,
+          unitPrice: input.unitPrice.toFixed(2),
+          effectiveDate: new Date(),
+        },
+      });
+
     }
 
     await checkReorderAlert(created.id, input.quantity);
@@ -252,7 +302,6 @@ inventoryRouter.post("/", async (req, res) => {
   }
 });
 
-// PATCH update item
 inventoryRouter.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -312,33 +361,36 @@ inventoryRouter.patch("/:id", async (req, res) => {
     });
 
     let newUnitPrice: number | null = null;
+    const priceType = getPriceTypeForItemType(existing.type);
+
     if (input.unitPrice !== undefined) {
       const latestPrice = await prisma.inventoryPriceHistory.findFirst({
-        where: { itemId: id },
+        where: { itemId: id, priceType },
         orderBy: { effectiveDate: "desc" },
       });
 
       const latestPriceValue = latestPrice ? Number(latestPrice.unitPrice) : null;
 
-      // For RAW_MATERIAL we treat unitPrice as buying price.
-      // For FINISHED_GOOD & BY_PRODUCT it remains selling price.
       if (latestPriceValue === null || Math.abs(latestPriceValue - input.unitPrice) > 0.001) {
         await prisma.inventoryPriceHistory.create({
           data: {
             itemId: id,
+            priceType,
             unitPrice: input.unitPrice.toFixed(2),
             effectiveDate: new Date(),
           },
         });
       }
+
       newUnitPrice = input.unitPrice;
     } else {
       const latestPrice = await prisma.inventoryPriceHistory.findFirst({
-        where: { itemId: id },
+        where: { itemId: id, priceType },
         orderBy: { effectiveDate: "desc" },
       });
       newUnitPrice = latestPrice ? Number(latestPrice.unitPrice) : null;
     }
+
 
     await checkReorderAlert(id, previousQty);
 
