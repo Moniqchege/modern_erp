@@ -3,7 +3,6 @@ import { z } from "zod";
 import { prisma } from "../server";
 import { formatPackagingRun, processPackagingRun } from "../services/packaging.service";
 
-// Helper to clean up the response from formatPackagingRun if it still includes legacy fields
 const cleanPackagingRunResponse = (run: any) => {
   const { grade1FlourConsumed, grade2FlourConsumed, ...rest } = run;
   return rest;

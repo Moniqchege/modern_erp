@@ -59,7 +59,6 @@ enum ItemType {
   GLUE
 }
 
-
 enum UnitOfMeasure {
   KG
   BAG
@@ -105,7 +104,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invoices            Invoice[]              @relation("InvoiceCreatedBy")
+  invoices                Invoice[]              @relation("InvoiceCreatedBy")
   stockTransfersRequested StockTransferRequest[] @relation("StockTransferRequestedBy")
   stockTransfersApproved  StockTransferRequest[] @relation("StockTransferApprovedBy")
 }
@@ -145,9 +144,9 @@ enum InventoryPriceType {
 }
 
 model InventoryPriceHistory {
-  id     String              @id @default(cuid())
+  id     String        @id @default(cuid())
   itemId String
-  item   InventoryItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   priceType     InventoryPriceType
   unitPrice     Decimal            @db.Decimal(10, 2)
@@ -158,28 +157,26 @@ model InventoryPriceHistory {
   @@index([itemId, priceType, effectiveDate])
 }
 
-
 model InventoryItem {
   id          String        @id @default(cuid())
-  sku         String        @unique // UNIQUE IDENTIFIER (no duplicates)
+  sku         String        @unique
   name        String
   description String?
   type        ItemType      @default(FINISHED_GOOD)
   unit        UnitOfMeasure @default(KG)
 
-  // Current on-hand quantity derived from movements (still stored for fast reads)
-  quantity Decimal @default(0.00) @db.Decimal(12, 3)
+  quantity               Decimal                             @default(0.00) @db.Decimal(12, 3)
+  packagingRunInputs     PackagingRunFinishedProductInput[]
+  packagingRunOutputs    PackagingRunFinishedProductOutput[]
   productionBatchOutputs ProductionBatchOutput[]
-
-  // Optional per-SKU reorder alert threshold (KG or BAG per unit)
-  reorderLevel    Decimal? @db.Decimal(12, 3)
-  reorderQuantity Decimal? @db.Decimal(12, 3)
+  reorderLevel           Decimal?                            @db.Decimal(12, 3)
+  reorderQuantity        Decimal?                            @db.Decimal(12, 3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  priceHistory InventoryPriceHistory[]
-  movements    InventoryMovement[]
+  priceHistory  InventoryPriceHistory[]
+  movements     InventoryMovement[]
   storeBalances StoreInventoryBalance[]
   transferItems StockTransferItem[]
 }
@@ -230,10 +227,10 @@ model InventoryLocation {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  balances              StoreInventoryBalance[]
-  movements             InventoryMovement[]
-  sourceTransfers       StockTransferRequest[]  @relation("TransferSourceStore")
-  destinationTransfers  StockTransferRequest[]  @relation("TransferDestinationStore")
+  balances             StoreInventoryBalance[]
+  movements            InventoryMovement[]
+  sourceTransfers      StockTransferRequest[]  @relation("TransferSourceStore")
+  destinationTransfers StockTransferRequest[]  @relation("TransferDestinationStore")
 }
 
 model StoreInventoryBalance {
@@ -270,8 +267,8 @@ model StockTransferRequest {
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
-  items        StockTransferItem[]
-  movements    InventoryMovement[]
+  items         StockTransferItem[]
+  movements     InventoryMovement[]
   discrepancies StockTransferDiscrepancy[]
 
   @@index([status, createdAt])
@@ -281,32 +278,32 @@ model StockTransferRequest {
 }
 
 model StockTransferItem {
-  id                String               @id @default(cuid())
-  transferId        String
-  transfer          StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  itemId            String
-  item              InventoryItem        @relation(fields: [itemId], references: [id])
-  qtyRequested      Decimal              @db.Decimal(12, 3)
-  qtyIssued         Decimal?             @db.Decimal(12, 3)
-  qtyReceived       Decimal?             @db.Decimal(12, 3)
-  discrepancyNote   String?              @db.Text
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  id              String               @id @default(cuid())
+  transferId      String
+  transfer        StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  itemId          String
+  item            InventoryItem        @relation(fields: [itemId], references: [id])
+  qtyRequested    Decimal              @db.Decimal(12, 3)
+  qtyIssued       Decimal?             @db.Decimal(12, 3)
+  qtyReceived     Decimal?             @db.Decimal(12, 3)
+  discrepancyNote String?              @db.Text
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   @@index([transferId])
   @@index([itemId])
 }
 
 model StockTransferDiscrepancy {
-  id              String               @id @default(cuid())
-  transferId      String
-  transfer        StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  itemId          String
-  qtyIssued       Decimal              @db.Decimal(12, 3)
-  qtyReceived     Decimal              @db.Decimal(12, 3)
-  qtyShort        Decimal              @db.Decimal(12, 3)
-  notedByUserId   String?
-  notedAt         DateTime             @default(now())
+  id            String               @id @default(cuid())
+  transferId    String
+  transfer      StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  itemId        String
+  qtyIssued     Decimal              @db.Decimal(12, 3)
+  qtyReceived   Decimal              @db.Decimal(12, 3)
+  qtyShort      Decimal              @db.Decimal(12, 3)
+  notedByUserId String?
+  notedAt       DateTime             @default(now())
 
   @@index([transferId])
 }
@@ -722,14 +719,14 @@ model ProductionBatch {
 }
 
 model ProductionBatchOutput {
-  id                String @id @default(cuid())
+  id                String          @id @default(cuid())
   productionBatchId String
   productionBatch   ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
 
-  inventoryItemId   String
-  inventoryItem     InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
-  quantityKg        Decimal @db.Decimal(12, 3)
+  quantityKg Decimal @db.Decimal(12, 3)
 
   @@index([productionBatchId])
 }
@@ -745,14 +742,14 @@ model PackagingRun {
   operatorName String
   baleWeightKg Decimal @default(24) @db.Decimal(12, 3)
 
-  flourSpillage       Decimal @default(0) @db.Decimal(12, 3)
+  flourSpillage Decimal @default(0) @db.Decimal(12, 3)
 
   packagingMaterialReceived  Decimal @default(0) @db.Decimal(12, 3)
   packagingMaterialConsumed  Decimal @default(0) @db.Decimal(12, 3)
   packagingMaterialDestroyed Decimal @default(0) @db.Decimal(12, 3)
 
-  totalPackagedKg     Decimal @db.Decimal(12, 3)
-  yieldPercent        Decimal @db.Decimal(5, 2)
+  totalPackagedKg Decimal @db.Decimal(12, 3)
+  yieldPercent    Decimal @db.Decimal(5, 2)
 
   notes String? @db.Text
 
@@ -760,8 +757,8 @@ model PackagingRun {
   updatedAt DateTime @updatedAt
 
   // Relations
-  movements InventoryMovement[]
-  finishedProductInputs PackagingRunFinishedProductInput[]
+  movements              InventoryMovement[]
+  finishedProductInputs  PackagingRunFinishedProductInput[]
   finishedProductOutputs PackagingRunFinishedProductOutput[]
 
   @@index([runNumber])
@@ -773,19 +770,15 @@ model PackagingRun {
 // ============================================
 
 model PackagingRunFinishedProductInput {
-  id String @id @default(cuid())
-
-  packagingRunId String
-  packagingRun   PackagingRun @relation(fields: [packagingRunId], references: [id], onDelete: Cascade)
-
-  // Human/configurable finished product name
-  finishedProductName String @db.VarChar(255)
-
-  // Flour input (kg)
-  flourConsumedKg Decimal @db.Decimal(12, 3)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String        @id @default(cuid())
+  packagingRunId      String
+  packagingRun        PackagingRun  @relation(fields: [packagingRunId], references: [id], onDelete: Cascade)
+  inventoryItemId     String
+  inventoryItem       InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  finishedProductName String        @db.VarChar(255)
+  flourConsumedKg     Decimal       @db.Decimal(12, 3)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([packagingRunId])
   @@index([finishedProductName])
@@ -794,22 +787,19 @@ model PackagingRunFinishedProductInput {
 model PackagingRunFinishedProductOutput {
   id String @id @default(cuid())
 
-  packagingRunId String
-  packagingRun   PackagingRun @relation(fields: [packagingRunId], references: [id], onDelete: Cascade)
-
-  finishedProductName String @db.VarChar(255)
-
-  // Bale output count and packaged weight
-  balesProduced Int
-  packagedKg    Decimal @db.Decimal(12, 3)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  packagingRunId      String
+  packagingRun        PackagingRun  @relation(fields: [packagingRunId], references: [id], onDelete: Cascade)
+  finishedProductName String        @db.VarChar(255)
+  balesProduced       Int
+  packagedKg          Decimal       @db.Decimal(12, 3)
+  inventoryItemId     String
+  inventoryItem       InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([packagingRunId])
   @@index([finishedProductName])
 }
-
 
 model Customer {
   id      String  @id @default(cuid())

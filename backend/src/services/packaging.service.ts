@@ -114,18 +114,8 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
     throw new Error("Packaged output cannot exceed total flour input (incl. spillage).\n");
   }
 
-  // Legacy fields best-effort mapping (keeps existing packagingRun table columns usable)
-  // We only know grade SKUs historically; dynamic mapping still credits correct inventory items.
-  const LEGACY_GRADE1_FLOUR_SKU = "FL-GR1-01";
-  const LEGACY_GRADE2_FLOUR_SKU = "FL-GR2-02";
-
-  const LEGACY_GRADE1_BALE_SKU = "FL-GR1-BALE-24";
-  const LEGACY_GRADE2_BALE_SKU = "FL-GR2-BALE-24";
-
   return prisma.$transaction(async (tx) => {
     const runNumber = `PKG-${Date.now().toString().slice(-8)}`;
-
-    // Create run row using legacy columns for now (best-effort)
     const run = await tx.packagingRun.create({
       data: {
         runNumber,
@@ -142,8 +132,9 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
           create: await Promise.all(input.flourConsumption.map(async c => {
             const item = await tx.inventoryItem.findUnique({ where: { id: c.flourInventoryItemId } });
             return {
+              inventoryItemId: c.flourInventoryItemId,          // ← add this
               finishedProductName: item?.sku || "Unknown",
-              flourConsumedKg: c.consumedKg.toFixed(3)
+              flourConsumedKg: c.consumedKg.toFixed(3),
             };
           }))
         },
@@ -151,12 +142,13 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
           create: await Promise.all(input.flourPackedOutputs.map(async o => {
             const item = await tx.inventoryItem.findUnique({ where: { id: o.packedBaleInventoryItemId } });
             return {
+              inventoryItemId: o.packedBaleInventoryItemId,     // ← add this
               finishedProductName: item?.sku || "Unknown",
               balesProduced: o.balesProduced,
-              packagedKg: (o.balesProduced * baleWeight).toFixed(3)
+              packagedKg: (o.balesProduced * baleWeight).toFixed(3),
             };
           }))
-        }
+        },
       },
     });
 
@@ -186,11 +178,6 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       });
       alertItems.push({ id: row.flourInventoryItemId, prev: rMove.prevQty });
 
-      // legacy grade fields best-effort
-      const flourItem = await tx.inventoryItem.findUnique({ where: { id: row.flourInventoryItemId } });
-      if (flourItem?.sku === LEGACY_GRADE1_FLOUR_SKU) {
-        run.grade1FlourConsumed = undefined as any;
-      }
 
       // ADJUST for allocated spillage portion
       if (input.flourSpillage > 0 && baseSum > 0) {
@@ -267,22 +254,6 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
         packagingRunId: run.id,
         notes: `${out.balesProduced} bales @ ${baleWeight}kg — ${runNumber}`,
       });
-
-
-      // legacy mapping can be done by checking bale sku
-      const baleItem = await tx.inventoryItem.findUnique({ where: { id: out.packedBaleInventoryItemId } });
-      if (baleItem?.sku === LEGACY_GRADE1_BALE_SKU) {
-        await tx.packagingRun.update({
-          where: { id: run.id },
-          data: { balesProducedGrade1: out.balesProduced },
-        });
-      }
-      if (baleItem?.sku === LEGACY_GRADE2_BALE_SKU) {
-        await tx.packagingRun.update({
-          where: { id: run.id },
-          data: { balesProducedGrade2: out.balesProduced },
-        });
-      }
     }
 
     for (const { id, prev } of alertItems) {
@@ -298,24 +269,22 @@ export function formatPackagingRun(run: {
   runNumber: string;
   operatorName: string;
   baleWeightKg: unknown;
-  grade1FlourConsumed: unknown;
-  grade2FlourConsumed: unknown;
   flourSpillage: unknown;
   packagingMaterialReceived: unknown;
   packagingMaterialConsumed: unknown;
   packagingMaterialDestroyed: unknown;
-  balesProducedGrade1: number;
-  balesProducedGrade2: number;
   totalPackagedKg: unknown;
   yieldPercent: unknown;
   notes: string | null;
   createdAt: Date;
+  updatedAt: Date;
+  // Normalized relations (optional — present when included in query)
+  finishedProductInputs?: unknown[];
+  finishedProductOutputs?: unknown[];
 }) {
   return {
     ...run,
     baleWeightKg: Number(run.baleWeightKg),
-    grade1FlourConsumed: Number(run.grade1FlourConsumed),
-    grade2FlourConsumed: Number(run.grade2FlourConsumed),
     flourSpillage: Number(run.flourSpillage),
     packagingMaterialReceived: Number(run.packagingMaterialReceived),
     packagingMaterialConsumed: Number(run.packagingMaterialConsumed),

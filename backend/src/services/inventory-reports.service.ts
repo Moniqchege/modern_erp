@@ -159,41 +159,48 @@ async function buildWorkbook(reportType: ReportType, from?: string, to?: string)
   if (reportType === "packaging-runs") {
     const sheet = wb.addWorksheet("Packaging runs");
     sheet.columns = [
-      { header: "Run #", key: "runNumber", width: 16 },
-      { header: "Operator", key: "operatorName", width: 18 },
-      { header: "G1 flour (kg)", key: "g1", width: 14 },
-      { header: "G2 flour (kg)", key: "g2", width: 14 },
-      { header: "Spillage (kg)", key: "spill", width: 12 },
-      { header: "Pkg received", key: "pkgRec", width: 12 },
-      { header: "Pkg consumed", key: "pkgCon", width: 12 },
-      { header: "Pkg destroyed", key: "pkgDest", width: 12 },
-      { header: "G1 bales", key: "b1", width: 10 },
-      { header: "G2 bales", key: "b2", width: 10 },
-      { header: "Packaged kg", key: "pkgKg", width: 12 },
-      { header: "Yield %", key: "yield", width: 10 },
-      { header: "Created", key: "createdAt", width: 22 },
+      { header: "Run #",          key: "runNumber",    width: 16 },
+      { header: "Operator",       key: "operatorName", width: 18 },
+      { header: "Flour consumed", key: "flourIn",      width: 16 },
+      { header: "Spillage (kg)",  key: "spill",        width: 12 },
+      { header: "Pkg received",   key: "pkgRec",       width: 12 },
+      { header: "Pkg consumed",   key: "pkgCon",       width: 12 },
+      { header: "Pkg destroyed",  key: "pkgDest",      width: 12 },
+      { header: "Bales produced", key: "bales",        width: 14 },
+      { header: "Packaged kg",    key: "pkgKg",        width: 12 },
+      { header: "Yield %",        key: "yield",        width: 10 },
+      { header: "Created",        key: "createdAt",    width: 22 },
     ];
     sheet.getRow(1).font = { bold: true };
 
     const runs = await prisma.packagingRun.findMany({
       where: { createdAt: { gte: fromDate, lte: toDate } },
       orderBy: { createdAt: "desc" },
+      include: {
+        finishedProductInputs: true,
+        finishedProductOutputs: true,
+      },
     });
 
     for (const r of runs) {
+      const flourIn = r.finishedProductInputs.reduce(
+        (sum, i) => sum + Number(i.flourConsumedKg), 0
+      );
+      const bales = r.finishedProductOutputs.reduce(
+        (sum, o) => sum + o.balesProduced, 0
+      );
+
       sheet.addRow({
-        runNumber: r.runNumber,
+        runNumber:    r.runNumber,
         operatorName: r.operatorName,
-        g1: Number(r.grade1FlourConsumed),
-        g2: Number(r.grade2FlourConsumed),
-        spill: Number(r.flourSpillage),
-        pkgRec: Number(r.packagingMaterialReceived),
-        pkgCon: Number(r.packagingMaterialConsumed),
+        flourIn,
+        spill:   Number(r.flourSpillage),
+        pkgRec:  Number(r.packagingMaterialReceived),
+        pkgCon:  Number(r.packagingMaterialConsumed),
         pkgDest: Number(r.packagingMaterialDestroyed),
-        b1: r.balesProducedGrade1,
-        b2: r.balesProducedGrade2,
-        pkgKg: Number(r.totalPackagedKg),
-        yield: Number(r.yieldPercent),
+        bales,
+        pkgKg:   Number(r.totalPackagedKg),
+        yield:   Number(r.yieldPercent),
         createdAt: r.createdAt.toISOString(),
       });
     }
