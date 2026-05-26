@@ -8,7 +8,8 @@ import {
   ReportType,
 } from "../services/inventory-reports.service";
 import { getInventoryDashboardAnalytics } from "../services/inventory-dashboard.service";
-import { ensureDefaultStores } from "../services/store-seed.service";
+import { getLocationIdByCode, ensureDefaultStores } from "../services/store-seed.service";
+import { adjustStoreBalance, recordTransferMovement } from "../services/store-inventory.service";
 
 export const inventoryRouter = Router();
 
@@ -39,6 +40,12 @@ const CreateInventoryItemSchema = z.object({
   unit: z.enum(["KG", "BAG"]).optional().default("KG"),
   quantity: z.number().nonnegative().optional().default(0.0),
   unitPrice: z.number().nonnegative().optional(),
+  // Where to apply physical balance for opening catalog quantities.
+  // Defaults to MAIN_STORE to keep behavior backward-compatible.
+  storeCode: z
+    .enum(["MAIN_STORE", "PACKAGING_STORE", "MAIZE_STORE", "DISPATCH_STORE"])
+    .optional()
+    .default("MAIN_STORE"),
   reorderLevel: optionalDecimal,
   reorderQuantity: optionalDecimal,
 });
@@ -49,6 +56,12 @@ const UpdateInventoryItemSchema = z.object({
   quantity: z.number().nonnegative().optional(),
   unitPrice: z.number().nonnegative().optional(),
   adjustmentNote: z.string().max(500).optional().nullable(),
+  // Where to apply physical balance changes for this catalog change.
+  // Defaults to MAIN_STORE to keep behavior backward-compatible.
+  storeCode: z
+    .enum(["MAIN_STORE", "PACKAGING_STORE", "MAIZE_STORE", "DISPATCH_STORE"])
+    .optional()
+    .default("MAIN_STORE"),
   reorderLevel: optionalDecimal,
   reorderQuantity: optionalDecimal,
 });
@@ -311,6 +324,10 @@ inventoryRouter.post("/", async (req, res) => {
       });
     }
 
+    await ensureDefaultStores();
+
+    const storeLocationId = await getLocationIdByCode(input.storeCode);
+
     const created = await prisma.inventoryItem.create({
       data: {
         sku: input.sku,
@@ -325,9 +342,17 @@ inventoryRouter.post("/", async (req, res) => {
     });
 
     if (input.quantity > 0) {
+      const movementDelta = input.quantity;
+      await adjustStoreBalance(prisma, {
+        itemId: created.id,
+        locationId: storeLocationId,
+        physicalDelta: movementDelta,
+      });
+
       await prisma.inventoryMovement.create({
         data: {
           itemId: created.id,
+          locationId: storeLocationId,
           movementType: "RECEIPT",
           quantityDelta: input.quantity.toFixed(3),
           unitPriceApplied: (input.unitPrice ?? 0).toFixed(2),

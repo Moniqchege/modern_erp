@@ -1,5 +1,4 @@
-import type { Request } from "express";
-import { Router } from "express";
+import { Router, Response, NextFunction } from "express";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import {
   acknowledgeReceiptController,
@@ -11,42 +10,33 @@ import {
   rejectStockTransferController,
 } from "../controllers/stock-transfer";
 
+const handle = (fn: (req: AuthenticatedRequest, res: Response) => Promise<any>) =>
+  (req: any, res: Response, next: NextFunction) => fn(req as AuthenticatedRequest, res).catch(next);
+
 export const stockTransferRouter = Router();
 
 stockTransferRouter.use(requireAuth);
 
 /** Per-store inventory (physical + in-transit) */
-stockTransferRouter.get("/balances", (req, res) =>
-  listStoreBalancesController(req as unknown as AuthenticatedRequest, res)
-);
+stockTransferRouter.get("/balances", handle(listStoreBalancesController));
 
 /** List transfer requests (RBAC-scoped) */
-stockTransferRouter.get("/", (req, res) =>
-  listStockTransfersController(req as unknown as AuthenticatedRequest, res)
-);
+stockTransferRouter.get("/", handle(listStockTransfersController));
 
 /** Get single transfer */
-stockTransferRouter.get("/:id", (req, res) =>
-  getStockTransferController(req as unknown as AuthenticatedRequest, res)
-);
+stockTransferRouter.get("/:id", handle(getStockTransferController));
 
 /** CREATE_REQUEST → PENDING */
-stockTransferRouter.post("/", (req, res) =>
-  createStockTransferController(req as unknown as AuthenticatedRequest, res)
-);
+stockTransferRouter.post("/", handle(createStockTransferController));
 
 /** APPROVE_AND_ISSUE → APPROVED_IN_TRANSIT */
-stockTransferRouter.post("/:id/approve-issue", (req, res) =>
-  approveIssueStockTransferController(req as unknown as AuthenticatedRequest, res)
+stockTransferRouter.post(
+  "/:id/approve-issue",
+  handle(approveIssueStockTransferController)
 );
 
 /** ACKNOWLEDGE_RECEIPT → COMPLETED */
-stockTransferRouter.post("/:id/receive", (req, res) =>
-  acknowledgeReceiptController(req as unknown as AuthenticatedRequest, res)
-);
+stockTransferRouter.post("/:id/receive", handle(acknowledgeReceiptController));
 
 /** REJECT pending request */
-stockTransferRouter.post("/:id/reject", (req, res) =>
-  rejectStockTransferController(req as unknown as AuthenticatedRequest, res)
-);
-
+stockTransferRouter.post("/:id/reject", handle(rejectStockTransferController));
