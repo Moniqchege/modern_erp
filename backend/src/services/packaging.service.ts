@@ -160,15 +160,11 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
     });
 
     const alertItems: Array<{ id: string; prev: number }> = [];
-
-    // Build spillage distribution proportional to consumedKg
     const flourRows = input.flourConsumption.map((r) => ({ ...r }));
     const baseSum = totalFlourBulkIn;
 
     for (const row of flourRows) {
       if (row.consumedKg <= 0) continue;
-
-      // ISSUE bulk flour consumption
       const rMove = await applyMovement(tx, {
         itemId: row.flourInventoryItemId,
         movementType: "ISSUE_TO_PACKAGING",
@@ -178,8 +174,6 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       });
       alertItems.push({ id: row.flourInventoryItemId, prev: rMove.prevQty });
 
-
-      // ADJUST for allocated spillage portion
       if (input.flourSpillage > 0 && baseSum > 0) {
         const allocatedSpill = (input.flourSpillage * row.consumedKg) / baseSum;
         if (allocatedSpill > 0.001) {
@@ -194,7 +188,6 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       }
     }
 
-    // Packaging materials movements
     if ((input.packagingMaterialReceived ?? 0) > 0) {
       const r = await applyMovement(tx, {
         itemId: pkgMat.id,
@@ -228,16 +221,11 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       alertItems.push({ id: pkgMat.id, prev: r.prevQty });
     }
 
-    // Receipts into dynamic bale items
     for (const out of input.flourPackedOutputs) {
       if (out.balesProduced <= 0) continue;
-
-      // If frontend didn't specify bale item id yet, fall back to the first bale item (legacy assumption).
-      // This prevents "Inventory item not found" errors when packedBaleInventoryItemId is "".
       const baleItemId = out.packedBaleInventoryItemId || (await tx.inventoryItem.findFirst({
         where: {
           type: "FINISHED_GOOD",
-          // Avoid unit filtering (Prisma unit enum type may not include "BALE" in your DB seed)
         },
         select: { id: true },
         orderBy: { createdAt: "asc" },
@@ -278,7 +266,6 @@ export function formatPackagingRun(run: {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // Normalized relations (optional — present when included in query)
   finishedProductInputs?: unknown[];
   finishedProductOutputs?: unknown[];
 }) {

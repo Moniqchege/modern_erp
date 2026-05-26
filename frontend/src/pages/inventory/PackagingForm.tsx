@@ -24,7 +24,7 @@ export interface PackagingRun {
   notes?: string | null;
   createdAt: string;
   finishedProductInputs: Array<{
-    consumedKg: number;
+    flourConsumedKg: number;
     inventoryItem: {
       name: string;
       sku: string;
@@ -133,38 +133,26 @@ const fetchInventory = async () => {
 
     const data = await res.json();
     const items: InventoryItem[] = data.items || [];
-
     setInventoryItems(items);
 
     const flourItems = items.filter(
-      (item) =>
-        item.type === "FINISHED_GOOD" &&
-        item.unit.toUpperCase() === "KG"
+      (item) => item.type === "FINISHED_GOOD" && item.unit.toUpperCase() === "KG"
     );
 
-    const baleItems = items.filter(
-      (item) =>
-        item.type === "FINISHED_GOOD" &&
-        ["BAG", "BALE"].includes(item.unit.toUpperCase())
+    setFlourConsumptionRows(
+      flourItems.map((item) => ({
+        flourInventoryItemId: item.id,
+        consumedKg: "",
+      }))
     );
 
-    const defaultBaleId = baleItems[0]?.id ?? "";
-
-setFlourConsumptionRows(
-  flourItems.map((item) => ({
-    flourInventoryItemId: item.id,
-    consumedKg: "",
-  }))
-);
-
-setFlourPackedOutputs(
-  flourItems.map((item) => ({
-    flourInventoryItemId: item.id,
-    packedBaleInventoryItemId: defaultBaleId,
-    balesProduced: "",
-  }))
-);
-
+    setFlourPackedOutputs(
+      flourItems.map((item) => ({
+        flourInventoryItemId: item.id,
+        packedBaleInventoryItemId: item.id, 
+        balesProduced: "",
+      }))
+    );
   } catch (error) {
     console.error(error);
     setApiStatus("offline");
@@ -380,38 +368,90 @@ setFlourPackedOutputs((prev) =>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="text-[9px] font-extrabold text-slate-400 uppercase">Bale outputs per flour type</div>
-            {flourPackedOutputs.length === 0 ? null : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {flourPackedOutputs.map((row, idx) => (
-                  <div key={`${row.flourInventoryItemId}-${idx}`} className="space-y-1">
-                    <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-                      {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name} Bale Output
-                    </label>
-                   <input
-  type="number"
-  min="0"
-  step="1"
-  placeholder="0"
-  value={row.balesProduced ?? ""}
-  onChange={(e) => {
-    setFlourPackedOutputs((prev) =>
-      prev.map((r, i) =>
-        i === idx
-          ? { ...r, balesProduced: e.target.value }
-          : r
-      )
-    );
-  }}
-  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-/>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="text-[10px] text-slate-500">Bale SKU selection will be added next; for now the first bale item found is used as default.</p>
+          {/* Replace the "Bale outputs per flour type" section: */}
+<div className="space-y-3">
+  <div className="text-[9px] font-extrabold text-slate-400 uppercase">
+    Bale outputs per flour type
+  </div>
+  {flourPackedOutputs.length === 0 ? null : (
+    <div className="space-y-3">
+      {flourPackedOutputs.map((row, idx) => {
+        const flourItem = inventoryItems.find(
+          (i) => i.id === row.flourInventoryItemId
+        );
+        return (
+          <div
+            key={`${row.flourInventoryItemId}-${idx}`}
+            className="grid grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg"
+          >
+            {/* Flour label */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                Flour type
+              </label>
+              <p className="text-xs font-bold text-slate-700">
+                {flourItem?.name ?? row.flourInventoryItemId}
+              </p>
+            </div>
+
+            {/* Bale output item selector */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                Output inventory item
+              </label>
+              <select
+                value={row.packedBaleInventoryItemId}
+                onChange={(e) =>
+                  setFlourPackedOutputs((prev) =>
+                    prev.map((r, i) =>
+                      i === idx
+                        ? { ...r, packedBaleInventoryItemId: e.target.value }
+                        : r
+                    )
+                  )
+                }
+                className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+              >
+                {inventoryItems
+                  .filter((i) => i.type === "FINISHED_GOOD")
+                  .map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name} ({i.unit})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Bales produced */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                Bales produced
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={row.balesProduced ?? ""}
+                onChange={(e) =>
+                  setFlourPackedOutputs((prev) =>
+                    prev.map((r, i) =>
+                      i === idx
+                        ? { ...r, balesProduced: e.target.value }
+                        : r
+                    )
+                  )
+                }
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
           </div>
+        );
+      })}
+    </div>
+  )}
+  {/* Remove the old placeholder note */}
+</div>
 
           <div className="space-y-1">
             <label className="text-[9px] font-extrabold text-slate-400 uppercase">Notes</label>
@@ -495,14 +535,14 @@ setFlourPackedOutputs((prev) =>
                   <tr key={r.id} className="text-slate-600">
                     <td className="px-4 py-3 font-mono font-bold">{r.runNumber}</td>
                     <td className="px-4 py-3">{r.operatorName}</td>
-                    <td className="px-4 py-3 text-right font-mono">{r.totalPackagedKg.toFixed(1)} KG</td>
-                    <td className="px-4 py-3 text-right font-mono text-amber-700">{r.flourSpillage.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{r.yieldPercent.toFixed(1)}%</td>
+                    <td className="px-4 py-3 text-right font-mono">{Number(r.totalPackagedKg).toFixed(1)} KG</td>
+                    <td className="px-4 py-3 text-right font-mono text-amber-700">{Number(r.flourSpillage).toFixed(1)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{Number(r.yieldPercent).toFixed(1)}%</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {r.finishedProductInputs?.map((input, idx) => (
                           <span key={idx} className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold whitespace-nowrap">
-                            {input.consumedKg.toFixed(1)}kg {input.inventoryItem.name}
+                            {Number(input.flourConsumedKg).toFixed(1)}kg {input.inventoryItem.name}
                           </span>
                         ))}
                       </div>
@@ -511,7 +551,7 @@ setFlourPackedOutputs((prev) =>
                       <div className="flex flex-wrap gap-1">
                         {r.finishedProductOutputs?.map((output, idx) => (
                           <span key={idx} className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold whitespace-nowrap">
-                            {output.balesProduced} {output.inventoryItem.unit} of {output.inventoryItem.name}
+                            {Number(output.balesProduced)} {output.inventoryItem.unit} of {output.inventoryItem.name}
                           </span>
                         ))}
                       </div>
