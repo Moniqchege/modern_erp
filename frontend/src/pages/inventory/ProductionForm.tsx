@@ -42,7 +42,7 @@ export function ProductionForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const [rawMaizeConsumed, setRawMaizeConsumed] = useState<string>("0");
+  const [rawMaizeConsumed, setRawMaizeConsumed] = useState<string>("");
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [productionOutputs, setProductionOutputs] = useState<
   Record<string, string>
@@ -84,7 +84,7 @@ export function ProductionForm() {
         item.type === "FINISHED_GOOD" ||
         item.type === "BY_PRODUCT"
       ) {
-        initialOutputs[item.id] = "0";
+        initialOutputs[item.id] = "";
       }
     });
 
@@ -207,7 +207,7 @@ const rawMaterials = inventoryItems.filter(
       item.type === "FINISHED_GOOD" ||
       item.type === "BY_PRODUCT"
     ) {
-      clearedOutputs[item.id] = "0";
+      clearedOutputs[item.id] = "";
     }
   });
 
@@ -299,6 +299,7 @@ const rawMaterials = inventoryItems.filter(
                     step="0.01"
                     min="0"
                     required
+                    placeholder="0"
                     value={rawMaizeConsumed}
                     onChange={(e) => setRawMaizeConsumed(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono font-bold"
@@ -334,7 +335,8 @@ const rawMaterials = inventoryItems.filter(
               step="0.01"
               min="0"
               required
-              value={productionOutputs[item.id] || "0"}
+              placeholder="0"
+              value={productionOutputs[item.id] || ""}
               onChange={(e) =>
                 setProductionOutputs((prev) => ({
                   ...prev,
@@ -372,7 +374,8 @@ const rawMaterials = inventoryItems.filter(
               step="0.01"
               min="0"
               required
-              value={productionOutputs[item.id] || "0"}
+              placeholder="0"
+              value={productionOutputs[item.id] || ""}
               onChange={(e) =>
                 setProductionOutputs((prev) => ({
                   ...prev,

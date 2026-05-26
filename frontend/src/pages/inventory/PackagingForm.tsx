@@ -54,11 +54,15 @@ interface InventoryItem {
   unitPrice?: number;
 }
 
-type FlourConsumptionRow = { flourInventoryItemId: string; consumedKg: number };
+type FlourConsumptionRow = {
+  flourInventoryItemId: string;
+  consumedKg: string;
+};
+
 type FlourPackedOutputRow = {
   flourInventoryItemId: string;
   packedBaleInventoryItemId: string;
-  balesProduced: number;
+  balesProduced: string;
 };
 
 const BALE_KG = 24;
@@ -75,10 +79,10 @@ export function PackagingForm() {
 
   const [operatorName, setOperatorName] = useState("");
 
-  const [flourSpillage, setFlourSpillage] = useState("0");
-  const [packagingMaterialReceived, setPackagingMaterialReceived] = useState("0");
-  const [packagingMaterialConsumed, setPackagingMaterialConsumed] = useState("0");
-  const [packagingMaterialDestroyed, setPackagingMaterialDestroyed] = useState("0");
+  const [flourSpillage, setFlourSpillage] = useState("");
+  const [packagingMaterialReceived, setPackagingMaterialReceived] = useState("");
+  const [packagingMaterialConsumed, setPackagingMaterialConsumed] = useState("");
+  const [packagingMaterialDestroyed, setPackagingMaterialDestroyed] = useState("");
 
   const [flourConsumptionRows, setFlourConsumptionRows] = useState<FlourConsumptionRow[]>([]);
   const [flourPackedOutputs, setFlourPackedOutputs] = useState<FlourPackedOutputRow[]>([]);
@@ -86,10 +90,16 @@ export function PackagingForm() {
   const [notes, setNotes] = useState("");
 
   const spill = parseFloat(flourSpillage) || 0;
-  const totalFlourConsumed = flourConsumptionRows.reduce((s, r) => s + (Number(r.consumedKg) || 0), 0);
+  const totalFlourConsumed = flourConsumptionRows.reduce(
+  (s, r) => s + (parseFloat(r.consumedKg) || 0),
+  0
+);
   const totalInput = totalFlourConsumed + spill;
 
-  const totalBales = flourPackedOutputs.reduce((s, r) => s + (Number(r.balesProduced) || 0), 0);
+  const totalBales = flourPackedOutputs.reduce(
+  (s, r) => s + (parseFloat(r.balesProduced) || 0),
+  0
+);
   const totalPackaged = totalBales * BALE_KG;
 
   const yieldPct = totalInput > 0 ? (totalPackaged / totalInput) * 100 : 0;
@@ -140,20 +150,20 @@ const fetchInventory = async () => {
 
     const defaultBaleId = baleItems[0]?.id ?? "";
 
-    setFlourConsumptionRows(
-      flourItems.map((item) => ({
-        flourInventoryItemId: item.id,
-        consumedKg: 0,
-      }))
-    );
+setFlourConsumptionRows(
+  flourItems.map((item) => ({
+    flourInventoryItemId: item.id,
+    consumedKg: "",
+  }))
+);
 
-    setFlourPackedOutputs(
-      flourItems.map((item) => ({
-        flourInventoryItemId: item.id,
-        packedBaleInventoryItemId: defaultBaleId,
-        balesProduced: 0,
-      }))
-    );
+setFlourPackedOutputs(
+  flourItems.map((item) => ({
+    flourInventoryItemId: item.id,
+    packedBaleInventoryItemId: defaultBaleId,
+    balesProduced: "",
+  }))
+);
 
   } catch (error) {
     console.error(error);
@@ -179,7 +189,7 @@ const fetchInventory = async () => {
       operatorName: operatorName.trim(),
       flourConsumption: flourConsumptionRows.map((r) => ({
         flourInventoryItemId: r.flourInventoryItemId,
-        consumedKg: Number(r.consumedKg) || 0,
+        consumedKg: parseFloat(r.consumedKg) || 0,
       })),
       flourSpillage: spill,
       packagingMaterialReceived: parseFloat(packagingMaterialReceived) || 0,
@@ -188,7 +198,7 @@ const fetchInventory = async () => {
       flourPackedOutputs: flourPackedOutputs.map((r) => ({
         flourInventoryItemId: r.flourInventoryItemId,
         packedBaleInventoryItemId: r.packedBaleInventoryItemId,
-        balesProduced: Number(r.balesProduced) || 0,
+        balesProduced: parseFloat(r.balesProduced) || 0,
       })),
       baleWeightKg: BALE_KG,
       notes: notes.trim() || undefined,
@@ -208,14 +218,19 @@ const fetchInventory = async () => {
       setSuccessMessage(`Run ${data.run?.runNumber ?? ""} recorded.`);
       if (data.run) setRuns((prev) => [data.run, ...prev]);
       setOperatorName("");
-      setFlourSpillage("0");
-      setPackagingMaterialReceived("0");
-      setPackagingMaterialConsumed("0");
-      setPackagingMaterialDestroyed("0");
+      setFlourSpillage("");
+      setPackagingMaterialReceived("");
+      setPackagingMaterialConsumed("");
+      setPackagingMaterialDestroyed("");
       setNotes("");
 
-      setFlourConsumptionRows((prev) => prev.map((r) => ({ ...r, consumedKg: 0 })));
-      setFlourPackedOutputs((prev) => prev.map((r) => ({ ...r, balesProduced: 0 })));
+      setFlourConsumptionRows((prev) =>
+  prev.map((r) => ({ ...r, consumedKg: "" }))
+);
+
+setFlourPackedOutputs((prev) =>
+  prev.map((r) => ({ ...r, balesProduced: "" }))
+);
 
     } catch {
       setErrorMessage("Network error.");
@@ -285,19 +300,23 @@ const fetchInventory = async () => {
                     <label className="text-[9px] font-extrabold text-slate-400 uppercase">
                       {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name}
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={String(row.consumedKg)}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value) || 0;
-                        setFlourConsumptionRows((prev) =>
-                          prev.map((r, i) => (i === idx ? { ...r, consumedKg: v } : r))
-                        );
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-800"
-                    />
+                   <input
+  type="number"
+  min="0"
+  step="0.01"
+  placeholder="0"
+  value={row.consumedKg ?? ""}
+  onChange={(e) => {
+    setFlourConsumptionRows((prev) =>
+      prev.map((r, i) =>
+        i === idx
+          ? { ...r, consumedKg: e.target.value }
+          : r
+      )
+    );
+  }}
+  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-800"
+/>
                     <span className="block text-[8px] text-slate-400">
                       SKU: {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name}
                     </span>
@@ -310,13 +329,14 @@ const fetchInventory = async () => {
           <div className="space-y-1">
             <label className="text-[9px] font-extrabold text-slate-400 uppercase">Flour spillage (kg)</label>
             <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={flourSpillage}
-              onChange={(e) => setFlourSpillage(e.target.value)}
-                className="w-full bg-slate-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-amber-500 text-slate-800"
-            />
+  type="number"
+  min="0"
+  step="0.01"
+  placeholder="0"
+  value={flourSpillage}
+  onChange={(e) => setFlourSpillage(e.target.value)}
+  className="w-full bg-slate-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-amber-500 text-slate-800"
+/>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -326,6 +346,7 @@ const fetchInventory = async () => {
                 type="number"
                 min="0"
                 step="0.01"
+                placeholder="0"
                 value={packagingMaterialReceived}
                 onChange={(e) => setPackagingMaterialReceived(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
@@ -337,6 +358,7 @@ const fetchInventory = async () => {
                 type="number"
                 min="0"
                 step="0.01"
+                placeholder="0"
                 value={packagingMaterialConsumed}
                 onChange={(e) => setPackagingMaterialConsumed(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
@@ -350,6 +372,7 @@ const fetchInventory = async () => {
                 type="number"
                 min="0"
                 step="0.01"
+                placeholder="0"
                 value={packagingMaterialDestroyed}
                 onChange={(e) => setPackagingMaterialDestroyed(e.target.value)}
                 className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
@@ -366,19 +389,23 @@ const fetchInventory = async () => {
                     <label className="text-[9px] font-extrabold text-slate-400 uppercase">
                       {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name} Bale Output
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={String(row.balesProduced)}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10) || 0;
-                        setFlourPackedOutputs((prev) =>
-                          prev.map((r, i) => (i === idx ? { ...r, balesProduced: v } : r))
-                        );
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-                    />
+                   <input
+  type="number"
+  min="0"
+  step="1"
+  placeholder="0"
+  value={row.balesProduced ?? ""}
+  onChange={(e) => {
+    setFlourPackedOutputs((prev) =>
+      prev.map((r, i) =>
+        i === idx
+          ? { ...r, balesProduced: e.target.value }
+          : r
+      )
+    );
+  }}
+  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
+/>
                   </div>
                 ))}
               </div>

@@ -6,29 +6,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../../app/router/routes";
 
-const BUYING_PRICE_TYPES: ReadonlySet<InventoryItem["type"]> = new Set([
-  "RAW_MATERIAL",
-  "PACKETS_2KG",
-  "PACKETS_1KG",
-  "KHAKI_BALER_2KG",
-  "KHAKI_BALER_1KG",
-  "NYLON_BALER_1KG",
-  "NYLON_BALER_2KG",
-  "LAMINATED_BALER",
-  "BAG_5KG",
-  "BAG_10KG",
-  "BAG_50KG",
-  "BAG_90KG",
-  "CLEAR_TAPES",
-  "GLUE",
-]);
-
-function getPriceLabel(type: InventoryItem["type"]): string {
-  return BUYING_PRICE_TYPES.has(type)
-    ? "Buying Unit Price (ksh)"
-    : "Selling Unit Price (ksh)";
-}
-
 export interface InventoryItem {
   id: string;
   sku: string;
@@ -61,6 +38,51 @@ export interface InventoryItem {
   updatedAt: string;
 }
 
+const BUYING_PRICE_TYPES: ReadonlySet<InventoryItem["type"]> = new Set([
+  "RAW_MATERIAL",
+  "PACKETS_2KG",
+  "PACKETS_1KG",
+  "KHAKI_BALER_2KG",
+  "KHAKI_BALER_1KG",
+  "NYLON_BALER_1KG",
+  "NYLON_BALER_2KG",
+  "LAMINATED_BALER",
+  "BAG_5KG",
+  "BAG_10KG",
+  "BAG_50KG",
+  "BAG_90KG",
+  "CLEAR_TAPES",
+  "GLUE",
+]);
+
+const CATALOG_TYPE_OPTIONS: Array<{
+  value: InventoryItem["type"];
+  label: string;
+}> = [
+  { value: "RAW_MATERIAL", label: "Raw Material" },
+  { value: "FINISHED_GOOD", label: "Finished Good" },
+  { value: "BY_PRODUCT", label: "By-Product" },
+  { value: "PACKETS_2KG", label: "2kg Packets" },
+  { value: "PACKETS_1KG", label: "1kg Packets" },
+  { value: "KHAKI_BALER_2KG", label: "2kg Khaki Baler" },
+  { value: "KHAKI_BALER_1KG", label: "1kg Khaki Baler" },
+  { value: "NYLON_BALER_1KG", label: "1kg Nylon Baler" },
+  { value: "NYLON_BALER_2KG", label: "2kg Nylon Baler" },
+  { value: "LAMINATED_BALER", label: "Laminated Baler" },
+  { value: "BAG_5KG", label: "5kg Bag" },
+  { value: "BAG_10KG", label: "10kg Bag" },
+  { value: "BAG_50KG", label: "50kg Bag" },
+  { value: "BAG_90KG", label: "90kg Bag" },
+  { value: "CLEAR_TAPES", label: "Clear Tapes" },
+  { value: "GLUE", label: "Glue" },
+];
+
+function getPriceLabel(type: InventoryItem["type"]): string {
+  return BUYING_PRICE_TYPES.has(type)
+    ? "Buying Unit Price (ksh)"
+    : "Selling Unit Price (ksh)";
+}
+
 function isBelowReorder(item: InventoryItem): boolean {
   if (item.reorderLevel == null) return false;
   return item.quantity <= item.reorderLevel;
@@ -70,7 +92,6 @@ function isBelowReorder(item: InventoryItem): boolean {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface InventoryProps {
-  /** Kept for backward compatibility; routing now drives navigation */
   onViewItem?: (itemId: string) => void;
 }
 
@@ -168,7 +189,6 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
         setSaving(false);
       }
     } else {
-      // Offline simulation
       onSaved({
         ...item,
         name: payload.name,
@@ -358,14 +378,20 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState<InventoryItem["type"]>("FINISHED_GOOD");
+  const [type, setType] = useState<InventoryItem["type"] | "">("");
 
   const [store, setStore] = useState("MAIN_STORE");
   const [unit, setUnit] = useState<string>("");
-  const [quantity, setQuantity] = useState<number>(0);
-  const [unitPrice, setUnitPrice] = useState<number>(0.0);
+  const [quantity, setQuantity] = useState<number | "">("");
+  const [unitPrice, setUnitPrice] = useState<number | "">("");
   const [reorderLevel, setReorderLevel] = useState<string>("");
   const [reorderQuantity, setReorderQuantity] = useState<string>("");
+
+  const [typeQuery, setTypeQuery] = useState("");
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+
+  const isTypeSelected = (t: InventoryItem["type"] | ""): t is InventoryItem["type"] =>
+  t !== "";
 
   const UNIT_OPTIONS = [
   "KG",
@@ -387,7 +413,15 @@ const filteredUnits =
         u.toLowerCase().includes(unit.toLowerCase())
       );
 
+      const filteredTypes = typeQuery.trim()
+  ? CATALOG_TYPE_OPTIONS.filter((t) =>
+      t.label.toLowerCase().includes(typeQuery.toLowerCase()) ||
+      t.value.toLowerCase().includes(typeQuery.toLowerCase())
+    )
+  : CATALOG_TYPE_OPTIONS;
+
   const navigate = useNavigate();
+
   const fetchInventory = async () => {
     setLoading(true);
     try {
@@ -410,9 +444,18 @@ const filteredUnits =
 
   useEffect(() => { fetchInventory(); }, []);
 
+  useEffect(() => {
+  setTypeQuery(
+    CATALOG_TYPE_OPTIONS.find((t) => t.value === type)?.label ?? ""
+  );
+}, [type]);
+
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sku || !name) { setErrorText("SKU and Name are required."); return; }
+    if (!sku || !name || !type) {
+  setErrorText("SKU, Name, and Catalog Type are required.");
+  return;
+}
     const payload = {
       sku,
       name,
@@ -420,8 +463,8 @@ const filteredUnits =
       type,
       store,
       unit: unit || "KG",
-      quantity,
-      unitPrice,
+      quantity: quantity === "" ? 0 : quantity,
+      unitPrice: unitPrice === "" ? 0 : unitPrice,
       reorderLevel: reorderLevel.trim() === "" ? null : parseFloat(reorderLevel),
       reorderQuantity: reorderQuantity.trim() === "" ? null : parseFloat(reorderQuantity),
     };
@@ -449,7 +492,7 @@ const filteredUnits =
     } else {
       setItems((p) => [{
         id: `local_${Date.now()}`, sku, name,
-        description: description || null, type, store, unit, quantity, unitPrice,
+        description: description || null, type, store, unit, quantity: quantity === "" ? 0 : quantity, unitPrice: unitPrice === "" ? 0 : unitPrice,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       }, ...p]);
       closeAddModal();
@@ -459,7 +502,7 @@ const filteredUnits =
   const closeAddModal = () => {
     setIsAddModalOpen(false);
     setSku(""); setName(""); setDescription(""); setType("FINISHED_GOOD");
-    setStore("MAIN_STORE"); setUnit("KG"); setQuantity(0); setUnitPrice(0);
+    setStore("MAIN_STORE"); setUnit("KG"); setQuantity(""); setUnitPrice("");
     setReorderLevel(""); setReorderQuantity(""); setErrorText(null);
   };
 
@@ -665,34 +708,55 @@ const filteredUnits =
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">Catalog Type</label>
-                  <select value={type} onChange={(e) => setType(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800">
-                    <option value="RAW_MATERIAL">Raw Material</option>
-                    <option value="FINISHED_GOOD">Finished Good</option>
-                    <option value="BY_PRODUCT">By-Product</option>
-                    <option value="PACKETS_2KG">2kg Packets</option>
-                    <option value="PACKETS_1KG">1kg Packets</option>
-                    <option value="KHAKI_BALER_2KG">2kg Khaki Baler</option>
-                    <option value="KHAKI_BALER_1KG">1kg Khaki Baler</option>
-                    <option value="NYLON_BALER_1KG">1kg Nylon Baler</option>
-                    <option value="NYLON_BALER_2KG">2kg Nylon Baler</option>
-                    <option value="LAMINATED_BALER">Laminated Baler</option>
-                    <option value="BAG_5KG">5kg Bag</option>
-                    <option value="BAG_10KG">10kg Bag</option>
-                    <option value="BAG_50KG">50kg Bag</option>
-                    <option value="BAG_90KG">90Kg Bag</option>
-                    <option value="CLEAR_TAPES">Clear Tapes</option>
-                    <option value="GLUE">Glue</option>
-                  </select>
-                </div>
+               <div className="space-y-1 relative">
+  <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+    Catalog Type
+  </label>
+
+  <input
+    type="text"
+    value={typeQuery}
+    onFocus={() => setShowTypeDropdown(true)}
+    onChange={(e) => {
+      setTypeQuery(e.target.value);
+      setShowTypeDropdown(true);
+    }}
+    onBlur={() => setTimeout(() => setShowTypeDropdown(false), 150)}
+    placeholder="Search catalog type..."
+    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-medium"
+  />
+
+  {showTypeDropdown && (
+    <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {filteredTypes.length > 0 ? (
+        filteredTypes.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            onMouseDown={() => {
+              setType(t.value);       
+              setTypeQuery(t.label);  
+              setShowTypeDropdown(false);
+            }}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 text-slate-700 font-medium"
+          >
+            {t.label}
+          </button>
+        ))
+      ) : (
+        <div className="px-3 py-2 text-xs text-slate-400">
+          No matching catalog types
+        </div>
+      )}
+    </div>
+  )}
+</div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-extrabold text-slate-400 uppercase">Destination Store</label>
                   <select value={store} onChange={(e) => setStore(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800">
-                    <option value="RAW_MATERIALS_STORE">Main Store</option>
-                    <option value="MAIN_STORE">Maize Store</option>
+                    <option value="MAIN_STORE">Main Store</option>
+                    <option value="MAIZE_STORE">Maize Store</option>
                     <option value="PACKAGING_STORE">Packaging Store</option>
                     <option value="DISPATCH_STORE">Dispatch Store</option>
                   </select>
@@ -713,7 +777,6 @@ const filteredUnits =
       setShowUnitDropdown(true);
     }}
     onBlur={() => {
-      // delay so click can register
       setTimeout(() => setShowUnitDropdown(false), 150);
     }}
     placeholder="Search or type unit (KG, BAG...)"
@@ -753,28 +816,52 @@ const filteredUnits =
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                Quantity ({unit})
-              </label>
-              <input
-                type="number"
-                step="0.001"
-                min="0"
-                value={quantity}
-                onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/20"
-              />
-            </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-                    {getPriceLabel(type)}
-                  </label>
-                  <input type="number" step="0.01" min="0" value={unitPrice}
-                    onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono" />
-                </div>
-              </div>
+  <div className="space-y-1">
+    <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+      Quantity ({unit})
+    </label>
+
+    <input
+      type="number"
+      step="0.001"
+      min="0"
+      placeholder="0"
+      value={quantity}
+      onChange={(e) =>
+        setQuantity(
+          e.target.value === ""
+            ? ""
+            : parseFloat(e.target.value)
+        )
+      }
+      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 font-mono focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/20"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+      {isTypeSelected(type)
+        ? getPriceLabel(type)
+        : "Unit Price (ksh)"}
+    </label>
+
+    <input
+      type="number"
+      step="0.01"
+      min="0"
+      placeholder="0.00"
+      value={unitPrice}
+      onChange={(e) =>
+        setUnitPrice(
+          e.target.value === ""
+            ? ""
+            : parseFloat(e.target.value)
+        )
+      }
+      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-800 font-mono"
+    />
+  </div>
+</div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
