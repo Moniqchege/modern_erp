@@ -10,6 +10,7 @@ import { authRouter } from "./auth";
 import { suppliersRouter } from "./suppliers";
 import { procurementRouter } from "./procurement";
 import { traceabilityRouter } from "./traceability";
+import { stockTransferRouter } from "./stock-transfer";
 
 export const routes = Router();
 
@@ -23,6 +24,7 @@ routes.use("/dashboard", dashboardRouter);
 routes.use("/suppliers", suppliersRouter);
 routes.use("/procurement", procurementRouter);
 routes.use("/traceability", traceabilityRouter);
+routes.use("/stock-transfers", stockTransferRouter);
 
 
 

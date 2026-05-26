@@ -14,6 +14,7 @@ import {
   Boxes,
   Menu,
   X,
+  ArrowLeftRight,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
 
@@ -22,6 +23,7 @@ export type InventoryNavKey =
   | "catalogue"
   | "production"
   | "packaging"
+  | "stockTransfers"
   | "reports";
 
 interface NavItem {
@@ -62,6 +64,13 @@ const inventoryNavItems: NavItem[] = [
     description: "24 kg bales & materials",
   },
   {
+    key: "stockTransfers",
+    label: "Stock Transfers",
+    path: ROUTES.INVENTORY_STOCK_TRANSFERS,
+    icon: ArrowLeftRight,
+    description: "Request, issue & receive",
+  },
+  {
     key: "reports",
     label: "Reports",
     path: ROUTES.INVENTORY_REPORTS,
@@ -74,6 +83,7 @@ function getActiveKey(pathname: string): InventoryNavKey {
   if (pathname.startsWith(ROUTES.INVENTORY_CATALOGUE)) return "catalogue";
   if (pathname.startsWith(ROUTES.INVENTORY_PRODUCTION)) return "production";
   if (pathname.startsWith(ROUTES.INVENTORY_PACKAGING)) return "packaging";
+  if (pathname.startsWith(ROUTES.INVENTORY_STOCK_TRANSFERS)) return "stockTransfers";
   if (pathname.startsWith(ROUTES.INVENTORY_REPORTS)) return "reports";
   if (pathname === ROUTES.INVENTORY || pathname === `${ROUTES.INVENTORY}/`) {
     return "dashboard";

@@ -32,7 +32,7 @@ export async function seedDefaultUserIfNeeded() {
         data: {
             email: DEFAULT_ADMIN_EMAIL,
             name: DEFAULT_ADMIN_NAME,
-            role: "ADMIN",
+            role: "SUPERADMIN",
             passwordHash,
             forcePasswordReset: true,
         },

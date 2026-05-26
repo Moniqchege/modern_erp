@@ -8,6 +8,7 @@ import {
   ReportType,
 } from "../services/inventory-reports.service";
 import { getInventoryDashboardAnalytics } from "../services/inventory-dashboard.service";
+import { ensureDefaultStores } from "../services/store-seed.service";
 
 export const inventoryRouter = Router();
 
@@ -112,6 +113,62 @@ function getPriceTypeForItemType(type: string): "BUYING" | "SELLING" {
   return buying.includes(type) ? "BUYING" : "SELLING";
 }
 
+
+// GET per-store balances for an item (physical + in-transit)
+inventoryRouter.get("/location-stock", async (req, res) => {
+  try {
+    const itemId = typeof req.query.itemId === "string" ? req.query.itemId : "";
+    if (!itemId) {
+      return res.status(400).json({ message: "itemId query parameter is required" });
+    }
+
+    await ensureDefaultStores();
+
+    const balances = await prisma.storeInventoryBalance.findMany({
+      where: { itemId },
+      include: { location: true },
+    });
+
+    if (balances.length > 0) {
+      return res.json({
+        locationStock: balances.map((b) => ({
+          location: b.location,
+          physicalQty: Number(b.physicalQty),
+          transitQty: Number(b.transitQty),
+          balance: Number(b.physicalQty),
+        })),
+      });
+    }
+
+    const locations = await prisma.inventoryLocation.findMany();
+    const movementAgg = await prisma.inventoryMovement.groupBy({
+      by: ["locationId"],
+      where: { itemId, locationId: { not: null } },
+      _sum: { quantityDelta: true },
+    });
+
+    const byLocation = new Map(
+      movementAgg.map((row) => [row.locationId!, Number(row._sum.quantityDelta ?? 0)])
+    );
+
+    res.json({
+      locationStock: locations.map((location) => {
+        const balance = byLocation.get(location.id) ?? 0;
+        return {
+          location,
+          physicalQty: balance,
+          transitQty: 0,
+          balance,
+        };
+      }),
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch location stock",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
 
 // GET inventory module dashboard analytics
 inventoryRouter.get("/dashboard", async (_req, res) => {
