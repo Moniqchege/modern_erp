@@ -120,7 +120,7 @@ const PACKAGING_ITEM_TYPES = useMemo(
   };
 
   const [packagingMaterialRows, setPackagingMaterialRows] = useState<PackagingMaterialRow[]>([]);
-
+ const [packagingSearch, setPackagingSearch] = useState("");
 
 
   const [flourConsumptionRows, setFlourConsumptionRows] = useState<FlourConsumptionRow[]>([]);
@@ -277,6 +277,16 @@ setFlourPackedOutputs((prev) =>
     }
   };
 
+  const filteredPackagingRows = useMemo(() => {
+  const q = packagingSearch.trim().toLowerCase();
+  if (!q) return packagingMaterialRows;
+
+  return packagingMaterialRows.filter((r) =>
+    r.name.toLowerCase().includes(q) ||
+    r.inventoryItemId.toLowerCase().includes(q)
+  );
+}, [packagingSearch, packagingMaterialRows]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -361,81 +371,119 @@ setFlourPackedOutputs((prev) =>
             )}
           </div>
           <div className="space-y-1">
-            <div className="text-[9px] font-extrabold text-slate-400 uppercase">Packaging materials</div>
-            {packagingMaterialRows.length === 0 ? (
-              <p className="text-[10px] text-slate-500">No packaging materials found in catalogue.</p>
-            ) : (
-              <div className="space-y-2">
-                {packagingMaterialRows.map((row, idx) => (
-                  <div
-                    key={row.inventoryItemId}
-                    className="grid grid-cols-1 md:grid-cols-6 gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                  >
-                    <div className="space-y-1 md:col-span-2">
-                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Material</label>
-                      <p className="text-xs font-bold text-slate-700">
-                        {row.name}
-                      </p>
-                    </div>
+  <div className="text-[9px] font-extrabold text-slate-400 uppercase">
+    Packaging materials
+  </div>
 
-                    <div className="space-y-1 md:col-span-1">
-                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Received</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0"
-                        value={row.received}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setPackagingMaterialRows((prev) =>
-                            prev.map((r, i) => (i === idx ? { ...r, received: v } : r))
-                          );
-                        }}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-                      />
-                    </div>
+  {/* Search bar */}
+  <input
+    value={packagingSearch}
+    onChange={(e) => setPackagingSearch(e.target.value)}
+    placeholder="Search packaging material..."
+    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500"
+  />
 
-                    <div className="space-y-1 md:col-span-1">
-                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Consumed</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0"
-                        value={row.consumed}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setPackagingMaterialRows((prev) =>
-                            prev.map((r, i) => (i === idx ? { ...r, consumed: v } : r))
-                          );
-                        }}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-                      />
-                    </div>
-
-                    <div className="space-y-1 md:col-span-1">
-                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Destroyed</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0"
-                        value={row.destroyed}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setPackagingMaterialRows((prev) =>
-                            prev.map((r, i) => (i === idx ? { ...r, destroyed: v } : r))
-                          );
-                        }}
-                        className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+  {/* Scroll container */}
+  <div className="max-h-72 overflow-y-auto pr-1 space-y-2 border border-slate-100 rounded-xl p-2 bg-white">
+    {filteredPackagingRows.length === 0 ? (
+      <p className="text-[10px] text-slate-500">
+        No packaging materials found.
+      </p>
+    ) : (
+      filteredPackagingRows.map((row, idx) => (
+        <div
+          key={row.inventoryItemId}
+          className="grid grid-cols-2 md:grid-cols-6 gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg"
+        >
+          {/* Material */}
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+              Material
+            </label>
+            <p className="text-xs font-bold text-slate-700">
+              {row.name}
+            </p>
           </div>
+
+          {/* Received */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+              Received
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={row.received}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPackagingMaterialRows((prev) =>
+                  prev.map((r) =>
+                    r.inventoryItemId === row.inventoryItemId
+                      ? { ...r, received: v }
+                      : r
+                  )
+                );
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+            />
+          </div>
+
+          {/* Consumed */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+              Consumed
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={row.consumed}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPackagingMaterialRows((prev) =>
+                  prev.map((r) =>
+                    r.inventoryItemId === row.inventoryItemId
+                      ? { ...r, consumed: v }
+                      : r
+                  )
+                );
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+            />
+          </div>
+
+          {/* Destroyed */}
+          <div className="space-y-1 md:col-span-1">
+            <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+              Destroyed
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={row.destroyed}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPackagingMaterialRows((prev) =>
+                  prev.map((r) =>
+                    r.inventoryItemId === row.inventoryItemId
+                      ? { ...r, destroyed: v }
+                      : r
+                  )
+                );
+              }}
+              className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono"
+            />
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+</div>
            <div className="space-y-1">
             <label className="text-[9px] font-extrabold text-slate-400 uppercase">Flour spillage (kg)</label>
             <input
