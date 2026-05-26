@@ -33,11 +33,9 @@ const CreateInventoryItemSchema = zod_1.z.object({
         "CLEAR_TAPES",
         "GLUE",
     ]).optional().default("FINISHED_GOOD"),
-    unit: zod_1.z.enum(["KG", "BAG"]).optional().default("KG"),
+    unit: zod_1.z.enum(["KG", "BAG", "PIECES", "BALE", "GRAMS", "MT", "L", "MT", "UNIT"]).optional().default("KG"),
     quantity: zod_1.z.number().nonnegative().optional().default(0.0),
     unitPrice: zod_1.z.number().nonnegative().optional(),
-    // Where to apply physical balance for opening catalog quantities.
-    // Defaults to MAIN_STORE to keep behavior backward-compatible.
     storeCode: zod_1.z
         .enum(["MAIN_STORE", "PACKAGING_STORE", "MAIZE_STORE", "DISPATCH_STORE"])
         .optional()
@@ -51,8 +49,6 @@ const UpdateInventoryItemSchema = zod_1.z.object({
     quantity: zod_1.z.number().nonnegative().optional(),
     unitPrice: zod_1.z.number().nonnegative().optional(),
     adjustmentNote: zod_1.z.string().max(500).optional().nullable(),
-    // Where to apply physical balance changes for this catalog change.
-    // Defaults to MAIN_STORE to keep behavior backward-compatible.
     storeCode: zod_1.z
         .enum(["MAIN_STORE", "PACKAGING_STORE", "MAIZE_STORE", "DISPATCH_STORE"])
         .optional()

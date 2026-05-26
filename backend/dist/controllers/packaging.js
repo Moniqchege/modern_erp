@@ -6,7 +6,6 @@ exports.listPackagingRuns = listPackagingRuns;
 const zod_1 = require("zod");
 const server_1 = require("../server");
 const packaging_service_1 = require("../services/packaging.service");
-// Helper to clean up the response from formatPackagingRun if it still includes legacy fields
 const cleanPackagingRunResponse = (run) => {
     const { grade1FlourConsumed, grade2FlourConsumed, ...rest } = run;
     return rest;
@@ -22,10 +21,16 @@ exports.ProcessPackagingSchema = zod_1.z.object({
         .min(1, "At least one flour consumption row is required"),
     // Optional spillage total (kg). Will be distributed proportionally across flourConsumption.
     flourSpillage: zod_1.z.number().nonnegative().default(0),
-    // Packaging materials (still uses the single PKG-MAT-01 inventory item in current backend)
-    packagingMaterialReceived: zod_1.z.number().nonnegative().optional(),
-    packagingMaterialConsumed: zod_1.z.number().nonnegative(),
-    packagingMaterialDestroyed: zod_1.z.number().nonnegative().optional(),
+    // Packaging materials (all inventory items except RAW_MATERIAL / FINISHED_GOOD / BY_PRODUCT)
+    packagingMaterials: zod_1.z
+        .array(zod_1.z.object({
+        inventoryItemId: zod_1.z.string().min(1),
+        received: zod_1.z.number().nonnegative(),
+        consumed: zod_1.z.number().nonnegative(),
+        destroyed: zod_1.z.number().nonnegative(),
+    }))
+        .optional()
+        .default([]),
     // Dynamic bale outputs per flour type
     flourPackedOutputs: zod_1.z
         .array(zod_1.z.object({

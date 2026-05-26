@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Loader2,
@@ -6,9 +6,9 @@ import {
   AlertCircle,
   Activity,
   Package,
-  Trash2,
   Plus,
 } from "lucide-react";
+
 
 export interface PackagingRun {
   id: string;
@@ -16,9 +16,7 @@ export interface PackagingRun {
   operatorName: string;
   baleWeightKg: number;
   flourSpillage: number;
-  packagingMaterialReceived: number;
-  packagingMaterialConsumed: number;
-  packagingMaterialDestroyed: number;
+
   totalPackagedKg: number;
   yieldPercent: number;
   notes?: string | null;
@@ -80,9 +78,50 @@ export function PackagingForm() {
   const [operatorName, setOperatorName] = useState("");
 
   const [flourSpillage, setFlourSpillage] = useState("");
-  const [packagingMaterialReceived, setPackagingMaterialReceived] = useState("");
-  const [packagingMaterialConsumed, setPackagingMaterialConsumed] = useState("");
-  const [packagingMaterialDestroyed, setPackagingMaterialDestroyed] = useState("");
+
+const PACKAGING_ITEM_TYPES = useMemo(
+  () =>
+    new Set([
+      "PACKETS_2KG",
+      "PACKETS_1KG",
+      "KHAKI_BALER_2KG",
+      "KHAKI_BALER_1KG",
+      "NYLON_BALER_1KG",
+      "NYLON_BALER_2KG",
+      "BAG_5KG",
+      "BAG_10KG",
+      "LAMINATED_BALER",
+      "BAG_50KG",
+      "BAG_90KG",
+      "CLEAR_TAPES",
+      "GLUE",
+    ]),
+  []
+);
+
+  const packagingMaterialToRow = (item: InventoryItem): PackagingMaterialRow => ({
+    inventoryItemId: item.id,
+    name: item.name,
+    unit: item.unit,
+    received: "",
+    consumed: "",
+    destroyed: "",
+  });
+
+
+
+  type PackagingMaterialRow = {
+    inventoryItemId: string;
+    name: string;
+    unit: string;
+    received: string;
+    consumed: string;
+    destroyed: string;
+  };
+
+  const [packagingMaterialRows, setPackagingMaterialRows] = useState<PackagingMaterialRow[]>([]);
+
+
 
   const [flourConsumptionRows, setFlourConsumptionRows] = useState<FlourConsumptionRow[]>([]);
   const [flourPackedOutputs, setFlourPackedOutputs] = useState<FlourPackedOutputRow[]>([]);
@@ -149,10 +188,16 @@ const fetchInventory = async () => {
     setFlourPackedOutputs(
       flourItems.map((item) => ({
         flourInventoryItemId: item.id,
-        packedBaleInventoryItemId: item.id, 
+        packedBaleInventoryItemId: item.id,
         balesProduced: "",
       }))
     );
+
+    const packagingItems = items.filter(
+      (item) => PACKAGING_ITEM_TYPES.has(item.type)
+    );
+
+    setPackagingMaterialRows(packagingItems.map((item) => packagingMaterialToRow(item)));
   } catch (error) {
     console.error(error);
     setApiStatus("offline");
@@ -165,24 +210,28 @@ const fetchInventory = async () => {
   }, []);
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isInvalid || outputExceeded) return;
+
 
     setSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const payload = {
+const payload = {
       operatorName: operatorName.trim(),
       flourConsumption: flourConsumptionRows.map((r) => ({
         flourInventoryItemId: r.flourInventoryItemId,
         consumedKg: parseFloat(r.consumedKg) || 0,
       })),
       flourSpillage: spill,
-      packagingMaterialReceived: parseFloat(packagingMaterialReceived) || 0,
-      packagingMaterialConsumed: parseFloat(packagingMaterialConsumed) || 0,
-      packagingMaterialDestroyed: parseFloat(packagingMaterialDestroyed) || 0,
+      packagingMaterials: packagingMaterialRows.map((r) => ({
+        inventoryItemId: r.inventoryItemId,
+        received: parseFloat(r.received) || 0,
+        consumed: parseFloat(r.consumed) || 0,
+        destroyed: parseFloat(r.destroyed) || 0,
+      })),
       flourPackedOutputs: flourPackedOutputs.map((r) => ({
         flourInventoryItemId: r.flourInventoryItemId,
         packedBaleInventoryItemId: r.packedBaleInventoryItemId,
@@ -207,10 +256,11 @@ const fetchInventory = async () => {
       if (data.run) setRuns((prev) => [data.run, ...prev]);
       setOperatorName("");
       setFlourSpillage("");
-      setPackagingMaterialReceived("");
-      setPackagingMaterialConsumed("");
-      setPackagingMaterialDestroyed("");
       setNotes("");
+      setPackagingMaterialRows((prev) =>
+        prev.map((r) => ({ ...r, received: "", consumed: "", destroyed: "" }))
+      );
+
 
       setFlourConsumptionRows((prev) =>
   prev.map((r) => ({ ...r, consumedKg: "" }))
@@ -277,7 +327,7 @@ setFlourPackedOutputs((prev) =>
             />
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-1">
             <div className="text-[9px] font-extrabold text-slate-400 uppercase">Flour types consumed (kg)</div>
             {flourConsumptionRows.length === 0 ? (
               <p className="text-[10px] text-slate-500">No finished-good flour types found in catalogue.</p>
@@ -305,16 +355,88 @@ setFlourPackedOutputs((prev) =>
   }}
   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-800"
 />
-                    <span className="block text-[8px] text-slate-400">
-                      SKU: {inventoryItems.find(i => i.id === row.flourInventoryItemId)?.name}
-                    </span>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
           <div className="space-y-1">
+            <div className="text-[9px] font-extrabold text-slate-400 uppercase">Packaging materials</div>
+            {packagingMaterialRows.length === 0 ? (
+              <p className="text-[10px] text-slate-500">No packaging materials found in catalogue.</p>
+            ) : (
+              <div className="space-y-2">
+                {packagingMaterialRows.map((row, idx) => (
+                  <div
+                    key={row.inventoryItemId}
+                    className="grid grid-cols-1 md:grid-cols-6 gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                  >
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Material</label>
+                      <p className="text-xs font-bold text-slate-700">
+                        {row.name}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Received</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        value={row.received}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPackagingMaterialRows((prev) =>
+                            prev.map((r, i) => (i === idx ? { ...r, received: v } : r))
+                          );
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Consumed</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        value={row.consumed}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPackagingMaterialRows((prev) =>
+                            prev.map((r, i) => (i === idx ? { ...r, consumed: v } : r))
+                          );
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">Destroyed</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        value={row.destroyed}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPackagingMaterialRows((prev) =>
+                            prev.map((r, i) => (i === idx ? { ...r, destroyed: v } : r))
+                          );
+                        }}
+                        className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+           <div className="space-y-1">
             <label className="text-[9px] font-extrabold text-slate-400 uppercase">Flour spillage (kg)</label>
             <input
   type="number"
@@ -327,49 +449,9 @@ setFlourPackedOutputs((prev) =>
 />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">Pkg received</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                value={packagingMaterialReceived}
-                onChange={(e) => setPackagingMaterialReceived(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">Pkg consumed</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                value={packagingMaterialConsumed}
-                onChange={(e) => setPackagingMaterialConsumed(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-                Pkg Destroyed
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                value={packagingMaterialDestroyed}
-                onChange={(e) => setPackagingMaterialDestroyed(e.target.value)}
-                className="w-full bg-slate-50 border border-rose-200 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800"
-              />
-            </div>
-          </div>
 
           {/* Replace the "Bale outputs per flour type" section: */}
-<div className="space-y-3">
+<div className="space-y-1">
   <div className="text-[9px] font-extrabold text-slate-400 uppercase">
     Bale outputs per flour type
   </div>

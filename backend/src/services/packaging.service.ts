@@ -16,9 +16,12 @@ export type ProcessPackagingInput = {
 
   flourSpillage: number;
 
-  packagingMaterialReceived?: number;
-  packagingMaterialConsumed: number;
-  packagingMaterialDestroyed?: number;
+  packagingMaterials: Array<{
+    inventoryItemId: string;
+    received: number;
+    consumed: number;
+    destroyed: number;
+  }>;
 
   // Dynamic bale outputs mapping
   flourPackedOutputs: Array<{
@@ -30,6 +33,8 @@ export type ProcessPackagingInput = {
   baleWeightKg?: number;
   notes?: string;
 };
+
+
 
 async function ensureItem(
   tx: Prisma.TransactionClient,
@@ -122,10 +127,10 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
         operatorName: input.operatorName,
         baleWeightKg: baleWeight.toFixed(3),
         flourSpillage: input.flourSpillage.toFixed(3),
-        packagingMaterialReceived: (input.packagingMaterialReceived ?? 0).toFixed(3),
-        packagingMaterialConsumed: input.packagingMaterialConsumed.toFixed(3),
-        packagingMaterialDestroyed: (input.packagingMaterialDestroyed ?? 0).toFixed(3),
+        // NOTE: PackagingRun table still has legacy single-material totals.
+        // For inventory movements we process per-material rows from `packagingMaterials`.
         totalPackagedKg: totalPackagedKg.toFixed(3),
+
         yieldPercent: yieldPercent.toFixed(2),
         notes: input.notes,
         finishedProductInputs: {
@@ -152,12 +157,8 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       },
     });
 
-    const pkgMat = await ensureItem(tx, PKG_MAT_SKU, {
-      name: "Packaging Material",
-      description: "Sacks, labels and packaging consumables",
-      type: "RAW_MATERIAL",
-      unit: "KG",
-    });
+
+
 
     const alertItems: Array<{ id: string; prev: number }> = [];
     const flourRows = input.flourConsumption.map((r) => ({ ...r }));
@@ -188,51 +189,55 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       }
     }
 
-    if ((input.packagingMaterialReceived ?? 0) > 0) {
-      const r = await applyMovement(tx, {
-        itemId: pkgMat.id,
-        movementType: "RECEIPT",
-        quantityDelta: input.packagingMaterialReceived!,
-        packagingRunId: run.id,
-        notes: `Packaging materials received at station — ${runNumber}`,
-      });
-      alertItems.push({ id: pkgMat.id, prev: r.prevQty });
+    // Per packaging material movements
+    for (const pm of input.packagingMaterials) {
+      if (pm.received > 0) {
+        const r = await applyMovement(tx, {
+          itemId: pm.inventoryItemId,
+          movementType: "RECEIPT",
+          quantityDelta: pm.received,
+          packagingRunId: run.id,
+          notes: `Packaging material received — ${runNumber}`,
+        });
+        alertItems.push({ id: pm.inventoryItemId, prev: r.prevQty });
+      }
+
+      if (pm.consumed > 0) {
+        const r = await applyMovement(tx, {
+          itemId: pm.inventoryItemId,
+          movementType: "ISSUE_TO_PACKAGING",
+          quantityDelta: -pm.consumed,
+          packagingRunId: run.id,
+          notes: `Packaging material consumed — ${runNumber}`,
+        });
+        alertItems.push({ id: pm.inventoryItemId, prev: r.prevQty });
+      }
+
+      if (pm.destroyed > 0) {
+        const r = await applyMovement(tx, {
+          itemId: pm.inventoryItemId,
+          movementType: "ADJUSTMENT",
+          quantityDelta: -pm.destroyed,
+          packagingRunId: run.id,
+          notes: `Packaging material destroyed — ${runNumber}`,
+        });
+        alertItems.push({ id: pm.inventoryItemId, prev: r.prevQty });
+      }
     }
 
-    if (input.packagingMaterialConsumed > 0) {
-      const r = await applyMovement(tx, {
-        itemId: pkgMat.id,
-        movementType: "ISSUE_TO_PACKAGING",
-        quantityDelta: -input.packagingMaterialConsumed,
-        packagingRunId: run.id,
-        notes: `Packaging materials used — ${runNumber}`,
-      });
-      alertItems.push({ id: pkgMat.id, prev: r.prevQty });
-    }
-
-    if ((input.packagingMaterialDestroyed ?? 0) > 0) {
-      const r = await applyMovement(tx, {
-        itemId: pkgMat.id,
-        movementType: "ADJUSTMENT",
-        quantityDelta: -(input.packagingMaterialDestroyed ?? 0),
-        packagingRunId: run.id,
-        notes: `Destroyed packaging materials — ${runNumber}`,
-      });
-      alertItems.push({ id: pkgMat.id, prev: r.prevQty });
-    }
-
+    // Bale outputs
     for (const out of input.flourPackedOutputs) {
       if (out.balesProduced <= 0) continue;
       const baleItemId = out.packedBaleInventoryItemId || (await tx.inventoryItem.findFirst({
-        where: {
-          type: "FINISHED_GOOD",
-        },
+        where: { type: "FINISHED_GOOD" },
         select: { id: true },
         orderBy: { createdAt: "asc" },
       }))?.id;
 
       if (!baleItemId) {
-        throw new Error("Bale inventory item not found. Please configure packedBaleInventoryItemId or seed a BALE item.");
+        throw new Error(
+          "Bale inventory item not found. Please configure packedBaleInventoryItemId or seed a BALE item."
+        );
       }
 
       await applyMovement(tx, {
@@ -250,9 +255,11 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
 
     return tx.packagingRun.findUnique({ where: { id: run.id } })!;
   });
+
 }
 
 export function formatPackagingRun(run: {
+
   id: string;
   runNumber: string;
   operatorName: string;

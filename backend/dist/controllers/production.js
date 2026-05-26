@@ -5,7 +5,6 @@ exports.processBatch = processBatch;
 const zod_1 = require("zod");
 const server_1 = require("../server");
 const inventory_alert_service_1 = require("../services/inventory-alert.service");
-// Schema for production batch validation
 exports.ProcessBatchSchema = zod_1.z.object({
     rawMaizeConsumed: zod_1.z.number().positive("Consumed maize must be greater than 0"),
     flourOutputs: zod_1.z
@@ -26,7 +25,6 @@ async function processBatch(req, res) {
             });
         }
         const { rawMaizeConsumed, flourOutputs, maizeJamProduced } = parse.data;
-        // We execute everything in a Prisma Transaction to guarantee ACID compliance
         const result = await server_1.prisma.$transaction(async (tx) => {
             // 1. Find the raw material item (Maize)
             let rawMaize = await tx.inventoryItem.findFirst({
@@ -37,12 +35,10 @@ async function processBatch(req, res) {
             if (!rawMaize) {
                 throw new Error("Raw Material item not found. Please create a 'Raw Material' in the catalog first (e.g. Raw Maize).");
             }
-            // Check for sufficient inventory
             const currentRawQty = Number(rawMaize.quantity);
             if (currentRawQty < rawMaizeConsumed) {
                 throw new Error(`Insufficient ${rawMaize.name} stock. Available: ${currentRawQty.toFixed(2)} ${rawMaize.unit}, Consumed: ${rawMaizeConsumed.toFixed(2)} ${rawMaize.unit}.`);
             }
-            // Find byproduct item (Jam/Hulls)
             let maizeJam = await tx.inventoryItem.findFirst({
                 where: {
                     OR: [{ sku: "BY-JAM-03" }, { type: "BY_PRODUCT" }],
@@ -51,16 +47,14 @@ async function processBatch(req, res) {
             if (maizeJamProduced > 0 && !maizeJam) {
                 throw new Error("By-product item not found. Please create a 'By-Product' in the catalog first (e.g. Maize Jam).");
             }
-            // 2. Deduct Raw Material Maize
+            const jamItem = maizeJam;
             const updatedRawMaize = await tx.inventoryItem.update({
                 where: { id: rawMaize.id },
                 data: {
                     quantity: (currentRawQty - rawMaizeConsumed).toFixed(3),
                 },
             });
-            // 3. Add produced Finished Goods outputs (dynamic)
             let totalOutputsKg = 0;
-            // Apply each finished-good output to its corresponding inventory item
             for (const output of flourOutputs) {
                 const target = await tx.inventoryItem.findUnique({ where: { id: output.inventoryItemId } });
                 if (!target) {
@@ -77,19 +71,17 @@ async function processBatch(req, res) {
                 totalOutputsKg += output.quantityKg;
             }
             let updatedMaizeJam = null;
-            if (maizeJam) {
+            if (jamItem) {
                 updatedMaizeJam = await tx.inventoryItem.update({
-                    where: { id: maizeJam.id },
+                    where: { id: jamItem.id },
                     data: {
-                        quantity: (Number(maizeJam.quantity) + maizeJamProduced).toFixed(3),
+                        quantity: (Number(jamItem.quantity) + maizeJamProduced).toFixed(3),
                     },
                 });
             }
             totalOutputsKg += maizeJamProduced;
-            // 4. Calculate Efficiency & Waste
             const wasteLoss = rawMaizeConsumed - totalOutputsKg;
             const efficiency = (totalOutputsKg / rawMaizeConsumed) * 100;
-            // 5. Log Production Batch
             const batchNumber = `M-BATCH-${Date.now().toString().slice(-8)}`;
             const batch = await tx.productionBatch.create({
                 data: {
@@ -99,18 +91,26 @@ async function processBatch(req, res) {
                     efficiency: efficiency.toFixed(2),
                     outputs: {
                         create: [
-                            ...flourOutputs.map(o => ({
+                            ...flourOutputs.map((o) => ({
                                 inventoryItemId: o.inventoryItemId,
-                                quantityKg: o.quantityKg.toFixed(3)
+                                quantityKg: o.quantityKg.toFixed(3),
                             })),
-                            {
-                                inventoryItemId: maizeJam.id,
-                                quantityKg: maizeJamProduced.toFixed(3)
-                            }
-                        ]
-                    }
+                            ...(jamItem && maizeJamProduced > 0
+                                ? [
+                                    {
+                                        inventoryItemId: jamItem.id,
+                                        quantityKg: maizeJamProduced.toFixed(3),
+                                    },
+                                ]
+                                : []),
+                        ],
+                    },
                 },
-                include: { outputs: { include: { inventoryItem: true } } }
+                include: {
+                    outputs: {
+                        include: { inventoryItem: true },
+                    },
+                },
             });
             return {
                 batch,

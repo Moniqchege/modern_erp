@@ -25,10 +25,19 @@ export const ProcessPackagingSchema = z.object({
   // Optional spillage total (kg). Will be distributed proportionally across flourConsumption.
   flourSpillage: z.number().nonnegative().default(0),
 
-  // Packaging materials (still uses the single PKG-MAT-01 inventory item in current backend)
-  packagingMaterialReceived: z.number().nonnegative().optional(),
-  packagingMaterialConsumed: z.number().nonnegative(),
-  packagingMaterialDestroyed: z.number().nonnegative().optional(),
+  // Packaging materials (all inventory items except RAW_MATERIAL / FINISHED_GOOD / BY_PRODUCT)
+  packagingMaterials: z
+    .array(
+      z.object({
+        inventoryItemId: z.string().min(1),
+        received: z.number().nonnegative(),
+        consumed: z.number().nonnegative(),
+        destroyed: z.number().nonnegative(),
+      })
+    )
+    .optional()
+    .default([]),
+
 
   // Dynamic bale outputs per flour type
   flourPackedOutputs: z
