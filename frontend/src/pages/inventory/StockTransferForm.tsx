@@ -48,7 +48,7 @@ export function StockTransferForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const [itemId, setItemId] = useState("");
-  const [quantity, setQuantity] = useState(0);
+  const [quantity, setQuantity] = useState<number | "">("");
   const [sourceStoreCode, setSourceStoreCode] = useState<StoreCode>("MAIN_STORE");
   const [destinationStoreCode, setDestinationStoreCode] =
     useState<StoreCode>("MAIZE_STORE");
@@ -110,7 +110,8 @@ export function StockTransferForm() {
       setError("Select an inventory item.");
       return;
     }
-    if (!Number.isFinite(quantity) || quantity <= 0) {
+    const qty = typeof quantity === "string" ? Number(quantity) : quantity;
+    if (!Number.isFinite(qty) || qty <= 0) {
       setError("Quantity must be greater than 0.");
       return;
     }
@@ -127,7 +128,7 @@ export function StockTransferForm() {
           sourceStoreCode,
           destinationStoreCode,
           notes: notes.trim() || undefined,
-          items: [{ itemId, qtyRequested: quantity }],
+          items: [{ itemId, qtyRequested: qty }],
         }),
       });
 
@@ -196,14 +197,6 @@ export function StockTransferForm() {
               ))}
             </select>
           )}
-          <button
-            type="button"
-            onClick={fetchInventory}
-            className="text-[10px] font-bold text-slate-500 flex items-center gap-1 mt-1"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh catalogue
-          </button>
         </div>
 
         {selected && (
@@ -270,7 +263,11 @@ export function StockTransferForm() {
               step="0.001"
               min="0"
               value={quantity}
-              onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+               const val = e.target.value;
+                  setQuantity(val === "" ? "" : parseFloat(val));
+                }}
+              placeholder="0"
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono mt-1"
             />
           </div>

@@ -54,6 +54,36 @@ const STATUS_LABEL: Record<TransferStatus, string> = {
   REJECTED: "Rejected",
 };
 
+const STATUS_META: Record<
+  TransferStatus,
+  {
+    label: string;
+    className: string;
+    icon?: React.ComponentType<{ className?: string }>;
+  }
+> = {
+  PENDING: {
+    label: "Pending approval",
+    className: "text-amber-400 border border-amber-200",
+    icon: RefreshCw,
+  },
+  APPROVED_IN_TRANSIT: {
+    label: "In transit",
+    className: "text-blue-400 border border-blue-200",
+    icon: Truck,
+  },
+  COMPLETED: {
+    label: "Completed",
+    className: "text-emerald-400 border border-emerald-200",
+    icon: CheckCircle2,
+  },
+  REJECTED: {
+    label: "Rejected",
+    className: "text-rose-400 border border-rose-200",
+    icon: XCircle,
+  },
+};
+
 function canApprove(role: string) {
   return (
     role === "SUPERADMIN" ||
@@ -161,13 +191,6 @@ export function StockTransfers() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(ROUTES.INVENTORY)}
-            className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
           <div>
             <h1 className="text-2xl font-black text-slate-900">Stock Transfers</h1>
             <p className="text-xs text-slate-500 mt-1">
@@ -210,12 +233,15 @@ export function StockTransfers() {
         <p className="text-sm text-slate-500">No stock transfer requests yet.</p>
       ) : (
         <div className="space-y-4">
-          {transfers.map((t) => (
+          {transfers.map((t) => {
+            const statusMeta = STATUS_META[t.status];
+            const StatusIcon = statusMeta.icon;
+            return (
             <article
               key={t.id}
               className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
             >
-              <div className="flex flex-wrap justify-between gap-2 mb-3">
+              <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
                 <div>
                   <span className="font-mono text-sm font-bold text-slate-800">
                     {t.requestNumber}
@@ -225,18 +251,19 @@ export function StockTransfers() {
                     {t.requestedBy.name}
                   </p>
                 </div>
-                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-slate-100 text-slate-700">
-                  {STATUS_LABEL[t.status]}
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full ${statusMeta.className}`}>
+                  {StatusIcon && <StatusIcon className="h-3 w-3" />}
+                  {statusMeta.label}
                 </span>
               </div>
 
               <ul className="text-xs text-slate-600 space-y-1 mb-4">
                 {t.items.map((line) => (
                   <li key={line.id}>
-                    {line.item.sku} — req {line.qtyRequested.toFixed(3)}
-                    {line.qtyIssued != null && ` · issued ${line.qtyIssued.toFixed(3)}`}
+                    {line.item.name} — req {line.qtyRequested}
+                    {line.qtyIssued != null && ` · issued ${line.qtyIssued}`}
                     {line.qtyReceived != null &&
-                      ` · received ${line.qtyReceived.toFixed(3)}`}{" "}
+                      ` · received ${line.qtyReceived}`}{" "}
                     {line.item.unit}
                   </li>
                 ))}
@@ -292,7 +319,8 @@ export function StockTransfers() {
                 )}
               </div>
             </article>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
