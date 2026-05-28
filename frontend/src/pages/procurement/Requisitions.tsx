@@ -15,7 +15,11 @@ export function Requisitions() {
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const itemProfilesEmpty = itemProfiles.length === 0;
+  const [syncHintDismissed, setSyncHintDismissed] = useState(false);
+  const [busySync, setBusySync] = useState(false);
   const [form, setForm] = useState({
+
     requestedBy: "",
     department: "",
     supplierId: "",
@@ -135,6 +139,43 @@ export function Requisitions() {
               <button type="button" onClick={() => setShowCreate(false)} className="text-xs font-bold text-slate-500">X</button>
             </div>
             {formError && <p className="text-xs text-red-600">{formError}</p>}
+            {itemProfilesEmpty && !syncHintDismissed && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+                <p className="text-xs font-bold text-red-700">No active item profiles found.</p>
+                <p className="text-xs text-red-700/80">
+                  Create/activate <span className="font-mono">ProcurementItemProfile</span> records (or run the inventory sync) to enable requisition lines.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busySync}
+                    onClick={async () => {
+                      setBusySync(true);
+                      setFormError(null);
+                      try {
+                        await procurementApi.itemProfiles.syncFromInventory();
+                        const d = await procurementApi.itemProfiles.list();
+                        setItemProfiles(d.profiles as ProcurementItemProfile[]);
+                      } catch (e) {
+                        setFormError(e instanceof Error ? e.message : "Failed to sync item profiles.");
+                      } finally {
+                        setBusySync(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-600 text-white disabled:opacity-50"
+                  >
+                    {busySync ? "Syncing..." : "Sync from inventory"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncHintDismissed(true)}
+                    className="text-xs font-bold text-red-700/80"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <input className="border rounded-lg px-3 py-2 text-xs" placeholder="Requested by *" value={form.requestedBy} onChange={(e) => setForm((p) => ({ ...p, requestedBy: e.target.value }))} />
               <input className="border rounded-lg px-3 py-2 text-xs" placeholder="Department" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} />
@@ -177,8 +218,9 @@ export function Requisitions() {
               <button type="button" className="px-3 py-2 text-xs font-bold border rounded-lg" onClick={() => setShowCreate(false)}>Cancel</button>
               <button
                 type="button"
-                disabled={saving}
+                disabled={saving || itemProfilesEmpty}
                 className="px-3 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white disabled:opacity-50"
+
                 onClick={async () => {
                   if (!form.requestedBy.trim()) {
                     setFormError("Requested by is required.");

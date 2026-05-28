@@ -6,8 +6,10 @@ exports.formatPackagingRun = formatPackagingRun;
 const server_1 = require("../server");
 const inventory_alert_service_1 = require("./inventory-alert.service");
 exports.KG_PER_UNIT_BY_TYPE = {
+    NYLON_BALER_0_5KG: 12,
     NYLON_BALER_1KG: 24,
     NYLON_BALER_2KG: 24,
+    KHAKI_BALER_0_5KG: 12,
     KHAKI_BALER_1KG: 24,
     KHAKI_BALER_2KG: 24,
     LAMINATED_BALER: 24,
@@ -19,15 +21,18 @@ exports.KG_PER_UNIT_BY_TYPE = {
     PACKETS_2KG: 2,
 };
 const LEGACY_BALE_KG = 24;
-async function resolveKgPerUnit(tx, inventoryItemId, clientKgPerUnit) {
-    if (clientKgPerUnit > 0)
-        return clientKgPerUnit;
-    const item = await tx.inventoryItem.findUnique({
-        where: { id: inventoryItemId },
-        select: { type: true },
-    });
-    if (item && exports.KG_PER_UNIT_BY_TYPE[item.type]) {
-        return exports.KG_PER_UNIT_BY_TYPE[item.type];
+function deriveKgPerUnitFromTypeKey(typeKey) {
+    if (!typeKey)
+        return LEGACY_BALE_KG;
+    if (exports.KG_PER_UNIT_BY_TYPE[typeKey] != null)
+        return exports.KG_PER_UNIT_BY_TYPE[typeKey];
+    // Supports keys like NYLON_BALER_0.5KG, BAG_5KG, 5KG_BAG, PACK_2KG
+    const normalized = typeKey.toUpperCase().replace(/_/g, " ");
+    const match = normalized.match(/(\d+(?:\.\d+)?)\s*KG/);
+    if (match) {
+        const parsed = Number(match[1]);
+        if (Number.isFinite(parsed) && parsed > 0)
+            return parsed;
     }
     return LEGACY_BALE_KG;
 }
@@ -66,15 +71,38 @@ async function processPackagingRun(input) {
     const totalFlourIn = totalFlourBulkIn + input.flourSpillage;
     const allOutputLines = [];
     for (const flourOutput of input.flourPackedOutputs) {
-        for (const line of flourOutput.outputLines) {
-            allOutputLines.push({ ...line, flourInventoryItemId: flourOutput.flourInventoryItemId });
+        for (let lineIndex = 0; lineIndex < flourOutput.outputLines.length; lineIndex += 1) {
+            const line = flourOutput.outputLines[lineIndex];
+            allOutputLines.push({
+                ...line,
+                flourInventoryItemId: flourOutput.flourInventoryItemId,
+                lineIndex,
+            });
         }
     }
-    const resolvedLines = await Promise.all(allOutputLines.map(async (line) => {
-        const kgPerUnit = line.kgPerUnit > 0
-            ? line.kgPerUnit
-            : exports.KG_PER_UNIT_BY_TYPE[line.typeKey] ?? LEGACY_BALE_KG;
-        return { ...line, kgPerUnit };
+    // const resolvedLines = await Promise.all(
+    //   allOutputLines.map(async (line) => {
+    //     const item = line.packedBaleInventoryItemId
+    //       ? await prisma.inventoryItem.findUnique({
+    //           where: { id: line.packedBaleInventoryItemId },
+    //           select: { id: true, type: true, name: true },
+    //         })
+    //       : null;
+    //     const resolvedTypeKey = line.typeKey ?? item?.type ?? "UNKNOWN";
+    //     const kgPerUnit =
+    //       line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(resolvedTypeKey);
+    //     return {
+    //       ...line,
+    //       typeKey: resolvedTypeKey,
+    //       packedBaleInventoryItemId: line.packedBaleInventoryItemId ?? item?.id,
+    //       kgPerUnit,
+    //     };
+    //   })
+    // );
+    const resolvedLines = allOutputLines.map((line) => ({
+        ...line,
+        typeKey: line.typeKey ?? "UNKNOWN",
+        kgPerUnit: line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(line.typeKey),
     }));
     const totalPackagedKg = resolvedLines.reduce((s, l) => s + l.unitsProduced * l.kgPerUnit, 0);
     const yieldPercent = totalFlourIn > 0 ? (totalPackagedKg / totalFlourIn) * 100 : 0;
@@ -86,14 +114,15 @@ async function processPackagingRun(input) {
     }
     return server_1.prisma.$transaction(async (tx) => {
         const runNumber = `PKG-${Date.now().toString().slice(-8)}`;
-        const outputCreateData = await Promise.all(input.flourPackedOutputs.flatMap((flourOutput) => flourOutput.outputLines.map(async (line) => {
-            const resolved = resolvedLines.find((r) => r.typeKey === line.typeKey &&
-                r.flourInventoryItemId === flourOutput.flourInventoryItemId);
+        const outputCreateData = await Promise.all(input.flourPackedOutputs.flatMap((flourOutput) => flourOutput.outputLines.map(async (line, lineIndex) => {
+            const resolved = resolvedLines.find((r) => r.flourInventoryItemId === flourOutput.flourInventoryItemId &&
+                r.lineIndex === lineIndex);
             const kgPerUnit = resolved?.kgPerUnit ?? LEGACY_BALE_KG;
             const packagedKg = line.unitsProduced * kgPerUnit;
             return {
                 finishedProductName: flourOutput.flourInventoryItemId,
-                typeKey: line.typeKey,
+                typeKey: resolved?.typeKey ?? line.typeKey ?? "UNKNOWN",
+                // inventoryItemId: resolved?.packedBaleInventoryItemId ?? null,
                 balesProduced: line.unitsProduced,
                 packagedKg: packagedKg.toFixed(3),
                 kgPerUnit: kgPerUnit.toFixed(3),
@@ -186,11 +215,15 @@ async function processPackagingRun(input) {
                 alertItems.push({ id: pm.inventoryItemId, prev: r.prevQty });
             }
         }
-        // NOTE: With outputs stored by typeKey (DB change), we currently do not post inventory movements
-        // for finished goods. If you want stock tracking per bale/bag type later, we can reintroduce it
-        // by mapping typeKey -> InventoryItem id.
         // for (const line of resolvedLines) {
-        //   if (line.unitsProduced <= 0) continue;
+        //   if (!line.packedBaleInventoryItemId || line.unitsProduced <= 0) continue;
+        //   await applyMovement(tx, {
+        //     itemId: line.packedBaleInventoryItemId,
+        //     movementType: "RECEIPT",
+        //     quantityDelta: line.unitsProduced,
+        //     packagingRunId: run.id,
+        //     notes: `Packaging output ${line.typeKey} — ${runNumber}`,
+        //   });
         // }
         for (const { id, prev } of alertItems) {
             await (0, inventory_alert_service_1.checkReorderAlert)(id, prev);

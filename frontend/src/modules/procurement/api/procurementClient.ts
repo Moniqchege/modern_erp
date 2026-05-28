@@ -66,6 +66,11 @@ export const procurementApi = {
   },
   itemProfiles: {
     list: () => json<{ profiles: unknown[] }>(`${BASE}/item-profiles`),
+    syncFromInventory: () =>
+      json<{ success: boolean } & Record<string, unknown>>(
+        `${BASE}/item-profiles/sync-from-inventory`,
+        { method: "POST" }
+      ),
   },
   purchaseOrders: {
     list: () => json<{ purchaseOrders: unknown[] }>(`${BASE}/purchase-orders`),

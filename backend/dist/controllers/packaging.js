@@ -14,10 +14,13 @@ const cleanPackagingRunResponse = (run) => {
 };
 const OutputLineSchema = zod_1.z.object({
     // Bale/bag format key (e.g. NYLON_BALER_1KG, BAG_10KG)
-    typeKey: zod_1.z.string().min(1),
+    typeKey: zod_1.z.string().min(1).optional(),
+    packedBaleInventoryItemId: zod_1.z.string().min(1).optional(),
     unitsProduced: zod_1.z.number().int().nonnegative(),
     // Optional override; if omitted, server resolves from KG_PER_UNIT_BY_TYPE
     kgPerUnit: zod_1.z.number().nonnegative().optional().default(0),
+}).refine((v) => Boolean(v.typeKey || v.packedBaleInventoryItemId), {
+    message: "Either typeKey or packedBaleInventoryItemId is required",
 });
 const FlourPackedOutputSchema = zod_1.z.object({
     flourInventoryItemId: zod_1.z.string().min(1),

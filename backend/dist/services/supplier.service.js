@@ -37,6 +37,10 @@ async function getAllSuppliers(activeOnly = false) {
             _count: {
                 select: { rawMaizeBatches: true },
             },
+            suppliedItems: {
+                include: { itemProfile: true },
+                orderBy: { createdAt: "desc" },
+            },
         },
         orderBy: { createdAt: "desc" },
     });
@@ -52,6 +56,10 @@ async function getSupplierById(id) {
                 orderBy: { receivedAt: "desc" },
                 take: 10, // Last 10 batches
             },
+            suppliedItems: {
+                include: { itemProfile: true },
+                orderBy: { createdAt: "desc" },
+            },
         },
     });
     if (!supplier) {
@@ -63,9 +71,35 @@ async function getSupplierById(id) {
  * Update supplier
  */
 async function updateSupplier(id, data) {
-    return server_1.prisma.supplier.update({
-        where: { id },
-        data,
+    const { suppliedItems, ...supplierData } = data;
+    return server_1.prisma.$transaction(async (tx) => {
+        if (suppliedItems) {
+            await tx.supplierSuppliedItem.deleteMany({ where: { supplierId: id } });
+        }
+        return tx.supplier.update({
+            where: { id },
+            data: {
+                ...supplierData,
+                suppliedItems: suppliedItems
+                    ? {
+                        create: suppliedItems.map((item) => ({
+                            itemProfileId: item.itemProfileId,
+                            isPreferred: item.isPreferred ?? false,
+                            leadTimeDays: item.leadTimeDays ?? null,
+                            minOrderQty: item.minOrderQty ?? null,
+                            lastUnitPrice: item.lastUnitPrice ?? null,
+                            notes: item.notes ?? null,
+                        })),
+                    }
+                    : undefined,
+            },
+            include: {
+                suppliedItems: {
+                    include: { itemProfile: true },
+                    orderBy: { createdAt: "desc" },
+                },
+            },
+        });
     });
 }
 /**

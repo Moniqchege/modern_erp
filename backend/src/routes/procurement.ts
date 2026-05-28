@@ -5,6 +5,8 @@ import * as requisitionService from "../services/procurement/requisition.service
 import * as poService from "../services/procurement/purchase-order.service";
 import * as receivingService from "../services/procurement/receiving.service";
 import * as financeService from "../services/procurement/finance-match.service";
+import * as itemProfileSyncService from "../services/procurement/item-profile-sync.service";
+
 
 export const procurementRouter = Router();
 
@@ -83,6 +85,15 @@ procurementRouter.post("/item-profiles", async (req, res) => {
   const profile = await prisma.procurementItemProfile.create({ data: parse.data as never });
   res.status(201).json({ success: true, profile });
 });
+
+procurementRouter.post(
+  "/item-profiles/sync-from-inventory",
+  async (_req, res) => {
+    const result = await itemProfileSyncService.syncItemProfilesFromInventory();
+    res.json({ success: true, ...result });
+  }
+);
+
 
 // --- Requisitions ---
 procurementRouter.get("/requisitions", async (req, res) => {

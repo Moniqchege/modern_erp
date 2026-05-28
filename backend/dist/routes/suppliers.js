@@ -56,6 +56,16 @@ const CreateSupplierSchema = zod_1.z.object({
     bankAccountNo: zod_1.z.string().max(64).optional().nullable(),
     bankBranch: zod_1.z.string().max(128).optional().nullable(),
     bankSwiftCode: zod_1.z.string().max(32).optional().nullable(),
+    suppliedItems: zod_1.z
+        .array(zod_1.z.object({
+        itemProfileId: zod_1.z.string().min(1),
+        isPreferred: zod_1.z.boolean().optional(),
+        leadTimeDays: zod_1.z.number().int().positive().optional().nullable(),
+        minOrderQty: zod_1.z.number().positive().optional().nullable(),
+        lastUnitPrice: zod_1.z.number().nonnegative().optional().nullable(),
+        notes: zod_1.z.string().max(500).optional().nullable(),
+    }))
+        .optional(),
 });
 exports.suppliersRouter.get("/", async (req, res) => {
     try {
@@ -92,7 +102,28 @@ exports.suppliersRouter.post("/", async (req, res) => {
         return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
     }
     try {
-        const supplier = await server_1.prisma.supplier.create({ data: parse.data });
+        const { suppliedItems = [], ...supplierData } = parse.data;
+        const supplier = await server_1.prisma.supplier.create({
+            data: {
+                ...supplierData,
+                suppliedItems: {
+                    create: suppliedItems.map((item) => ({
+                        itemProfileId: item.itemProfileId,
+                        isPreferred: item.isPreferred ?? false,
+                        leadTimeDays: item.leadTimeDays ?? null,
+                        minOrderQty: item.minOrderQty ?? null,
+                        lastUnitPrice: item.lastUnitPrice ?? null,
+                        notes: item.notes ?? null,
+                    })),
+                },
+            },
+            include: {
+                suppliedItems: {
+                    include: { itemProfile: true },
+                    orderBy: { createdAt: "desc" },
+                },
+            },
+        });
         res.status(201).json({ success: true, supplier });
     }
     catch (error) {

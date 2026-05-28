@@ -9,6 +9,30 @@ const eventBus_1 = require("../../events/eventBus");
 const procurementEventTypes_1 = require("../../events/procurementEventTypes");
 const helpers_1 = require("./helpers");
 async function createRequisition(input) {
+    const distinctProfileIds = [...new Set(input.lines.map((line) => line.itemProfileId))];
+    if (input.supplierId) {
+        const linkedCount = await server_1.prisma.supplierSuppliedItem.count({
+            where: {
+                supplierId: input.supplierId,
+                itemProfileId: { in: distinctProfileIds },
+            },
+        });
+        if (linkedCount !== distinctProfileIds.length) {
+            throw new Error("Selected supplier is not linked to all requisition items. Update supplier supplied stock mapping first.");
+        }
+    }
+    let autoSelectedSupplierId;
+    if (!input.supplierId) {
+        const preferredLink = await server_1.prisma.supplierSuppliedItem.findFirst({
+            where: {
+                itemProfileId: { in: distinctProfileIds },
+                isPreferred: true,
+                supplier: { isActive: true },
+            },
+            orderBy: { updatedAt: "desc" },
+        });
+        autoSelectedSupplierId = preferredLink?.supplierId;
+    }
     const requisitionNo = await (0, helpers_1.nextSequence)("PR");
     let estimatedTotal = 0;
     const lineData = input.lines.map((line) => {
@@ -27,9 +51,12 @@ async function createRequisition(input) {
             requisitionNo,
             requestedBy: input.requestedBy,
             department: input.department,
-            supplierId: input.supplierId,
+            supplierId: input.supplierId ?? autoSelectedSupplierId,
             source: (input.source ?? "MANUAL_PROCUREMENT"),
-            justification: input.justification,
+            justification: input.justification ??
+                (autoSelectedSupplierId
+                    ? "Auto-selected preferred supplier from supplied stock mapping."
+                    : undefined),
             requiredByDate: input.requiredByDate,
             currency: (input.currency ?? "KES"),
             estimatedTotal: (0, helpers_1.toDecimal)(estimatedTotal),

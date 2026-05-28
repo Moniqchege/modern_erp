@@ -193,6 +193,8 @@ flowchart LR
 
 ## 7. Seed / config
 
+### 7.1 Approval threshold
+
 Insert default approval threshold:
 
 ```sql
@@ -200,4 +202,34 @@ INSERT INTO ApprovalThreshold (id, name, currency, headProcurementMax, financeDi
 VALUES ('default', 'Standard KES', 'KES', 500000, 500000, true);
 ```
 
-Create `ProcurementItemProfile` rows for white/yellow maize, bag SKUs, fortificant, rollers, etc., linking `inventoryItemId` where applicable.
+### 7.2 ProcurementItemProfile operational guidance (required for requisitions)
+
+**Why this matters**: The Requisitions UI only allows selecting item profiles that are returned by `GET /api/procurement/item-profiles`.
+That endpoint filters `ProcurementItemProfile` by `isActive: true`.
+
+If there are **no active item profiles**, users will be blocked from creating requisition lines.
+
+#### What to create
+- Ensure you have `ProcurementItemProfile` records for all items you expect to purchase.
+- `isActive` must be set to `true`.
+- Where possible, link via `inventoryItemId` so inventory sync can be deterministic.
+
+#### Best operational approach (recommended)
+1. Seed/Create `InventoryItem` records first.
+2. Run inventory → procurement profile sync:
+
+`POST /api/procurement/item-profiles/sync-from-inventory`
+
+This endpoint will:
+- create missing `ProcurementItemProfile` records
+- update existing ones
+- force `isActive=true`
+- derive `sku`, `name`, `category`, and `unit` from `InventoryItem`
+
+3. After sync, complete supplier onboarding and ensure `SupplierSuppliedItem` links exist for the item profiles.
+
+#### Troubleshooting
+- If the Requisitions “Create manual requisition” modal shows **“No active item profiles found”**:
+  - run `POST /api/procurement/item-profiles/sync-from-inventory`
+  - verify at least one active profile exists by calling `GET /api/procurement/item-profiles`.
+
