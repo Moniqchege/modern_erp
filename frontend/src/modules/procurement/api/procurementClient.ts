@@ -59,6 +59,13 @@ export const procurementApi = {
         method: "POST",
         body: JSON.stringify({ level, approverName }),
       }),
+    generateLowStock: () =>
+      json(`${BASE}/requisitions/low-stock/generate`, {
+        method: "POST",
+      }),
+  },
+  itemProfiles: {
+    list: () => json<{ profiles: unknown[] }>(`${BASE}/item-profiles`),
   },
   purchaseOrders: {
     list: () => json<{ purchaseOrders: unknown[] }>(`${BASE}/purchase-orders`),

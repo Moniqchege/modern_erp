@@ -59,6 +59,26 @@ export interface Supplier {
   isActive: boolean;
   taxPin?: string | null;
   vatNumber?: string | null;
+  suppliedItems?: SupplierSuppliedItem[];
+}
+
+export interface ProcurementItemProfile {
+  id: string;
+  sku: string;
+  name: string;
+  category: ProcurementCategory;
+  unit: string;
+}
+
+export interface SupplierSuppliedItem {
+  id: string;
+  itemProfileId: string;
+  itemProfile: ProcurementItemProfile;
+  isPreferred: boolean;
+  leadTimeDays?: number | null;
+  minOrderQty?: string | number | null;
+  lastUnitPrice?: string | number | null;
+  notes?: string | null;
 }
 
 export interface PurchaseRequisition {
@@ -68,6 +88,12 @@ export interface PurchaseRequisition {
   requestedBy: string;
   estimatedTotal: string | number;
   currency: string;
+  supplierId?: string | null;
+  supplier?: Supplier | null;
+  source?: "LOW_STOCK_AUTO" | "MANUAL_PLANT" | "MANUAL_PROCUREMENT";
+  department?: string | null;
+  requiredByDate?: string | null;
+  justification?: string | null;
   lines?: Array<{ itemProfile: { name: string; category: ProcurementCategory } }>;
 }
 

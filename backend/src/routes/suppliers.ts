@@ -27,6 +27,18 @@ const CreateSupplierSchema = z.object({
   bankAccountNo: z.string().max(64).optional().nullable(),
   bankBranch: z.string().max(128).optional().nullable(),
   bankSwiftCode: z.string().max(32).optional().nullable(),
+  suppliedItems: z
+    .array(
+      z.object({
+        itemProfileId: z.string().min(1),
+        isPreferred: z.boolean().optional(),
+        leadTimeDays: z.number().int().positive().optional().nullable(),
+        minOrderQty: z.number().positive().optional().nullable(),
+        lastUnitPrice: z.number().nonnegative().optional().nullable(),
+        notes: z.string().max(500).optional().nullable(),
+      })
+    )
+    .optional(),
 });
 
 
@@ -67,7 +79,28 @@ suppliersRouter.post("/", async (req, res) => {
     return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
   }
   try {
-    const supplier = await prisma.supplier.create({ data: parse.data });
+    const { suppliedItems = [], ...supplierData } = parse.data;
+    const supplier = await prisma.supplier.create({
+      data: {
+        ...supplierData,
+        suppliedItems: {
+          create: suppliedItems.map((item) => ({
+            itemProfileId: item.itemProfileId,
+            isPreferred: item.isPreferred ?? false,
+            leadTimeDays: item.leadTimeDays ?? null,
+            minOrderQty: item.minOrderQty ?? null,
+            lastUnitPrice: item.lastUnitPrice ?? null,
+            notes: item.notes ?? null,
+          })),
+        },
+      },
+      include: {
+        suppliedItems: {
+          include: { itemProfile: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
     res.status(201).json({ success: true, supplier });
   } catch (error) {
     res.status(500).json({ message: String(error) });
@@ -80,7 +113,7 @@ suppliersRouter.patch("/:id", async (req, res) => {
     return res.status(400).json({ message: "Invalid body", errors: parse.error.flatten() });
   }
   try {
-    const supplier = await supplierService.updateSupplier(req.params.id, parse.data);
+    const supplier = await supplierService.updateSupplier(req.params.id, parse.data as any);
     res.status(200).json({ success: true, supplier });
   } catch (error) {
     res.status(500).json({ message: String(error) });

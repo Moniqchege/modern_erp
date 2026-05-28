@@ -23,6 +23,14 @@ export interface CreateSupplierData {
     bankAccountNo?: string;
     bankBranch?: string;
     bankSwiftCode?: string;
+    suppliedItems?: Array<{
+        itemProfileId: string;
+        isPreferred?: boolean;
+        leadTimeDays?: number | null;
+        minOrderQty?: number | null;
+        lastUnitPrice?: number | null;
+        notes?: string | null;
+    }>;
 }
 
 export interface UpdateSupplierData
@@ -57,6 +65,14 @@ export interface UpdateSupplierData
     bankAccountNo?: string | null;
     bankBranch?: string | null;
     bankSwiftCode?: string | null;
+    suppliedItems?: Array<{
+        itemProfileId: string;
+        isPreferred?: boolean;
+        leadTimeDays?: number | null;
+        minOrderQty?: number | null;
+        lastUnitPrice?: number | null;
+        notes?: string | null;
+    }>;
 
     isActive?: boolean;
 }
@@ -90,6 +106,10 @@ export async function getAllSuppliers(activeOnly: boolean = false) {
             _count: {
                 select: { rawMaizeBatches: true },
             },
+            suppliedItems: {
+                include: { itemProfile: true },
+                orderBy: { createdAt: "desc" },
+            },
         },
         orderBy: { createdAt: "desc" },
     });
@@ -106,6 +126,10 @@ export async function getSupplierById(id: string) {
                 orderBy: { receivedAt: "desc" },
                 take: 10, // Last 10 batches
             },
+            suppliedItems: {
+                include: { itemProfile: true },
+                orderBy: { createdAt: "desc" },
+            },
         },
     });
 
@@ -120,9 +144,36 @@ export async function getSupplierById(id: string) {
  * Update supplier
  */
 export async function updateSupplier(id: string, data: UpdateSupplierData) {
-    return prisma.supplier.update({
-        where: { id },
-        data,
+    const { suppliedItems, ...supplierData } = data;
+    return prisma.$transaction(async (tx) => {
+        if (suppliedItems) {
+            await tx.supplierSuppliedItem.deleteMany({ where: { supplierId: id } });
+        }
+
+        return tx.supplier.update({
+            where: { id },
+            data: {
+                ...supplierData,
+                suppliedItems: suppliedItems
+                    ? {
+                        create: suppliedItems.map((item) => ({
+                            itemProfileId: item.itemProfileId,
+                            isPreferred: item.isPreferred ?? false,
+                            leadTimeDays: item.leadTimeDays ?? null,
+                            minOrderQty: item.minOrderQty ?? null,
+                            lastUnitPrice: item.lastUnitPrice ?? null,
+                            notes: item.notes ?? null,
+                        })),
+                    }
+                    : undefined,
+            },
+            include: {
+                suppliedItems: {
+                    include: { itemProfile: true },
+                    orderBy: { createdAt: "desc" },
+                },
+            },
+        });
     });
 }
 

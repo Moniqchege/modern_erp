@@ -19,6 +19,35 @@ export async function createRequisition(input: {
     notes?: string;
   }>;
 }) {
+  const distinctProfileIds = [...new Set(input.lines.map((line) => line.itemProfileId))];
+
+  if (input.supplierId) {
+    const linkedCount = await prisma.supplierSuppliedItem.count({
+      where: {
+        supplierId: input.supplierId,
+        itemProfileId: { in: distinctProfileIds },
+      },
+    });
+    if (linkedCount !== distinctProfileIds.length) {
+      throw new Error(
+        "Selected supplier is not linked to all requisition items. Update supplier supplied stock mapping first."
+      );
+    }
+  }
+
+  let autoSelectedSupplierId: string | undefined;
+  if (!input.supplierId) {
+    const preferredLink = await prisma.supplierSuppliedItem.findFirst({
+      where: {
+        itemProfileId: { in: distinctProfileIds },
+        isPreferred: true,
+        supplier: { isActive: true },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    autoSelectedSupplierId = preferredLink?.supplierId;
+  }
+
   const requisitionNo = await nextSequence("PR");
   let estimatedTotal = 0;
 
@@ -39,9 +68,13 @@ export async function createRequisition(input: {
       requisitionNo,
       requestedBy: input.requestedBy,
       department: input.department,
-      supplierId: input.supplierId,
+      supplierId: input.supplierId ?? autoSelectedSupplierId,
       source: (input.source ?? "MANUAL_PROCUREMENT") as never,
-      justification: input.justification,
+      justification:
+        input.justification ??
+        (autoSelectedSupplierId
+          ? "Auto-selected preferred supplier from supplied stock mapping."
+          : undefined),
       requiredByDate: input.requiredByDate,
       currency: (input.currency ?? "KES") as never,
       estimatedTotal: toDecimal(estimatedTotal),

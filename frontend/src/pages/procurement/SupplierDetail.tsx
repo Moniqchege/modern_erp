@@ -430,6 +430,29 @@ export function SupplierDetail() {
           )}
         </div>
       </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl p-5 text-xs space-y-3">
+        <h2 className="font-extrabold text-slate-400 uppercase text-[10px] tracking-widest">
+          Supplied stock mapping
+        </h2>
+        {(supplier as any).suppliedItems?.length ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {(supplier as any).suppliedItems.map((entry: any) => (
+              <div
+                key={entry.id}
+                className="rounded-lg border border-slate-200 px-3 py-2 bg-slate-50/50"
+              >
+                <p className="font-semibold text-slate-700">{entry.itemProfile?.name ?? "Unknown item"}</p>
+                <p className="text-[10px] text-slate-500">
+                  {entry.itemProfile?.sku ?? "-"} • {String(entry.itemProfile?.category ?? "").replaceAll("_", " ")}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-slate-500">No stock mapping yet for this supplier.</p>
+        )}
+      </div>
     </div>
   );
 }

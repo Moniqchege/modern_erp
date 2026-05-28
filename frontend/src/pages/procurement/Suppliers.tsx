@@ -5,7 +5,7 @@ import { StatusBadge } from "../../modules/procurement/components/StatusBadge";
 import { procurementApi } from "../../modules/procurement/api/procurementClient";
 
 import { ROUTES } from "../../app/router/routes";
-import type { Supplier } from "../../modules/procurement/types/procurement";
+import type { ProcurementItemProfile, Supplier } from "../../modules/procurement/types/procurement";
 
 type SupplierWithLock = Supplier & { lockedAt?: string | null };
 
@@ -37,6 +37,8 @@ export function Suppliers() {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [itemProfiles, setItemProfiles] = useState<ProcurementItemProfile[]>([]);
+  const [suppliedItemIds, setSuppliedItemIds] = useState<string[]>([]);
 
   // supplier fields
   const [code, setCode] = useState("");
@@ -79,8 +81,18 @@ export function Suppliers() {
     }
   };
 
+  const loadItemProfiles = async () => {
+    try {
+      const data = await procurementApi.itemProfiles.list();
+      setItemProfiles((data.profiles as ProcurementItemProfile[]) ?? []);
+    } catch {
+      setItemProfiles([]);
+    }
+  };
+
   useEffect(() => {
     void load();
+    void loadItemProfiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -104,6 +116,7 @@ export function Suppliers() {
     setBankAccountNo("");
     setBankBranch("");
     setBankSwiftCode("");
+    setSuppliedItemIds([]);
     setError(null);
   };
 
@@ -133,6 +146,9 @@ export function Suppliers() {
       bankAccountNo: bankAccountNo || null,
       bankBranch: bankBranch || null,
       bankSwiftCode: bankSwiftCode || null,
+      suppliedItems: suppliedItemIds.map((itemProfileId) => ({
+        itemProfileId,
+      })),
     };
 
     try {
@@ -408,6 +424,44 @@ export function Suppliers() {
                       onChange={(e) => setBankSwiftCode(e.target.value)}
                     />
                   </label>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+                <p className="text-[10px] font-bold text-slate-500 uppercase">
+                  Stock/items supplied
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto">
+                  {itemProfiles.map((profile) => (
+                    <label
+                      key={profile.id}
+                      className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={suppliedItemIds.includes(profile.id)}
+                        onChange={(e) => {
+                          setSuppliedItemIds((prev) =>
+                            e.target.checked
+                              ? [...prev, profile.id]
+                              : prev.filter((id) => id !== profile.id)
+                          );
+                        }}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        <span className="font-semibold text-slate-700">{profile.name}</span>
+                        <span className="block text-[10px] text-slate-500">
+                          {profile.sku} • {profile.category.replaceAll("_", " ")}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                  {itemProfiles.length === 0 && (
+                    <p className="text-[11px] text-slate-500">
+                      No procurement item profiles found. Create item profiles first.
+                    </p>
+                  )}
                 </div>
               </div>
 
