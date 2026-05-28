@@ -129,10 +129,10 @@ export function Requisitions() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 p-4 flex items-center justify-center">
-          <div className="w-full max-w-4xl bg-white rounded-xl border border-slate-200 shadow-xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="w-full max-w-3xl bg-white rounded-xl border border-slate-200 shadow-xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black text-slate-900">Create manual requisition</h2>
-              <button type="button" onClick={() => setShowCreate(false)} className="text-xs font-bold text-slate-500">Close</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="text-xs font-bold text-slate-500">X</button>
             </div>
             {formError && <p className="text-xs text-red-600">{formError}</p>}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
