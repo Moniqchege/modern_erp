@@ -22,7 +22,7 @@ export const KG_PER_UNIT_BY_TYPE: Record<string, number> = {
 const LEGACY_BALE_KG = 24;
 
 export type OutputLine = {
-  typeKey?: string; // e.g. NYLON_BALER_1KG
+  typeKey?: string; 
   packedBaleInventoryItemId?: string;
   unitsProduced: number;
   kgPerUnit: number;
@@ -126,27 +126,33 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
     }
   }
 
-  const resolvedLines = await Promise.all(
-    allOutputLines.map(async (line) => {
-      const item = line.packedBaleInventoryItemId
-        ? await prisma.inventoryItem.findUnique({
-            where: { id: line.packedBaleInventoryItemId },
-            select: { id: true, type: true, name: true },
-          })
-        : null;
+  // const resolvedLines = await Promise.all(
+  //   allOutputLines.map(async (line) => {
+  //     const item = line.packedBaleInventoryItemId
+  //       ? await prisma.inventoryItem.findUnique({
+  //           where: { id: line.packedBaleInventoryItemId },
+  //           select: { id: true, type: true, name: true },
+  //         })
+  //       : null;
 
-      const resolvedTypeKey = line.typeKey ?? item?.type ?? "UNKNOWN";
-      const kgPerUnit =
-        line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(resolvedTypeKey);
+  //     const resolvedTypeKey = line.typeKey ?? item?.type ?? "UNKNOWN";
+  //     const kgPerUnit =
+  //       line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(resolvedTypeKey);
 
-      return {
-        ...line,
-        typeKey: resolvedTypeKey,
-        packedBaleInventoryItemId: line.packedBaleInventoryItemId ?? item?.id,
-        kgPerUnit,
-      };
-    })
-  );
+  //     return {
+  //       ...line,
+  //       typeKey: resolvedTypeKey,
+  //       packedBaleInventoryItemId: line.packedBaleInventoryItemId ?? item?.id,
+  //       kgPerUnit,
+  //     };
+  //   })
+  // );
+
+  const resolvedLines = allOutputLines.map((line) => ({
+  ...line,
+  typeKey: line.typeKey ?? "UNKNOWN",
+  kgPerUnit: line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(line.typeKey),
+}));
 
   const totalPackagedKg = resolvedLines.reduce(
     (s, l) => s + l.unitsProduced * l.kgPerUnit,
@@ -177,7 +183,7 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
           return {
             finishedProductName: flourOutput.flourInventoryItemId,
             typeKey: resolved?.typeKey ?? line.typeKey ?? "UNKNOWN",
-            inventoryItemId: resolved?.packedBaleInventoryItemId ?? null,
+            // inventoryItemId: resolved?.packedBaleInventoryItemId ?? null,
             balesProduced: line.unitsProduced,
             packagedKg: packagedKg.toFixed(3),
             kgPerUnit: kgPerUnit.toFixed(3),
@@ -278,16 +284,16 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       }
     }
 
-    for (const line of resolvedLines) {
-      if (!line.packedBaleInventoryItemId || line.unitsProduced <= 0) continue;
-      await applyMovement(tx, {
-        itemId: line.packedBaleInventoryItemId,
-        movementType: "RECEIPT",
-        quantityDelta: line.unitsProduced,
-        packagingRunId: run.id,
-        notes: `Packaging output ${line.typeKey} — ${runNumber}`,
-      });
-    }
+    // for (const line of resolvedLines) {
+    //   if (!line.packedBaleInventoryItemId || line.unitsProduced <= 0) continue;
+    //   await applyMovement(tx, {
+    //     itemId: line.packedBaleInventoryItemId,
+    //     movementType: "RECEIPT",
+    //     quantityDelta: line.unitsProduced,
+    //     packagingRunId: run.id,
+    //     notes: `Packaging output ${line.typeKey} — ${runNumber}`,
+    //   });
+    // }
 
 
     for (const { id, prev } of alertItems) {

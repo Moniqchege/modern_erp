@@ -39,6 +39,12 @@ const PACKAGING_MATERIAL_TYPES = new Set([
   "GLUE",
 ]);
 
+const NON_PACKAGING_TYPES = new Set([
+  "RAW_MATERIAL",
+  "FINISHED_GOOD", 
+  "BY_PRODUCT",
+]);
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PackagingRun {
@@ -423,7 +429,7 @@ export function PackagingForm() {
       );
 
       // Packaging material rows — consumables only, not bale/bag types
-      const pkgMaterials = items.filter((i) => PACKAGING_MATERIAL_TYPES.has(i.type));
+      const pkgMaterials = items.filter((i) => !NON_PACKAGING_TYPES.has(i.type));
       setPackagingMaterialRows(
         pkgMaterials.map((item) => ({
           inventoryItemId: item.id,
@@ -568,7 +574,7 @@ export function PackagingForm() {
           {/* Operator name */}
           <div className="space-y-1">
             <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-              Operator name
+              Operator name*
             </label>
             <input
               required

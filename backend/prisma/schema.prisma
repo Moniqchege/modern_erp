@@ -770,6 +770,7 @@ model PackagingRunFinishedProductOutput {
 
   balesProduced       Int
   packagedKg          Decimal       @db.Decimal(12, 3)
+  kgPerUnit Decimal @default(24) @db.Decimal(12, 3)
 
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
