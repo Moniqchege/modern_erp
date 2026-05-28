@@ -87,6 +87,8 @@ export const procurementApi = {
   },
   grns: {
     list: () => json<{ grns: unknown[] }>(`${BASE}/grns`),
+    create: (body: Record<string, unknown>) =>
+      json(`${BASE}/grns`, { method: "POST", body: JSON.stringify(body) }),
     post: (id: string, postedBy: string) =>
       json(`${BASE}/grns/${id}/post`, { method: "POST", body: JSON.stringify({ postedBy }) }),
   },

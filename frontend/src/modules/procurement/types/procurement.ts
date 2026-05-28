@@ -39,6 +39,69 @@ export type ProcurementQCStatus =
 
 export type GrnStatus = "DRAFT" | "PENDING_QC" | "POSTED" | "REJECTED" | "CANCELLED";
 
+export type GrainIntakeGrnStatus =
+  | "WEIGHED_IN"
+  | "PENDING_QC"
+  | "READY_TO_UNLOAD"
+  | "WEIGHED_OUT"
+  | "REJECTED";
+
+export interface GrainIntakeGrnRecord {
+  id: string;
+  grnNumber: string;
+  status: GrainIntakeGrnStatus;
+  truckLicensePlate: string;
+  supplierName: string;
+  driverName?: string;
+  grossWeightKg: number;
+  tareWeightKg?: number;
+  netWeightKg?: number;
+  moistureContentPct?: number;
+  aflatoxinPpb?: number;
+  technicianUserId?: string;
+  rejectionReason?: string;
+  weighedInAt: string;
+  weighedOutAt?: string;
+}
+
+export type GrainIntakeGrnStateMachine = {
+  WEIGHED_IN: {
+    allowedNext: ["PENDING_QC"];
+    required: Pick<
+      GrainIntakeGrnRecord,
+      "truckLicensePlate" | "supplierName" | "grossWeightKg" | "weighedInAt"
+    >;
+  };
+  PENDING_QC: {
+    allowedNext: ["READY_TO_UNLOAD", "REJECTED"];
+    required: Pick<
+      GrainIntakeGrnRecord,
+      "truckLicensePlate" | "supplierName" | "grossWeightKg" | "technicianUserId"
+    > & {
+      moistureContentPct: number;
+      aflatoxinPpb: number;
+    };
+  };
+  READY_TO_UNLOAD: {
+    allowedNext: ["WEIGHED_OUT"];
+    required: Pick<
+      GrainIntakeGrnRecord,
+      "grossWeightKg" | "moistureContentPct" | "aflatoxinPpb" | "technicianUserId"
+    >;
+  };
+  REJECTED: {
+    allowedNext: ["WEIGHED_OUT"];
+    required: Pick<
+      GrainIntakeGrnRecord,
+      "grossWeightKg" | "moistureContentPct" | "aflatoxinPpb" | "technicianUserId" | "rejectionReason"
+    >;
+  };
+  WEIGHED_OUT: {
+    allowedNext: [];
+    required: Pick<GrainIntakeGrnRecord, "grossWeightKg" | "tareWeightKg" | "netWeightKg" | "weighedOutAt">;
+  };
+};
+
 export type ThreeWayMatchStatus =
   | "PENDING"
   | "MATCHED"
