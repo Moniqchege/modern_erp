@@ -9,17 +9,6 @@ function safeToEnum(value, allowed) {
         return value;
     return null;
 }
-/**
- * Sync procurement item profiles from InventoryItem.
- *
- * Rules (deterministic, safe defaults):
- * - One ProcurementItemProfile per InventoryItem (via inventoryItemId unique).
- * - Always set isActive=true.
- * - sku/name: derived from InventoryItem.sku/name.
- * - category: best-effort from InventoryItem.type, otherwise RAW_MATERIAL.
- * - unit: derived from InventoryItem.unit, otherwise KG.
- * - thresholds/grade-specific fields are left null unless inventory has reorderLevel/reorderQuantity.
- */
 async function syncItemProfilesFromInventory() {
     const inventoryItems = await server_1.prisma.inventoryItem.findMany({
         select: {
@@ -44,10 +33,13 @@ async function syncItemProfilesFromInventory() {
     let activatedCount = 0;
     let skippedCount = 0;
     for (const inv of inventoryItems) {
+        // Supplier-supplied items must not include finished goods or by-products.
+        if (inv.type === "FINISHED_GOOD" || inv.type === "BY_PRODUCT") {
+            skippedCount++;
+            continue;
+        }
         const category = mapInventoryItemTypeToProcurementCategory(inv.type) ?? "RAW_MATERIAL";
         const unit = safeToEnum(inv.unit, allowedUnits) ?? "KG";
-        // If we cannot create (e.g. sku already taken for a different inventoryItemId),
-        // count as skipped; this keeps sync idempotent and avoids corrupting unique constraints.
         try {
             const existing = await server_1.prisma.procurementItemProfile.findUnique({
                 where: { inventoryItemId: inv.id },
@@ -69,7 +61,6 @@ async function syncItemProfilesFromInventory() {
                 createdCount++;
             }
             else {
-                // update + ensure activation
                 const wasActive = existing.isActive;
                 await server_1.prisma.procurementItemProfile.update({
                     where: { id: existing.id },
@@ -99,7 +90,6 @@ function mapInventoryItemTypeToProcurementCategory(type) {
         case "RAW_MATERIAL":
             return "RAW_MATERIAL";
         case "FINISHED_GOOD":
-            // finished goods are treated as raw-material category for purchasing catalogs
             return "RAW_MATERIAL";
         case "PACKETS_2KG":
         case "PACKETS_1KG":

@@ -24,7 +24,9 @@ async function createSupplier(data) {
         throw new Error(`Supplier code already exists: ${data.code}`);
     }
     return server_1.prisma.supplier.create({
-        data,
+        // Prisma expects nested create input types; our DTO shape is compatible at runtime.
+        // Cast avoids a TS mismatch in this repo.
+        data: data,
     });
 }
 /**

@@ -1,8 +1,6 @@
-# TODO
-
-- [ ] Add operational guidance to fix: create/activate `ProcurementItemProfile` records (isActive=true)
-- [ ] Add optional one-click seeding/sync script (inventory items -> procurement item profiles) if user wants automation
-- [ ] Add UI guardrail/error message when item profiles list is empty (frontend)
-- [ ] (If requested) implement backend sync endpoint: POST /api/procurement/item-profiles/sync-from-inventory
-- [ ] Test: verify supplier onboarding + requisition creation with seeded profiles
+- [ ] Implement backend filtering to exclude inventory item types FINISHED_GOOD and BY_PRODUCT from the “inventory items” list used to build supplier supplied item mappings.
+- [ ] Add/verify filtering at the source of procurement item profiles if supplier UI is based on item profiles.
+- [ ] Update frontend to apply the same filtering as a safety net (optional but recommended).
+- [ ] Run TypeScript build / lint (or unit tests if present) to ensure no regressions.
+- [ ] Smoke-test supplier creation flow to confirm those item types no longer appear.
 

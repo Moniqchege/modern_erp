@@ -43,6 +43,21 @@ export async function syncItemProfilesFromInventory(): Promise<SyncResult> {
     let skippedCount = 0;
 
     for (const inv of inventoryItems) {
+        if (String(inv.type) === "FINISHED_GOOD" || String(inv.type) === "BY_PRODUCT") {
+            const existing = await prisma.procurementItemProfile.findUnique({
+                where: { inventoryItemId: inv.id },
+                select: { id: true },
+            });
+            if (existing?.id) {
+                await prisma.procurementItemProfile.update({
+                    where: { id: existing.id },
+                    data: { isActive: false },
+                });
+            }
+            skippedCount++;
+            continue;
+        }
+
         const category =
             mapInventoryItemTypeToProcurementCategory(inv.type) ?? "RAW_MATERIAL";
 
@@ -52,6 +67,11 @@ export async function syncItemProfilesFromInventory(): Promise<SyncResult> {
                 where: { inventoryItemId: inv.id },
                 include: { supplierLinks: false as never } as any,
             });
+
+
+
+
+
 
             if (!existing) {
                 await prisma.procurementItemProfile.create({

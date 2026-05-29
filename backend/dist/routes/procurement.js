@@ -41,6 +41,7 @@ const requisitionService = __importStar(require("../services/procurement/requisi
 const poService = __importStar(require("../services/procurement/purchase-order.service"));
 const receivingService = __importStar(require("../services/procurement/receiving.service"));
 const financeService = __importStar(require("../services/procurement/finance-match.service"));
+const itemProfileSyncService = __importStar(require("../services/procurement/item-profile-sync.service"));
 exports.procurementRouter = (0, express_1.Router)();
 const RequisitionLineSchema = zod_1.z.object({
     itemProfileId: zod_1.z.string().min(1),
@@ -111,6 +112,10 @@ exports.procurementRouter.post("/item-profiles", async (req, res) => {
     }
     const profile = await server_1.prisma.procurementItemProfile.create({ data: parse.data });
     res.status(201).json({ success: true, profile });
+});
+exports.procurementRouter.post("/item-profiles/sync-from-inventory", async (_req, res) => {
+    const result = await itemProfileSyncService.syncItemProfilesFromInventory();
+    res.json({ success: true, ...result });
 });
 // --- Requisitions ---
 exports.procurementRouter.get("/requisitions", async (req, res) => {
