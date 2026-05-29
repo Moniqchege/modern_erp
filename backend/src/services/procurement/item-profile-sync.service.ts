@@ -13,18 +13,6 @@ function safeToEnum<T extends string>(value: unknown, allowed: T[]): T | null {
     if ((allowed as string[]).includes(value)) return value as T;
     return null;
 }
-
-/**
- * Sync procurement item profiles from InventoryItem.
- *
- * Rules (deterministic, safe defaults):
- * - One ProcurementItemProfile per InventoryItem (via inventoryItemId unique).
- * - Always set isActive=true.
- * - sku/name: derived from InventoryItem.sku/name.
- * - category: best-effort from InventoryItem.type, otherwise RAW_MATERIAL.
- * - unit: derived from InventoryItem.unit, otherwise KG.
- * - thresholds/grade-specific fields are left null unless inventory has reorderLevel/reorderQuantity.
- */
 export async function syncItemProfilesFromInventory(): Promise<SyncResult> {
     const inventoryItems = await prisma.inventoryItem.findMany({
         select: {
@@ -59,10 +47,6 @@ export async function syncItemProfilesFromInventory(): Promise<SyncResult> {
             mapInventoryItemTypeToProcurementCategory(inv.type) ?? "RAW_MATERIAL";
 
         const unit = safeToEnum<UnitOfMeasure>(inv.unit as unknown, allowedUnits) ?? "KG";
-
-
-        // If we cannot create (e.g. sku already taken for a different inventoryItemId),
-        // count as skipped; this keeps sync idempotent and avoids corrupting unique constraints.
         try {
             const existing = await prisma.procurementItemProfile.findUnique({
                 where: { inventoryItemId: inv.id },
@@ -84,7 +68,6 @@ export async function syncItemProfilesFromInventory(): Promise<SyncResult> {
                 });
                 createdCount++;
             } else {
-                // update + ensure activation
                 const wasActive = existing.isActive;
                 await prisma.procurementItemProfile.update({
                     where: { id: existing.id },
@@ -114,7 +97,6 @@ function mapInventoryItemTypeToProcurementCategory(type: string): ProcurementCat
         case "RAW_MATERIAL":
             return "RAW_MATERIAL";
         case "FINISHED_GOOD":
-            // finished goods are treated as raw-material category for purchasing catalogs
             return "RAW_MATERIAL";
         case "PACKETS_2KG":
         case "PACKETS_1KG":

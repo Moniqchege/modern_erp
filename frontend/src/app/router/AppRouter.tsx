@@ -53,9 +53,16 @@ const ProcurementPOs = lazy(() =>
 const ProcurementReceiving = lazy(() =>
   import("../../pages/procurement/ReceivingQC").then((m) => ({ default: m.ReceivingQC }))
 );
+const ProcurementLab = lazy(() =>
+  import("../../pages/procurement/LabAnalysis").then((m) => ({ default: m.LabAnalysis }))
+);
+const ProcurementWeighbridgeOutbound = lazy(() =>
+  import("../../pages/procurement/WeighbridgeOutbound").then((m) => ({ default: m.WeighbridgeOutbound }))
+);
 const ProcurementFinance = lazy(() =>
   import("../../pages/procurement/ThreeWayMatch").then((m) => ({ default: m.ThreeWayMatch }))
 );
+
 
 const Login = lazy(() => import("../../pages/Login").then((m) => ({ default: m.Login })));
 const VerifyOtp = lazy(() => import("../../pages/VerifyOtp").then((m) => ({ default: m.VerifyOtp })));
@@ -116,9 +123,12 @@ export function AppRouter() {
           <Route path={ROUTES.PROCUREMENT_REQUISITIONS} element={<ProcurementRequisitions />} />
           <Route path={ROUTES.PROCUREMENT_POS} element={<ProcurementPOs />} />
           <Route path={ROUTES.PROCUREMENT_RECEIVING} element={<ProcurementReceiving />} />
+          <Route path="/procurement/lab" element={<ProcurementLab />} />
+          <Route path="/procurement/weighbridge/outbound" element={<ProcurementWeighbridgeOutbound />} />
           <Route path={ROUTES.PROCUREMENT_FINANCE} element={<ProcurementFinance />} />
 
           <Route path="*" element={<NotFound />} />
+
         </Route>
       </Routes>
     </Suspense>

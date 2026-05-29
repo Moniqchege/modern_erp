@@ -24,7 +24,10 @@ export type ProcurementNavKey =
   | "requisitions"
   | "purchase-orders"
   | "receiving"
+  | "lab"
+  | "weighbridge-outbound"
   | "finance";
+
 
 interface NavItem {
   key: ProcurementNavKey;
@@ -71,6 +74,20 @@ const procurementNavItems: NavItem[] = [
     description: "Weighbridge, lab QC, GRN",
   },
   {
+    key: "lab",
+    label: "Lab Analysis",
+    path: `${ROUTES.PROCUREMENT}/lab`,
+    icon: ClipboardList,
+    description: "Moisture & aflatoxin QC",
+  },
+  {
+    key: "weighbridge-outbound",
+    label: "Weighbridge Outbound",
+    path: `${ROUTES.PROCUREMENT}/weighbridge/outbound`,
+    icon: Scale,
+    description: "Finalize net weight after QC",
+  },
+  {
     key: "finance",
     label: "3-Way Match & AP",
     path: ROUTES.PROCUREMENT_FINANCE,
@@ -79,17 +96,21 @@ const procurementNavItems: NavItem[] = [
   },
 ];
 
+
 function getActiveKey(pathname: string): ProcurementNavKey {
   if (pathname.startsWith(ROUTES.PROCUREMENT_SUPPLIERS)) return "suppliers";
   if (pathname.startsWith(ROUTES.PROCUREMENT_REQUISITIONS)) return "requisitions";
   if (pathname.startsWith(ROUTES.PROCUREMENT_POS)) return "purchase-orders";
   if (pathname.startsWith(ROUTES.PROCUREMENT_RECEIVING)) return "receiving";
+  if (pathname.startsWith(`${ROUTES.PROCUREMENT}/lab`)) return "lab";
+  if (pathname.startsWith(`${ROUTES.PROCUREMENT}/weighbridge/outbound`)) return "weighbridge-outbound";
   if (pathname.startsWith(ROUTES.PROCUREMENT_FINANCE)) return "finance";
   if (pathname === ROUTES.PROCUREMENT || pathname === `${ROUTES.PROCUREMENT}/`) {
     return "dashboard";
   }
   return "dashboard";
 }
+
 
 export function ProcurementLayout() {
   const location = useLocation();
