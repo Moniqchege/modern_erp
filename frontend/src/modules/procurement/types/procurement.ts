@@ -158,7 +158,15 @@ export interface PurchaseRequisition {
   department?: string | null;
   requiredByDate?: string | null;
   justification?: string | null;
-  lines?: Array<{ itemProfile: { name: string; category: ProcurementCategory } }>;
+  rejectionReason?: string | null;
+  approvedAt?: string | null;
+  createdAt?: string;
+  lines?: Array<{
+    itemProfile: { name: string; category: ProcurementCategory };
+    quantity: string | number;
+    unitPriceEstimate?: string | number | null;
+    lineTotalEstimate?: string | number | null;
+  }>;
 }
 
 export interface PurchaseOrder {

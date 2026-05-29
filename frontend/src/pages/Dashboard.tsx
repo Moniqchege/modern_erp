@@ -87,7 +87,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       },
       {
         label: "Grade 1 Flour Stock",
-        value: formatKg(s.grade1FlourStockKg),
+        value: formatKg((s as any).grade1FlourStockKg ?? s.finishedGoodsStockKg),
         change: "+0.00 KG",
         isPositive: true,
         timeframe: "Finished goods on hand",
@@ -97,7 +97,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       },
       {
         label: "Grade 2 Flour Stock",
-        value: formatKg(s.grade2FlourStockKg),
+        value: formatKg((s as any).grade2FlourStockKg ?? 0),
         change: "-0.00 KG",
         isPositive: false,
         timeframe: "Finished goods on hand",

@@ -25,6 +25,7 @@ export const ROUTES = {
     PROCUREMENT_SUPPLIER_NEW: "/procurement/suppliers/new",
     PROCUREMENT_SUPPLIER_DETAIL: (id: string) => `/procurement/suppliers/${id}`,
     PROCUREMENT_REQUISITIONS: "/procurement/requisitions",
+    PROCUREMENT_REQUISITION_DETAIL: (id: string) => `/procurement/requisitions/${id}`,
     PROCUREMENT_POS: "/procurement/purchase-orders",
     PROCUREMENT_RECEIVING: "/procurement/receiving",
     PROCUREMENT_FINANCE: "/procurement/finance",

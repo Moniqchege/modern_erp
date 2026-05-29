@@ -1,9 +1,20 @@
+import { getAccessToken } from "../../../auth/authClient";
+
 const BASE = "/api/procurement";
 const SUPPLIERS = "/api/suppliers";
 
+function authHeaders(): Record<string, string> {
+  const token = getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...init?.headers,
+    },
     ...init,
   });
   const data = await res.json();
@@ -47,21 +58,28 @@ export const procurementApi = {
   requisitions: {
     list: (status?: string) =>
       json<{ requisitions: unknown[] }>(`${BASE}/requisitions${status ? `?status=${status}` : ""}`),
+    get: (id: string) =>
+      json<{ requisition: unknown }>(`${BASE}/requisitions/${id}`),
     create: (body: Record<string, unknown>) =>
-      json(`${BASE}/requisitions`, { method: "POST", body: JSON.stringify(body) }),
-    submit: (id: string, approverName: string) =>
-      json(`${BASE}/requisitions/${id}/submit`, {
-        method: "POST",
-        body: JSON.stringify({ approverName }),
-      }),
-    approve: (id: string, level: string, approverName: string) =>
+      json<{ success: boolean; requisition: { id: string } }>(`${BASE}/requisitions`, { method: "POST", body: JSON.stringify(body) }),
+    submit: (id: string) =>
+      json(`${BASE}/requisitions/${id}/submit`, { method: "POST" }),
+    approve: (id: string, comments?: string) =>
       json(`${BASE}/requisitions/${id}/approve`, {
         method: "POST",
-        body: JSON.stringify({ level, approverName }),
+        body: JSON.stringify({ comments }),
+      }),
+    reject: (id: string, reason: string) =>
+      json(`${BASE}/requisitions/${id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
       }),
     generateLowStock: () =>
-      json(`${BASE}/requisitions/low-stock/generate`, {
+      json(`${BASE}/requisitions/low-stock/generate`, { method: "POST" }),
+    createPO: (id: string, termsAndConditions?: string) =>
+      json(`${BASE}/purchase-orders/from-requisition/${id}`, {
         method: "POST",
+        body: JSON.stringify({ termsAndConditions }),
       }),
   },
   itemProfiles: {
@@ -74,15 +92,14 @@ export const procurementApi = {
   },
   purchaseOrders: {
     list: () => json<{ purchaseOrders: unknown[] }>(`${BASE}/purchase-orders`),
-    fromRequisition: (requisitionId: string, issuedBy: string) =>
+    fromRequisition: (requisitionId: string, termsAndConditions?: string) =>
       json(`${BASE}/purchase-orders/from-requisition/${requisitionId}`, {
         method: "POST",
-        body: JSON.stringify({ issuedBy }),
+        body: JSON.stringify({ termsAndConditions }),
       }),
-    issue: (id: string, issuedBy: string) =>
+    issue: (id: string) =>
       json(`${BASE}/purchase-orders/${id}/issue`, {
         method: "POST",
-        body: JSON.stringify({ issuedBy }),
       }),
   },
   grns: {

@@ -4,8 +4,35 @@ import { publishDomainEvent } from "../../events/eventBus";
 import { PROCUREMENT_EVENTS } from "../../events/procurementEventTypes";
 import { nextSequence, toDecimal } from "./helpers";
 
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+async function writeAuditLog(opts: {
+  entityType: string;
+  entityId: string;
+  action: "CREATE" | "UPDATE" | "STATUS_CHANGE" | "APPROVE" | "REJECT";
+  actorId?: string;
+  actorName?: string;
+  beforeState?: object;
+  afterState?: object;
+}) {
+  await prisma.procurementAuditLog.create({
+    data: {
+      entityType: opts.entityType,
+      entityId: opts.entityId,
+      action: opts.action as never,
+      actorId: opts.actorId,
+      actorName: opts.actorName,
+      beforeState: opts.beforeState ?? undefined,
+      afterState: opts.afterState ?? undefined,
+    },
+  });
+}
+
+// ─── create ─────────────────────────────────────────────────────────────────
+
 export async function createRequisition(input: {
   requestedBy: string;
+  requestedById?: string;
   department?: string;
   supplierId?: string;
   source?: string;
@@ -57,13 +84,14 @@ export async function createRequisition(input: {
     return {
       itemProfileId: line.itemProfileId,
       quantity: toDecimal(line.quantity),
-      unitPriceEstimate: line.unitPriceEstimate != null ? toDecimal(line.unitPriceEstimate) : undefined,
+      unitPriceEstimate:
+        line.unitPriceEstimate != null ? toDecimal(line.unitPriceEstimate) : undefined,
       lineTotalEstimate: toDecimal(lineTotal),
       notes: line.notes,
     };
   });
 
-  return prisma.purchaseRequisition.create({
+  const requisition = await prisma.purchaseRequisition.create({
     data: {
       requisitionNo,
       requestedBy: input.requestedBy,
@@ -82,16 +110,22 @@ export async function createRequisition(input: {
     },
     include: { lines: { include: { itemProfile: true } }, supplier: true },
   });
-}
 
-async function getActiveThreshold(currency: string) {
-  return prisma.approvalThreshold.findFirst({
-    where: { isActive: true, currency: currency as never },
-    orderBy: { createdAt: "desc" },
+  await writeAuditLog({
+    entityType: "PurchaseRequisition",
+    entityId: requisition.id,
+    action: "CREATE",
+    actorId: input.requestedById,
+    actorName: input.requestedBy,
+    afterState: { requisitionNo, status: "DRAFT", estimatedTotal },
   });
+
+  return requisition;
 }
 
-export async function submitRequisition(requisitionId: string, approverName: string) {
+// ─── submit (Maker → PENDING) ────────────────────────────────────────────────
+
+export async function submitRequisition(requisitionId: string, actorId: string, actorName: string) {
   const req = await prisma.purchaseRequisition.findUnique({
     where: { id: requisitionId },
     include: { lines: true },
@@ -99,67 +133,77 @@ export async function submitRequisition(requisitionId: string, approverName: str
   if (!req) throw new Error("Requisition not found");
   if (req.status !== "DRAFT") throw new Error("Only DRAFT requisitions can be submitted");
 
-  const threshold = await getActiveThreshold(req.currency);
-  const total = Number(req.estimatedTotal);
-  const needsFinance =
-    threshold && total >= Number(threshold.financeDirectorMin);
-
-  const nextStatus: RequisitionStatus = needsFinance
-    ? "PENDING_FINANCE"
-    : "PENDING_HEAD_PROCUREMENT";
-
   const updated = await prisma.purchaseRequisition.update({
     where: { id: requisitionId },
-    data: { status: nextStatus },
-    include: { lines: { include: { itemProfile: true } } },
+    data: { status: "PENDING_HEAD_PROCUREMENT" },
+    include: { lines: { include: { itemProfile: true } }, supplier: true, approvals: true },
+  });
+
+  await writeAuditLog({
+    entityType: "PurchaseRequisition",
+    entityId: requisitionId,
+    action: "STATUS_CHANGE",
+    actorId,
+    actorName,
+    beforeState: { status: "DRAFT" },
+    afterState: { status: "PENDING_HEAD_PROCUREMENT" },
   });
 
   await publishDomainEvent({
     eventType: PROCUREMENT_EVENTS.REQUISITION_SUBMITTED,
     aggregateType: "PurchaseRequisition",
     aggregateId: requisitionId,
-    payload: { requisitionNo: req.requisitionNo, status: nextStatus },
+    payload: { requisitionNo: req.requisitionNo, status: "PENDING_HEAD_PROCUREMENT" },
   });
 
   return updated;
 }
 
+// ─── approve (Approver → APPROVED + auto-PO) ────────────────────────────────
+
 export async function approveRequisition(
   requisitionId: string,
-  level: "HEAD_PROCUREMENT" | "FINANCE_DIRECTOR",
-  approverName: string,
+  actorId: string,
+  actorName: string,
   comments?: string
 ) {
   const req = await prisma.purchaseRequisition.findUnique({ where: { id: requisitionId } });
   if (!req) throw new Error("Requisition not found");
 
-  if (level === "HEAD_PROCUREMENT" && req.status !== "PENDING_HEAD_PROCUREMENT") {
-    throw new Error("Requisition not awaiting Head of Procurement approval");
-  }
-  if (level === "FINANCE_DIRECTOR" && req.status !== "PENDING_FINANCE") {
-    throw new Error("Requisition not awaiting Finance approval");
+  const pendingStatuses: RequisitionStatus[] = [
+    "PENDING_HEAD_PROCUREMENT",
+    "PENDING_FINANCE",
+  ];
+  if (!pendingStatuses.includes(req.status)) {
+    throw new Error("Requisition is not awaiting approval");
   }
 
+  // Determine if a second-level finance approval is needed
+  const threshold = await prisma.approvalThreshold.findFirst({
+    where: { isActive: true, currency: req.currency as never },
+    orderBy: { createdAt: "desc" },
+  });
+  const total = Number(req.estimatedTotal);
+  const needsFinance =
+    threshold &&
+    total >= Number(threshold.financeDirectorMin) &&
+    req.status === "PENDING_HEAD_PROCUREMENT";
+
+  const nextStatus: RequisitionStatus = needsFinance ? "PENDING_FINANCE" : "APPROVED";
+
+  // Record approval in audit trail
   await prisma.procurementApproval.create({
     data: {
       entityType: "PurchaseRequisition",
       entityId: requisitionId,
-      level,
-      approverName,
+      level: req.status === "PENDING_FINANCE" ? "FINANCE_DIRECTOR" : "HEAD_PROCUREMENT",
+      approverId: actorId,
+      approverName: actorName,
       decision: "APPROVED",
       comments,
       requisitionId,
     },
   });
-
-  let nextStatus: RequisitionStatus = "APPROVED";
-  if (level === "HEAD_PROCUREMENT") {
-    const threshold = await getActiveThreshold(req.currency);
-    const total = Number(req.estimatedTotal);
-    if (threshold && total >= Number(threshold.financeDirectorMin)) {
-      nextStatus = "PENDING_FINANCE";
-    }
-  }
 
   const updated = await prisma.purchaseRequisition.update({
     where: { id: requisitionId },
@@ -167,7 +211,17 @@ export async function approveRequisition(
       status: nextStatus,
       approvedAt: nextStatus === "APPROVED" ? new Date() : undefined,
     },
-    include: { lines: { include: { itemProfile: true } } },
+    include: { lines: { include: { itemProfile: true } }, supplier: true, approvals: true },
+  });
+
+  await writeAuditLog({
+    entityType: "PurchaseRequisition",
+    entityId: requisitionId,
+    action: "APPROVE",
+    actorId,
+    actorName,
+    beforeState: { status: req.status },
+    afterState: { status: nextStatus, comments },
   });
 
   if (nextStatus === "APPROVED") {
@@ -181,6 +235,66 @@ export async function approveRequisition(
 
   return updated;
 }
+
+// ─── reject ──────────────────────────────────────────────────────────────────
+
+export async function rejectRequisition(
+  requisitionId: string,
+  actorId: string,
+  actorName: string,
+  reason: string
+) {
+  const req = await prisma.purchaseRequisition.findUnique({ where: { id: requisitionId } });
+  if (!req) throw new Error("Requisition not found");
+
+  const rejectableStatuses: RequisitionStatus[] = [
+    "PENDING_HEAD_PROCUREMENT",
+    "PENDING_FINANCE",
+  ];
+  if (!rejectableStatuses.includes(req.status)) {
+    throw new Error("Only pending requisitions can be rejected");
+  }
+
+  await prisma.procurementApproval.create({
+    data: {
+      entityType: "PurchaseRequisition",
+      entityId: requisitionId,
+      level: req.status === "PENDING_FINANCE" ? "FINANCE_DIRECTOR" : "HEAD_PROCUREMENT",
+      approverId: actorId,
+      approverName: actorName,
+      decision: "REJECTED",
+      comments: reason,
+      requisitionId,
+    },
+  });
+
+  const updated = await prisma.purchaseRequisition.update({
+    where: { id: requisitionId },
+    data: { status: "REJECTED", rejectionReason: reason },
+    include: { lines: { include: { itemProfile: true } }, supplier: true, approvals: true },
+  });
+
+  await writeAuditLog({
+    entityType: "PurchaseRequisition",
+    entityId: requisitionId,
+    action: "REJECT",
+    actorId,
+    actorName,
+    beforeState: { status: req.status },
+    afterState: { status: "REJECTED", reason },
+  });
+
+  await publishDomainEvent({
+    eventType: PROCUREMENT_EVENTS.REQUISITION_SUBMITTED, // reuse event bus; extend types if needed
+    aggregateType: "PurchaseRequisition",
+    aggregateId: requisitionId,
+    payload: { requisitionNo: req.requisitionNo, status: "REJECTED", reason },
+  });
+
+  return updated;
+}
+
+// ─── low-stock auto-generation ───────────────────────────────────────────────
 
 export async function generateLowStockRequisitions() {
   const profiles = await prisma.procurementItemProfile.findMany({

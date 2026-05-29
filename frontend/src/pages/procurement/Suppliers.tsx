@@ -49,7 +49,7 @@ export function Suppliers() {
       const list = data.suppliers as Supplier[];
       setSuppliers(list ?? []);
     } catch {
-      console.error("Failed to load suppliers:", err);
+      console.error("Failed to load suppliers");
       setSuppliers([]);
     } finally {
       setLoading(false);
