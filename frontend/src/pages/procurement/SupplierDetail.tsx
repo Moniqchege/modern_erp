@@ -34,23 +34,39 @@ export function SupplierDetail() {
 
   const onboardingApprovalState = useMemo(() => {
     if (!supplier) return null;
+
+    // Approval is based solely on onboardingStatus.
     if (supplier.onboardingStatus === "REJECTED") return "rejected" as const;
     if (
-      supplier.onboardingStatus === "ACTIVE" || supplier.isActive
+      supplier.onboardingStatus === "ACTIVE" ||
+      supplier.onboardingStatus === "SUSPENDED"
     )
       return "approved" as const;
+
+    // Any non-approved/non-rejected onboarding state => pending for checker.
     return "pending" as const;
   }, [supplier]);
 
 
+
   const supplierActivationState = useMemo(() => {
     if (!supplier) return null;
+
     // lockedAt => locked
     const lockedAt = (supplier as any).lockedAt as string | null | undefined;
     if (lockedAt) return "locked" as const;
+
+    // onboarding should also affect active/inactive:
+    // - if onboarding is pending, treat supplier as inactive
+    // - if rejected, treat supplier as inactive
+    if (onboardingApprovalState === "pending" || onboardingApprovalState === "rejected") {
+      return "inactive" as const;
+    }
+
     if (supplier.isActive) return "active" as const;
     return "inactive" as const;
-  }, [supplier]);
+  }, [supplier, onboardingApprovalState]);
+
 
   const [form, setForm] = useState<SupplierEditPayload>({});
 
@@ -256,10 +272,10 @@ export function SupplierDetail() {
                     onClick={async () => {
                       try {
                         await procurementApi.suppliers.rejectOnboarding(
-                          supplierId,
+                          supplierIdSafe,
                           "Procurement Officer"
                         );
-                        const d = await procurementApi.suppliers.get(supplierId);
+                        const d = await procurementApi.suppliers.get(supplierIdSafe);
                         setSupplier(d.supplier as Supplier);
                       } catch {
                         // ignore

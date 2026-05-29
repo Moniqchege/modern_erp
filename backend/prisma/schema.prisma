@@ -328,7 +328,7 @@ model Supplier {
   bankAccountNo          String?
   bankBranch             String?
   bankSwiftCode          String?
-  onboardingStatus       SupplierOnboardingStatus @default(DRAFT)
+  onboardingStatus       SupplierOnboardingStatus @default(PENDING)
   onboardingNotes        String?                  @db.Text
   qaApprovedAt           DateTime?
   financeApprovedAt      DateTime?
@@ -818,11 +818,8 @@ model Invoice {
 // ============================================
 
 enum SupplierOnboardingStatus {
-  DRAFT
-  QA_AUDIT
-  FINANCE_APPROVAL
-  ACTIVE
-  SUSPENDED
+  PENDING
+  APPROVED
   REJECTED
 }
 
