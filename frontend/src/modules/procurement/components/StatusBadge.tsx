@@ -1,20 +1,39 @@
 import React from "react";
 
 const STYLES: Record<string, string> = {
+  // generic
   ACTIVE: "border-emerald-200 text-emerald-700",
+  INACTIVE: "border-slate-200 text-slate-500",
+  LOCKED: "border-indigo-200 text-indigo-700",
+
+  // supplier onboarding
+  APPROVED: "border-emerald-200 text-emerald-700",
+  PENDING: "border-amber-200 text-amber-700",
+  REJECTED: "border-red-200 text-red-700",
+  SUSPENDED: "border-orange-200 text-orange-700",
+
+  // compliance docs
   EXPIRING_SOON: "border-amber-200 text-amber-700",
   NON_COMPLIANT: "border-red-200 text-red-700",
+
+  // QC
   PASSED: "border-emerald-200 text-emerald-700",
   FAILED_CONDITIONAL: "border-amber-200 text-amber-700",
   FULL_REJECTION: "border-red-200 text-red-700",
   PENDING_QC: "border-sky-200 text-sky-700",
+
+  // GRN / PO
   POSTED: "border-emerald-200 text-emerald-700",
+  PARTIALLY_RECEIVED: "border-amber-200 text-amber-700",
+
+  // 3-way match
   MATCHED: "border-emerald-200 text-emerald-700",
   PRICE_DISCREPANCY: "border-orange-200 text-orange-700",
   QUANTITY_DISCREPANCY: "border-orange-200 text-orange-700",
   BOTH_DISCREPANCY: "border-red-200 text-red-700",
+
+  // finance
   PENDING_FINANCE: "border-violet-200 text-violet-700",
-  PARTIALLY_RECEIVED: "border-amber-200 text-amber-700",
 };
 
 export function StatusBadge({ status }: { status: string }) {

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { prisma } from "../server";
 import * as supplierService from "../services/supplier.service";
 import {
-  advanceSupplierOnboarding,
   approveSupplierOnboarding,
   rejectSupplierOnboarding,
+  lockSupplier,
+  unlockSupplier,
 } from "../services/procurement/supplier-crm.service";
 
 
@@ -160,25 +161,6 @@ suppliersRouter.patch("/:id", async (req, res) => {
 
 
 
-suppliersRouter.post("/:id/onboarding/advance", async (req, res) => {
-  const body = z
-    .object({ actorName: z.string().min(1), notes: z.string().optional() })
-    .safeParse(req.body);
-  if (!body.success) {
-    return res.status(400).json({ message: "actorName required" });
-  }
-  try {
-    const supplier = await advanceSupplierOnboarding(
-      req.params.id,
-      body.data.actorName,
-      body.data.notes
-    );
-    res.status(200).json({ success: true, supplier });
-  } catch (error) {
-    res.status(400).json({ message: String(error) });
-  }
-});
-
 suppliersRouter.post("/:id/onboarding/approve", async (req, res) => {
   const body = z
     .object({ actorName: z.string().min(1), notes: z.string().optional() })
@@ -217,3 +199,41 @@ suppliersRouter.post("/:id/onboarding/reject", async (req, res) => {
   }
 });
 
+
+suppliersRouter.post("/:id/onboarding/lock", async (req, res) => {
+  const body = z
+    .object({ actorName: z.string().min(1), notes: z.string().optional() })
+    .safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ message: "actorName required" });
+  }
+  try {
+    const supplier = await lockSupplier(
+      req.params.id,
+      body.data.actorName,
+      body.data.notes
+    );
+    res.status(200).json({ success: true, supplier });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});
+
+suppliersRouter.post("/:id/onboarding/unlock", async (req, res) => {
+  const body = z
+    .object({ actorName: z.string().min(1), notes: z.string().optional() })
+    .safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({ message: "actorName required" });
+  }
+  try {
+    const supplier = await unlockSupplier(
+      req.params.id,
+      body.data.actorName,
+      body.data.notes
+    );
+    res.status(200).json({ success: true, supplier });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});

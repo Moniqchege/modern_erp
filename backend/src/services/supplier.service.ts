@@ -74,7 +74,8 @@ export interface UpdateSupplierData
         notes?: string | null;
     }>;
 
-    isActive?: boolean;
+    // status is managed by the onboarding workflow (approveSupplierOnboarding / rejectSupplierOnboarding / lockSupplier)
+    // Do not set it directly through updateSupplier.
 }
 
 
@@ -104,7 +105,7 @@ export async function createSupplier(data: CreateSupplierData) {
  */
 export async function getAllSuppliers(activeOnly: boolean = false) {
     return prisma.supplier.findMany({
-        where: activeOnly ? { isActive: true } : undefined,
+        where: activeOnly ? { status: "ACTIVE" } : undefined,
         include: {
             _count: {
                 select: { rawMaizeBatches: true },

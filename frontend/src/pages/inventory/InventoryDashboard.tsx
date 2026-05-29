@@ -80,10 +80,16 @@ type DashboardData = {
   }>;
 };
 
-const fmtKg = (n: number) =>
-  `${n.toLocaleString(undefined, { maximumFractionDigits: 1 })} KG`;
-const fmtKes = (n: number) =>
-  `KES ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const fmtKg = (n?: number | null) =>
+  `${(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} KG`;
+
+const fmtKes = (n?: number | null) =>
+  `KES ${(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+// const fmtKg = (n: number) =>
+//   `${n.toLocaleString(undefined, { maximumFractionDigits: 1 })} KG`;
+// const fmtKes = (n: number) =>
+//   `KES ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
 function MiniBarChart({
   items,
@@ -155,22 +161,39 @@ export function InventoryDashboard() {
     );
   }
 
-  const k = kpis ?? {
-    totalSkus: 0,
-    outOfStock: 0,
-    belowReorderCount: 0,
-    totalValuationKes: 0,
-    rawMaizeKg: 0,
-    grade1BulkKg: 0,
-    grade2BulkKg: 0,
-    grade1Bales: 0,
-    grade2Bales: 0,
-    packagingMaterialKg: 0,
-    avgMillingEfficiencyPct: 0,
-    avgPackagingYieldPct: 0,
-    productionRuns30d: 0,
-    packagingRuns30d: 0,
-  };
+  const k = {
+  totalSkus: kpis?.totalSkus ?? 0,
+  outOfStock: kpis?.outOfStock ?? 0,
+  belowReorderCount: kpis?.belowReorderCount ?? 0,
+  totalValuationKes: kpis?.totalValuationKes ?? 0,
+  rawMaizeKg: kpis?.rawMaizeKg ?? 0,
+  grade1BulkKg: kpis?.grade1BulkKg ?? 0,
+  grade2BulkKg: kpis?.grade2BulkKg ?? 0,
+  grade1Bales: kpis?.grade1Bales ?? 0,
+  grade2Bales: kpis?.grade2Bales ?? 0,
+  packagingMaterialKg: kpis?.packagingMaterialKg ?? 0,
+  avgMillingEfficiencyPct: kpis?.avgMillingEfficiencyPct ?? 0,
+  avgPackagingYieldPct: kpis?.avgPackagingYieldPct ?? 0,
+  productionRuns30d: kpis?.productionRuns30d ?? 0,
+  packagingRuns30d: kpis?.packagingRuns30d ?? 0,
+};
+
+  // const k = kpis ?? {
+  //   totalSkus: 0,
+  //   outOfStock: 0,
+  //   belowReorderCount: 0,
+  //   totalValuationKes: 0,
+  //   rawMaizeKg: 0,
+  //   grade1BulkKg: 0,
+  //   grade2BulkKg: 0,
+  //   grade1Bales: 0,
+  //   grade2Bales: 0,
+  //   packagingMaterialKg: 0,
+  //   avgMillingEfficiencyPct: 0,
+  //   avgPackagingYieldPct: 0,
+  //   productionRuns30d: 0,
+  //   packagingRuns30d: 0,
+  // };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">

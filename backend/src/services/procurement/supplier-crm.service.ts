@@ -1,27 +1,23 @@
-import { SupplierOnboardingStatus } from "@prisma/client";
+import { SupplierOnboardingStatus, SupplierStatus } from "@prisma/client";
 import { prisma } from "../../server";
 import { publishDomainEvent } from "../../events/eventBus";
 import { PROCUREMENT_EVENTS } from "../../events/procurementEventTypes";
 import { computeComplianceStatus } from "./helpers";
 
-const ONBOARDING_FLOW: SupplierOnboardingStatus[] = [
-  "DRAFT",
-  "QA_AUDIT",
-  "FINANCE_APPROVAL",
-  "ACTIVE",
-];
-
-function isPendingOnboarding(status: SupplierOnboardingStatus) {
-  return status === "DRAFT" || status === "QA_AUDIT" || status === "FINANCE_APPROVAL";
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 async function writeSupplierOnboardingAudit(params: {
   supplierId: string;
-  beforeStatus: SupplierOnboardingStatus;
-  afterStatus: SupplierOnboardingStatus;
+  beforeOnboardingStatus: SupplierOnboardingStatus;
+  afterOnboardingStatus: SupplierOnboardingStatus;
+  beforeStatus: SupplierStatus;
+  afterStatus: SupplierStatus;
   actorName: string;
+  notes?: string;
 }) {
-  const { supplierId, beforeStatus, afterStatus, actorName } = params;
+  const { supplierId, beforeOnboardingStatus, afterOnboardingStatus, beforeStatus, afterStatus, actorName, notes } = params;
   await prisma.procurementAuditLog.create({
     data: {
       entityType: "Supplier",
@@ -29,8 +25,8 @@ async function writeSupplierOnboardingAudit(params: {
       action: "STATUS_CHANGE",
       actorName,
       supplierId,
-      beforeState: { onboardingStatus: beforeStatus },
-      afterState: { onboardingStatus: afterStatus },
+      beforeState: { onboardingStatus: beforeOnboardingStatus, status: beforeStatus },
+      afterState: { onboardingStatus: afterOnboardingStatus, status: afterStatus, notes },
     },
   });
 }
@@ -49,53 +45,15 @@ async function publishOnboardingChanged(params: {
   });
 }
 
-export async function advanceSupplierOnboarding(
-  supplierId: string,
-  actorName: string,
-  notes?: string
-) {
-  const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
-  if (!supplier) throw new Error("Supplier not found");
+// ---------------------------------------------------------------------------
+// Workflow actions
+// ---------------------------------------------------------------------------
 
-  const idx = ONBOARDING_FLOW.indexOf(supplier.onboardingStatus);
-  if (idx < 0 || idx >= ONBOARDING_FLOW.length - 1) {
-    throw new Error(`Cannot advance from status ${supplier.onboardingStatus}`);
-  }
-
-  const next = ONBOARDING_FLOW[idx + 1];
-  const data: Record<string, unknown> = { onboardingStatus: next, onboardingNotes: notes };
-
-  if (next === "QA_AUDIT") data.qaApprovedAt = null;
-  if (next === "FINANCE_APPROVAL") data.qaApprovedAt = new Date();
-
-  // Rule: pending onboarding => inactive
-  if (next === "ACTIVE") {
-    data.financeApprovedAt = new Date();
-    data.activatedAt = new Date();
-    data.isActive = true;
-    data.lockedAt = null;
-    data.lockedBy = null;
-  } else {
-    data.isActive = false;
-  }
-
-  const updated = await prisma.supplier.update({
-    where: { id: supplierId },
-    data: data as Parameters<typeof prisma.supplier.update>[0]["data"],
-  });
-
-  await writeSupplierOnboardingAudit({
-    supplierId,
-    beforeStatus: supplier.onboardingStatus,
-    afterStatus: next,
-    actorName,
-  });
-
-  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: next });
-
-  return updated;
-}
-
+/**
+ * Approve a supplier.
+ * onboardingStatus → APPROVED, status → ACTIVE
+ * Only allowed when onboardingStatus is PENDING.
+ */
 export async function approveSupplierOnboarding(
   supplierId: string,
   actorName: string,
@@ -104,20 +62,19 @@ export async function approveSupplierOnboarding(
   const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
   if (!supplier) throw new Error("Supplier not found");
 
-  if (!isPendingOnboarding(supplier.onboardingStatus)) {
-    throw new Error(`Cannot approve from status ${supplier.onboardingStatus}`);
+  if (supplier.onboardingStatus !== "PENDING") {
+    throw new Error(
+      `Cannot approve a supplier with status "${supplier.onboardingStatus}". Only PENDING suppliers can be approved.`
+    );
   }
-
-  const next: SupplierOnboardingStatus = "ACTIVE";
 
   const updated = await prisma.supplier.update({
     where: { id: supplierId },
     data: {
-      onboardingStatus: next,
+      onboardingStatus: "APPROVED",
+      status: "ACTIVE",
       onboardingNotes: notes,
-      financeApprovedAt: new Date(),
       activatedAt: new Date(),
-      isActive: true,
       lockedAt: null,
       lockedBy: null,
     },
@@ -125,16 +82,24 @@ export async function approveSupplierOnboarding(
 
   await writeSupplierOnboardingAudit({
     supplierId,
-    beforeStatus: supplier.onboardingStatus,
-    afterStatus: next,
+    beforeOnboardingStatus: supplier.onboardingStatus,
+    afterOnboardingStatus: "APPROVED",
+    beforeStatus: supplier.status,
+    afterStatus: "ACTIVE",
     actorName,
+    notes,
   });
 
-  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: next });
+  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: "APPROVED" });
 
   return updated;
 }
 
+/**
+ * Reject a supplier.
+ * onboardingStatus → REJECTED, status → INACTIVE
+ * Only allowed when onboardingStatus is PENDING.
+ */
 export async function rejectSupplierOnboarding(
   supplierId: string,
   actorName: string,
@@ -143,18 +108,18 @@ export async function rejectSupplierOnboarding(
   const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
   if (!supplier) throw new Error("Supplier not found");
 
-  if (!isPendingOnboarding(supplier.onboardingStatus)) {
-    throw new Error(`Cannot reject from status ${supplier.onboardingStatus}`);
+  if (supplier.onboardingStatus !== "PENDING") {
+    throw new Error(
+      `Cannot reject a supplier with status "${supplier.onboardingStatus}". Only PENDING suppliers can be rejected.`
+    );
   }
-
-  const next: SupplierOnboardingStatus = "REJECTED";
 
   const updated = await prisma.supplier.update({
     where: { id: supplierId },
     data: {
-      onboardingStatus: next,
+      onboardingStatus: "REJECTED",
+      status: "INACTIVE",
       onboardingNotes: notes,
-      isActive: false,
       lockedAt: null,
       lockedBy: null,
     },
@@ -162,15 +127,110 @@ export async function rejectSupplierOnboarding(
 
   await writeSupplierOnboardingAudit({
     supplierId,
-    beforeStatus: supplier.onboardingStatus,
-    afterStatus: next,
+    beforeOnboardingStatus: supplier.onboardingStatus,
+    afterOnboardingStatus: "REJECTED",
+    beforeStatus: supplier.status,
+    afterStatus: "INACTIVE",
     actorName,
+    notes,
   });
 
-  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: next });
+  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: "REJECTED" });
 
   return updated;
 }
+
+/**
+ * Lock (suspend) a supplier.
+ * onboardingStatus → SUSPENDED, status → LOCKED
+ * Allowed from APPROVED status only.
+ */
+export async function lockSupplier(
+  supplierId: string,
+  actorName: string,
+  notes?: string
+) {
+  const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
+  if (!supplier) throw new Error("Supplier not found");
+
+  if (supplier.onboardingStatus !== "APPROVED") {
+    throw new Error(
+      `Cannot lock a supplier with status "${supplier.onboardingStatus}". Only APPROVED suppliers can be locked.`
+    );
+  }
+
+  const updated = await prisma.supplier.update({
+    where: { id: supplierId },
+    data: {
+      onboardingStatus: "SUSPENDED",
+      status: "LOCKED",
+      onboardingNotes: notes,
+      lockedAt: new Date(),
+      lockedBy: actorName,
+    },
+  });
+
+  await writeSupplierOnboardingAudit({
+    supplierId,
+    beforeOnboardingStatus: supplier.onboardingStatus,
+    afterOnboardingStatus: "SUSPENDED",
+    beforeStatus: supplier.status,
+    afterStatus: "LOCKED",
+    actorName,
+    notes,
+  });
+
+  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: "SUSPENDED" });
+
+  return updated;
+}
+
+/**
+ * Unlock a previously suspended supplier, restoring them to APPROVED / ACTIVE.
+ */
+export async function unlockSupplier(
+  supplierId: string,
+  actorName: string,
+  notes?: string
+) {
+  const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
+  if (!supplier) throw new Error("Supplier not found");
+
+  if (supplier.onboardingStatus !== "SUSPENDED") {
+    throw new Error(
+      `Cannot unlock a supplier with status "${supplier.onboardingStatus}". Only SUSPENDED suppliers can be unlocked.`
+    );
+  }
+
+  const updated = await prisma.supplier.update({
+    where: { id: supplierId },
+    data: {
+      onboardingStatus: "APPROVED",
+      status: "ACTIVE",
+      onboardingNotes: notes,
+      lockedAt: null,
+      lockedBy: null,
+    },
+  });
+
+  await writeSupplierOnboardingAudit({
+    supplierId,
+    beforeOnboardingStatus: supplier.onboardingStatus,
+    afterOnboardingStatus: "APPROVED",
+    beforeStatus: supplier.status,
+    afterStatus: "ACTIVE",
+    actorName,
+    notes,
+  });
+
+  await publishOnboardingChanged({ supplierId, from: supplier.onboardingStatus, to: "APPROVED" });
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// Compliance documents (kept for backward compatibility)
+// ---------------------------------------------------------------------------
 
 export async function syncComplianceDocumentStatuses(supplierId: string) {
   const docs = await prisma.supplierComplianceDocument.findMany({
@@ -215,4 +275,3 @@ export async function addComplianceDocument(
     },
   });
 }
-

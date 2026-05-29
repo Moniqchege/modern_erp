@@ -15,19 +15,6 @@ type SupplierWithLock = Supplier & { lockedAt?: string | null };
 export function Suppliers() {
   const navigate = useNavigate();
 
-  const getTableStatus = (s: Supplier) => {
-    // Maker/checker 1:1: onboarding is represented as table state.
-    if (s.onboardingStatus === "ACTIVE") {
-      return (s as any).lockedAt ? "LOCKED" : "ACTIVE";
-    }
-
-    if (s.onboardingStatus === "REJECTED" || s.onboardingStatus === "SUSPENDED") {
-      return "INACTIVE";
-    }
-
-    // DRAFT / QA_AUDIT / FINANCE_APPROVAL => pending onboarding
-    return "PENDING";
-  };
 
 
   const [suppliers, setSuppliers] = useState<SupplierWithLock[]>([]);
@@ -231,23 +218,11 @@ export function Suppliers() {
                   <td className="px-4 py-3 font-medium">{s.name}</td>
                   <td className="px-4 py-3">{s.taxPin ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={getTableStatus(s)} />
+                    <StatusBadge status={s.onboardingStatus} />
                   </td>
 
                   <td className="px-4 py-3">
-                    <span
-                      className={
-                        getTableStatus(s) === "ACTIVE"
-                          ? "text-emerald-600 font-bold"
-                          : getTableStatus(s) === "LOCKED"
-                            ? "text-indigo-700 font-bold"
-                            : getTableStatus(s) === "PENDING"
-                              ? "text-amber-700 font-bold"
-                              : "text-slate-400"
-                      }
-                    >
-                      {getTableStatus(s)}
-                    </span>
+                    <StatusBadge status={s.status} />
                   </td>
                   <td className="px-4 py-3 text-left" onClick={(ev) => ev.stopPropagation()}>
                     {/* Lock moved to SupplierDetail view screen */}

@@ -41,7 +41,7 @@ export async function createRequisition(input: {
       where: {
         itemProfileId: { in: distinctProfileIds },
         isPreferred: true,
-        supplier: { isActive: true },
+        supplier: { status: "ACTIVE" },
       },
       orderBy: { updatedAt: "desc" },
     });

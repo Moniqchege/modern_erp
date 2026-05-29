@@ -38,12 +38,12 @@ export function SupplierDetail() {
     // Approval is based solely on onboardingStatus.
     if (supplier.onboardingStatus === "REJECTED") return "rejected" as const;
     if (
-      supplier.onboardingStatus === "ACTIVE" ||
+      supplier.onboardingStatus === "APPROVED" ||
       supplier.onboardingStatus === "SUSPENDED"
     )
       return "approved" as const;
 
-    // Any non-approved/non-rejected onboarding state => pending for checker.
+    // PENDING => pending for checker.
     return "pending" as const;
   }, [supplier]);
 
@@ -54,16 +54,14 @@ export function SupplierDetail() {
 
     // lockedAt => locked
     const lockedAt = (supplier as any).lockedAt as string | null | undefined;
-    if (lockedAt) return "locked" as const;
+    if (lockedAt || supplier.status === "LOCKED") return "locked" as const;
 
-    // onboarding should also affect active/inactive:
-    // - if onboarding is pending, treat supplier as inactive
-    // - if rejected, treat supplier as inactive
+    // if onboarding is pending or rejected, treat supplier as inactive
     if (onboardingApprovalState === "pending" || onboardingApprovalState === "rejected") {
       return "inactive" as const;
     }
 
-    if (supplier.isActive) return "active" as const;
+    if (supplier.status === "ACTIVE") return "active" as const;
     return "inactive" as const;
   }, [supplier, onboardingApprovalState]);
 
@@ -223,6 +221,7 @@ export function SupplierDetail() {
 
         <div className="flex items-center gap-2">
           <StatusBadge status={supplier.onboardingStatus} />
+          <StatusBadge status={supplier.status} />
 
           {!editing ? (
             <>

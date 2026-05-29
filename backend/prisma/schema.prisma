@@ -337,8 +337,8 @@ model Supplier {
   lockedAt DateTime?
   lockedBy String?
 
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  status    SupplierStatus @default(INACTIVE)
+  createdAt DateTime       @default(now())
 
   updatedAt DateTime @updatedAt
 
@@ -354,6 +354,7 @@ model Supplier {
   @@index([code])
   @@index([name])
   @@index([onboardingStatus])
+  @@index([status])
   @@index([taxPin])
 }
 
@@ -821,6 +822,13 @@ enum SupplierOnboardingStatus {
   PENDING
   APPROVED
   REJECTED
+  SUSPENDED
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
 }
 
 enum ComplianceDocumentStatus {

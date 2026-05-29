@@ -5,12 +5,12 @@ export type ProcurementCategory =
   | "ENGINEERING_SPARE";
 
 export type SupplierOnboardingStatus =
-  | "DRAFT"
-  | "QA_AUDIT"
-  | "FINANCE_APPROVAL"
-  | "ACTIVE"
-  | "SUSPENDED"
-  | "REJECTED";
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "SUSPENDED";
+
+export type SupplierStatus = "ACTIVE" | "INACTIVE" | "LOCKED";
 
 export type ComplianceDocumentStatus = "ACTIVE" | "EXPIRING_SOON" | "NON_COMPLIANT";
 
@@ -119,7 +119,8 @@ export interface Supplier {
   phone?: string | null;
   email?: string | null;
   onboardingStatus: SupplierOnboardingStatus;
-  isActive: boolean;
+  status: SupplierStatus;
+  isActive?: boolean;
   taxPin?: string | null;
   vatNumber?: string | null;
   suppliedItems?: SupplierSuppliedItem[];
