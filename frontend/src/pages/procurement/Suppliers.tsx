@@ -10,7 +10,7 @@ import type { ProcurementItemProfile, Supplier } from "../../modules/procurement
 type SupplierWithLock = Supplier & { lockedAt?: string | null };
 
 
-// ── component ─────────────────────────────────────────────────────────────────
+
 
 export function Suppliers() {
   const navigate = useNavigate();
@@ -42,27 +42,15 @@ export function Suppliers() {
   const [bankBranch, setBankBranch] = useState("");
   const [bankSwiftCode, setBankSwiftCode] = useState("");
 
-  const MOCK: Supplier[] = [
-    {
-      id: "1",
-      code: "SUP-001",
-      name: "Rift Valley Maize Co-op",
-      onboardingStatus: "ACTIVE",
-      isActive: true,
-      taxPin: "P051234567X",
-    },
-  ];
-
-  // ── data loading ────────────────────────────────────────────────────────────
-
   const load = async () => {
     setLoading(true);
     try {
       const data = await procurementApi.suppliers.list();
       const list = data.suppliers as Supplier[];
-      setSuppliers(list.length ? list : MOCK);
+      setSuppliers(list ?? []);
     } catch {
-      setSuppliers(MOCK);
+      console.error("Failed to load suppliers:", err);
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
