@@ -113,14 +113,21 @@ export const procurementApi = {
   },
   grns: {
     list: () => json<{ grns: unknown[] }>(`${BASE}/grns`),
+    get: (id: string) => json<{ grn: unknown }>(`${BASE}/grns/${id}`),
     create: (body: Record<string, unknown>) =>
-      json(`${BASE}/grns`, { method: "POST", body: JSON.stringify(body) }),
+      json<{ success: boolean; grn: unknown }>(`${BASE}/grns`, { method: "POST", body: JSON.stringify(body) }),
     post: (id: string, postedBy: string) =>
-      json(`${BASE}/grns/${id}/post`, { method: "POST", body: JSON.stringify({ postedBy }) }),
+      json<{ success: boolean; grn: unknown }>(`${BASE}/grns/${id}/post`, { method: "POST", body: JSON.stringify({ postedBy }) }),
+  },
+  weighbridge: {
+    create: (body: Record<string, unknown>) =>
+      json<{ success: boolean; ticket: unknown }>(`${BASE}/weighbridge/tickets`, { method: "POST", body: JSON.stringify(body) }),
   },
   qc: {
     submitMaize: (body: Record<string, unknown>) =>
-      json(`${BASE}/qc/maize`, { method: "POST", body: JSON.stringify(body) }),
+      json<{ success: boolean; qc: unknown }>(`${BASE}/qc/maize`, { method: "POST", body: JSON.stringify(body) }),
+    submitPackaging: (body: Record<string, unknown>) =>
+      json<{ success: boolean; qc: unknown }>(`${BASE}/qc/packaging`, { method: "POST", body: JSON.stringify(body) }),
   },
   finance: {
     threeWayMatch: (body: Record<string, unknown>) =>

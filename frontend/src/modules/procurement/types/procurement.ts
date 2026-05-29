@@ -179,6 +179,43 @@ export interface PurchaseOrder {
   expectedDelivery?: string | null;
 }
 
+export type RawMaizeGrade = "GRADE_A" | "GRADE_B" | "GRADE_C" | "REJECT";
+
+export interface QCResult {
+  id: string;
+  qcNumber: string;
+  status: ProcurementQCStatus;
+  category: ProcurementCategory;
+  testedBy: string;
+  testedAt: string;
+  moistureContentPct?: number | string | null;
+  aflatoxinPpb?: number | string | null;
+  rottenBrokenPct?: number | string | null;
+  foreignMatterPct?: number | string | null;
+  liveInsectsCount?: number | null;
+  assignedGrade?: RawMaizeGrade | null;
+  priceDeductionPct?: number | string | null;
+  acceptedQuantity?: number | string | null;
+  blocksInventoryPost: boolean;
+  rejectionNote?: string | null;
+  remarks?: string | null;
+}
+
+export interface GrnLine {
+  id: string;
+  purchaseOrderLineId: string;
+  quantityAccepted: number | string;
+  quantityRejected: number | string;
+  unitPriceApplied: number | string;
+  lineTotal: number | string;
+  lotNumber?: string | null;
+  purchaseOrderLine?: {
+    itemProfile: { name: string; category: ProcurementCategory; unit: string };
+    quantity: number | string;
+    unitPrice: number | string;
+  };
+}
+
 export interface GoodsReceivedNote {
   id: string;
   grnNumber: string;
@@ -186,8 +223,24 @@ export interface GoodsReceivedNote {
   deliverySequence: number;
   batchTraceCode?: string | null;
   receivedAt: string;
-  purchaseOrder?: PurchaseOrder;
-  qcResults?: Array<{ status: ProcurementQCStatus }>;
+  receivedBy?: string;
+  postedAt?: string | null;
+  postedBy?: string | null;
+  netWeightAccepted?: number | string | null;
+  notes?: string | null;
+  purchaseOrder?: PurchaseOrder & {
+    supplier?: { name: string };
+    lines?: Array<{
+      id: string;
+      description?: string | null;
+      quantity: number | string;
+      unitPrice: number | string;
+      quantityReceived: number | string;
+      itemProfile: { name: string; category: ProcurementCategory; unit: string };
+    }>;
+  };
+  lines?: GrnLine[];
+  qcResults?: QCResult[];
 }
 
 export interface ThreeWayMatch {

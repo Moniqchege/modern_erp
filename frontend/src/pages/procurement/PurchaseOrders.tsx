@@ -65,7 +65,7 @@ export function PurchaseOrders() {
                 <th className="px-4 py-3 text-right">VAT (16%)</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 w-20"></th>
+                <th className="px-4 py-3 w-20">Actions</th>
               </tr>
             </thead>
             <tbody>

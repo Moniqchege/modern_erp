@@ -177,9 +177,9 @@ export function Requisitions() {
                 <th className="px-4 py-3">Requested By</th>
                 <th className="px-4 py-3">Dept</th>
                 <th className="px-4 py-3">Supplier</th>
-                <th className="px-4 py-3 text-right">Est. Total (incl. VAT)</th>
+                <th className="px-4 py-3 text-left">Est. Total (incl. VAT)</th>
                 <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 w-20"></th>
+                <th className="px-4 py-3 w-20">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -192,7 +192,7 @@ export function Requisitions() {
                   <td className="px-4 py-3 font-medium text-slate-800">{r.requestedBy}</td>
                   <td className="px-4 py-3 text-slate-500">{r.department ?? "—"}</td>
                   <td className="px-4 py-3 text-slate-500">{r.supplier?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
+                  <td className="px-4 py-3 font-mono font-bold text-slate-900">
                     {fmtMoney(r.estimatedTotal, r.currency)}
                   </td>
                   <td className="px-4 py-3 text-center">
