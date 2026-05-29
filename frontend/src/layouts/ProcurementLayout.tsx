@@ -67,13 +67,13 @@ const procurementNavItems: NavItem[] = [
     description: "PO issue & delivery tracking",
   },
   {
-    key: "receiving",
-    label: "Receiving & QC",
-    path: ROUTES.PROCUREMENT_RECEIVING,
+    key: "weighbridge-outbound",
+    label: "Weighbridge Inbound",
+    path: `${ROUTES.PROCUREMENT}/weighbridge`,
     icon: Scale,
-    description: "Weighbridge, lab QC, GRN",
+    description: "Finalize net weight before QC",
   },
-  {
+    {
     key: "lab",
     label: "Lab Analysis",
     path: `${ROUTES.PROCUREMENT}/lab`,
@@ -81,11 +81,11 @@ const procurementNavItems: NavItem[] = [
     description: "Moisture & aflatoxin QC",
   },
   {
-    key: "weighbridge-outbound",
-    label: "Weighbridge Outbound",
-    path: `${ROUTES.PROCUREMENT}/weighbridge/outbound`,
+    key: "receiving",
+    label: "Receiving & QC",
+    path: ROUTES.PROCUREMENT_RECEIVING,
     icon: Scale,
-    description: "Finalize net weight after QC",
+    description: "Weighbridge, lab QC, GRN",
   },
   {
     key: "finance",
