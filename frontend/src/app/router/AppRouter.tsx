@@ -53,6 +53,9 @@ const ProcurementRequisitionDetail = lazy(() =>
 const ProcurementPOs = lazy(() =>
   import("../../pages/procurement/PurchaseOrders").then((m) => ({ default: m.PurchaseOrders }))
 );
+const ProcurementPODetail = lazy(() =>
+  import("../../pages/procurement/PurchaseOrderDetail").then((m) => ({ default: m.PurchaseOrderDetail }))
+);
 const ProcurementReceiving = lazy(() =>
   import("../../pages/procurement/ReceivingQC").then((m) => ({ default: m.ReceivingQC }))
 );
@@ -126,6 +129,7 @@ export function AppRouter() {
           <Route path={ROUTES.PROCUREMENT_REQUISITIONS} element={<ProcurementRequisitions />} />
           <Route path="/procurement/requisitions/:requisitionId" element={<ProcurementRequisitionDetail />} />
           <Route path={ROUTES.PROCUREMENT_POS} element={<ProcurementPOs />} />
+          <Route path="/procurement/purchase-orders/:poId" element={<ProcurementPODetail />} />
           <Route path={ROUTES.PROCUREMENT_RECEIVING} element={<ProcurementReceiving />} />
           <Route path="/procurement/lab" element={<ProcurementLab />} />
           <Route path="/procurement/weighbridge/outbound" element={<ProcurementWeighbridgeOutbound />} />

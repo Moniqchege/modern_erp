@@ -92,14 +92,23 @@ export const procurementApi = {
   },
   purchaseOrders: {
     list: () => json<{ purchaseOrders: unknown[] }>(`${BASE}/purchase-orders`),
+    get: (id: string) => json<{ purchaseOrder: unknown }>(`${BASE}/purchase-orders/${id}`),
     fromRequisition: (requisitionId: string, termsAndConditions?: string) =>
       json(`${BASE}/purchase-orders/from-requisition/${requisitionId}`, {
         method: "POST",
         body: JSON.stringify({ termsAndConditions }),
       }),
     issue: (id: string) =>
-      json(`${BASE}/purchase-orders/${id}/issue`, {
+      json(`${BASE}/purchase-orders/${id}/issue`, { method: "POST" }),
+    cancel: (id: string, reason?: string) =>
+      json(`${BASE}/purchase-orders/${id}/cancel`, {
         method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
+    updateExpectedDelivery: (id: string, expectedDelivery: string) =>
+      json(`${BASE}/purchase-orders/${id}/expected-delivery`, {
+        method: "PATCH",
+        body: JSON.stringify({ expectedDelivery }),
       }),
   },
   grns: {

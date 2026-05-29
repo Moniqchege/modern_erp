@@ -267,6 +267,26 @@ procurementRouter.get("/purchase-orders", requireAuth, async (req, res) => {
   res.json({ success: true, purchaseOrders: orders });
 });
 
+procurementRouter.get("/purchase-orders/:id", requireAuth, async (req, res) => {
+  const po = await prisma.purchaseOrder.findUnique({
+    where: { id: req.params.id },
+    include: {
+      supplier: true,
+      lines: { include: { itemProfile: true } },
+      requisition: {
+        include: { lines: { include: { itemProfile: true } } },
+      },
+      grns: {
+        include: { lines: true, qcResults: true },
+        orderBy: { receivedAt: "desc" },
+      },
+      approvals: { orderBy: { decidedAt: "asc" } },
+    },
+  });
+  if (!po) return res.status(404).json({ message: "Purchase order not found" });
+  res.json({ success: true, purchaseOrder: po });
+});
+
 // POST /purchase-orders/from-requisition/:id — Approver creates PO from APPROVED requisition
 procurementRouter.post(
   "/purchase-orders/from-requisition/:requisitionId",
@@ -294,6 +314,32 @@ procurementRouter.post("/purchase-orders/:id/issue", requireAuth, requireApprove
   const actor = (req as AuthenticatedRequest).auth;
   try {
     const po = await poService.issuePurchaseOrder(req.params.id, actor.email);
+    res.json({ success: true, purchaseOrder: po });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});
+
+procurementRouter.post("/purchase-orders/:id/cancel", requireAuth, requireApprover, async (req, res) => {
+  const actor = (req as AuthenticatedRequest).auth;
+  const body = z.object({ reason: z.string().optional() }).safeParse(req.body);
+  try {
+    const po = await poService.cancelPurchaseOrder(
+      req.params.id,
+      actor.email,
+      body.success ? body.data.reason : undefined
+    );
+    res.json({ success: true, purchaseOrder: po });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});
+
+procurementRouter.patch("/purchase-orders/:id/expected-delivery", requireAuth, requireApprover, async (req, res) => {
+  const body = z.object({ expectedDelivery: z.coerce.date() }).safeParse(req.body);
+  if (!body.success) return res.status(400).json({ message: "expectedDelivery date required" });
+  try {
+    const po = await poService.updateExpectedDelivery(req.params.id, body.data.expectedDelivery);
     res.json({ success: true, purchaseOrder: po });
   } catch (error) {
     res.status(400).json({ message: String(error) });

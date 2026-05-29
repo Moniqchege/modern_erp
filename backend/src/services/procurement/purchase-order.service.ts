@@ -50,6 +50,8 @@ export async function createPurchaseOrderFromRequisition(
         taxAmount: toDecimal(taxAmount),
         totalAmount: toDecimal(totalAmount),
         termsAndConditions,
+        // carry the required-by date from the requisition as the expected delivery
+        expectedDelivery: req.requiredByDate ?? undefined,
         lines: { create: poLines },
       },
       include: { lines: { include: { itemProfile: true } }, supplier: true },
@@ -85,4 +87,34 @@ export async function issuePurchaseOrder(poId: string, issuedBy: string) {
   });
 
   return po;
+}
+
+export async function cancelPurchaseOrder(poId: string, cancelledBy: string, reason?: string) {
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+  if (!po) throw new Error("Purchase order not found");
+
+  const cancellable = ["DRAFT", "ISSUED"];
+  if (!cancellable.includes(po.status)) {
+    throw new Error(`Cannot cancel a PO with status ${po.status}`);
+  }
+
+  return prisma.purchaseOrder.update({
+    where: { id: poId },
+    data: { status: "CANCELLED" },
+    include: { lines: { include: { itemProfile: true } }, supplier: true },
+  });
+}
+
+export async function updateExpectedDelivery(poId: string, expectedDelivery: Date) {
+  const po = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+  if (!po) throw new Error("Purchase order not found");
+  if (po.status === "CANCELLED" || po.status === "CLOSED") {
+    throw new Error("Cannot update delivery date on a closed or cancelled PO");
+  }
+
+  return prisma.purchaseOrder.update({
+    where: { id: poId },
+    data: { expectedDelivery },
+    include: { lines: { include: { itemProfile: true } }, supplier: true },
+  });
 }

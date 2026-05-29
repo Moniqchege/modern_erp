@@ -27,6 +27,7 @@ export const ROUTES = {
     PROCUREMENT_REQUISITIONS: "/procurement/requisitions",
     PROCUREMENT_REQUISITION_DETAIL: (id: string) => `/procurement/requisitions/${id}`,
     PROCUREMENT_POS: "/procurement/purchase-orders",
+    PROCUREMENT_PO_DETAIL: (id: string) => `/procurement/purchase-orders/${id}`,
     PROCUREMENT_RECEIVING: "/procurement/receiving",
     PROCUREMENT_FINANCE: "/procurement/finance",
 
