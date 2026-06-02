@@ -22,7 +22,7 @@ export const KG_PER_UNIT_BY_TYPE: Record<string, number> = {
 const LEGACY_BALE_KG = 24;
 
 export type OutputLine = {
-  typeKey?: string; 
+  typeKey?: string;
   packedBaleInventoryItemId?: string;
   unitsProduced: number;
   kgPerUnit: number;
@@ -149,10 +149,10 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
   // );
 
   const resolvedLines = allOutputLines.map((line) => ({
-  ...line,
-  typeKey: line.typeKey ?? "UNKNOWN",
-  kgPerUnit: line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(line.typeKey),
-}));
+    ...line,
+    typeKey: line.typeKey ?? "UNKNOWN",
+    kgPerUnit: line.kgPerUnit > 0 ? line.kgPerUnit : deriveKgPerUnitFromTypeKey(line.typeKey),
+  }));
 
   const totalPackagedKg = resolvedLines.reduce(
     (s, l) => s + l.unitsProduced * l.kgPerUnit,
@@ -165,6 +165,33 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
   }
   if (totalPackagedKg > totalFlourIn + 0.01) {
     throw new Error("Packaged output cannot exceed total flour input (incl. spillage).");
+  }
+
+  // Pre-validate: compute total deduction per flour item (consumption + proportional spillage)
+  // and check against current stock before entering the transaction.
+  for (const row of input.flourConsumption) {
+    if (row.consumedKg <= 0) continue;
+
+    const spillageShare =
+      totalFlourBulkIn > 0
+        ? (input.flourSpillage * row.consumedKg) / totalFlourBulkIn
+        : 0;
+    const totalRequired = row.consumedKg + spillageShare;
+
+    const item = await prisma.inventoryItem.findUnique({
+      where: { id: row.flourInventoryItemId },
+      select: { sku: true, quantity: true },
+    });
+    if (!item) throw new Error(`Flour inventory item not found: ${row.flourInventoryItemId}`);
+
+    const available = Number(item.quantity);
+    if (available < totalRequired - 0.001) {
+      throw new Error(
+        `Insufficient stock for ${item.sku}. ` +
+        `Available: ${available.toFixed(3)} kg, required: ${totalRequired.toFixed(3)} kg ` +
+        `(${row.consumedKg.toFixed(3)} consumed + ${spillageShare.toFixed(3)} spillage).`
+      );
+    }
   }
 
   return prisma.$transaction(async (tx) => {

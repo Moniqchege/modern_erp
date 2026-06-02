@@ -140,7 +140,7 @@ export function Requisitions() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
+          {/* <button
             type="button"
             className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-50"
             onClick={async () => {
@@ -149,7 +149,7 @@ export function Requisitions() {
             }}
           >
             Generate low-stock
-          </button>
+          </button> */}
           {isMaker && (
             <button
               type="button"

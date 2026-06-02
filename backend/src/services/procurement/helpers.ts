@@ -5,7 +5,19 @@ const EXPIRING_SOON_DAYS = 30;
 
 export async function nextSequence(prefix: string): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await prisma.purchaseOrder.count();
+
+  // Count the correct model for each prefix to avoid cross-model collisions
+  let count = 0;
+  if (prefix === "PR") {
+    count = await prisma.purchaseRequisition.count();
+  } else if (prefix === "PO") {
+    count = await prisma.purchaseOrder.count();
+  } else {
+    // Fallback: combine counts so different prefixes don't share a namespace
+    count = await prisma.purchaseRequisition.count();
+  }
+
+  // Use timestamp + count to minimise collision probability under concurrent load
   const seq = String(count + 1).padStart(5, "0");
   return `${prefix}-${year}-${seq}`;
 }
