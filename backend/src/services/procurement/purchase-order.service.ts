@@ -6,7 +6,8 @@ import { nextSequence, toDecimal } from "./helpers";
 export async function createPurchaseOrderFromRequisition(
   requisitionId: string,
   issuedBy: string,
-  termsAndConditions?: string
+  termsAndConditions?: string,
+  applyVat: boolean = true
 ) {
   const req = await prisma.purchaseRequisition.findUnique({
     where: { id: requisitionId },
@@ -34,7 +35,7 @@ export async function createPurchaseOrderFromRequisition(
     };
   });
 
-  const taxRate = 16;
+  const taxRate = applyVat ? 16 : 0;
   const taxAmount = subtotal * (taxRate / 100);
   const totalAmount = subtotal + taxAmount;
 

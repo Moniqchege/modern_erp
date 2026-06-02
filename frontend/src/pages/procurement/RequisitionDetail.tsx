@@ -114,6 +114,10 @@ export function RequisitionDetail() {
   const [approveComments, setApproveComments] = useState("");
   const [rejectReason, setRejectReason] = useState("");
 
+  // create PO state
+  const [showCreatePOForm, setShowCreatePOForm] = useState(false);
+  const [applyVat, setApplyVat] = useState(true);
+
   // ─── load ────────────────────────────────────────────────────────────────
 
   const load = async () => {
@@ -177,7 +181,8 @@ export function RequisitionDetail() {
     if (!req) return;
     setActionBusy(true); setActionError(null);
     try {
-      await procurementApi.requisitions.createPO(req.id);
+      await procurementApi.requisitions.createPO(req.id, undefined, applyVat);
+      setShowCreatePOForm(false);
       await load();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Failed to create PO");
@@ -192,7 +197,7 @@ export function RequisitionDetail() {
   const canCreatePO = isApprover && req?.status === "APPROVED" && (!req.purchaseOrders || req.purchaseOrders.length === 0);
 
   const subtotal = Number(req?.estimatedTotal) || 0;
-  const vat = subtotal * 0.16;
+  const vat = applyVat ? subtotal * 0.16 : 0;
   const gross = subtotal + vat;
 
   // ─── loading / not found ─────────────────────────────────────────────────
@@ -293,7 +298,7 @@ export function RequisitionDetail() {
             <button
               type="button"
               disabled={actionBusy}
-              onClick={() => void handleCreatePO()}
+              onClick={() => { setShowCreatePOForm((v) => !v); setActionError(null); }}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {actionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5" />}
@@ -366,6 +371,46 @@ export function RequisitionDetail() {
         </div>
       )}
 
+
+      {/* create PO inline form */}
+      {showCreatePOForm && canCreatePO && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 space-y-3">
+          <p className="text-xs font-bold text-indigo-800">Confirm Purchase Order creation</p>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={applyVat}
+              onChange={(e) => setApplyVat(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 accent-indigo-600"
+            />
+            <span className="text-xs text-indigo-900 font-medium">
+              Apply VAT (16%) to this PO
+            </span>
+          </label>
+          <p className="text-[11px] text-indigo-700">
+            {applyVat
+              ? `VAT will be applied. Total: ${req.currency} ${gross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : `No VAT. Total: ${req.currency} ${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={actionBusy}
+              onClick={() => void handleCreatePO()}
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {actionBusy ? "Creating…" : "Confirm & create PO"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCreatePOForm(false)}
+              className="px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white rounded-lg border border-slate-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── two-column info cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -465,8 +510,10 @@ export function RequisitionDetail() {
               <span className="font-mono font-semibold text-slate-700">{fmtMoney(subtotal, req.currency)}</span>
             </div>
             <div className="flex justify-between gap-8">
-              <span className="text-slate-500">VAT (16%)</span>
-              <span className="font-mono font-semibold text-slate-700">{fmtMoney(vat, req.currency)}</span>
+              <span className="text-slate-500">{applyVat ? "VAT (16%)" : "VAT"}</span>
+              <span className={`font-mono font-semibold ${applyVat ? "text-slate-700" : "text-slate-400"}`}>
+                {applyVat ? fmtMoney(vat, req.currency) : "Not applied"}
+              </span>
             </div>
             <div className="flex justify-between gap-8 pt-1 border-t border-slate-200">
               <span className="font-bold text-slate-800">Gross total</span>

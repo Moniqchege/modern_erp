@@ -62,7 +62,7 @@ export function PurchaseOrders() {
                 <th className="px-4 py-3">Supplier</th>
                 <th className="px-4 py-3">Expected Delivery</th>
                 <th className="px-4 py-3 text-right">Subtotal</th>
-                <th className="px-4 py-3 text-right">VAT (16%)</th>
+                <th className="px-4 py-3 text-right">VAT</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 w-20">Actions</th>
@@ -70,9 +70,9 @@ export function PurchaseOrders() {
             </thead>
             <tbody>
               {orders.map((po) => {
+                const subtotal = Number(po.subtotal) || 0;
+                const vat = Number(po.taxAmount) || 0;
                 const total = Number(po.totalAmount) || 0;
-                const subtotal = total / 1.16;
-                const vat = total - subtotal;
                 return (
                   <tr key={po.id} className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${rowBg(po)}`}>
                     <td className="px-4 py-3 font-mono font-bold text-slate-900">{po.poNumber}</td>
@@ -91,7 +91,7 @@ export function PurchaseOrders() {
                       {fmtMoney(subtotal, po.currency)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-slate-600">
-                      {fmtMoney(vat, po.currency)}
+                      {vat > 0 ? fmtMoney(vat, po.currency) : <span className="text-slate-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
                       {fmtMoney(total, po.currency)}

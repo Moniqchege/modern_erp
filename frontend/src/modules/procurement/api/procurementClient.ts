@@ -76,10 +76,10 @@ export const procurementApi = {
       }),
     generateLowStock: () =>
       json(`${BASE}/requisitions/low-stock/generate`, { method: "POST" }),
-    createPO: (id: string, termsAndConditions?: string) =>
+    createPO: (id: string, termsAndConditions?: string, applyVat: boolean = true) =>
       json(`${BASE}/purchase-orders/from-requisition/${id}`, {
         method: "POST",
-        body: JSON.stringify({ termsAndConditions }),
+        body: JSON.stringify({ termsAndConditions, applyVat }),
       }),
   },
   itemProfiles: {

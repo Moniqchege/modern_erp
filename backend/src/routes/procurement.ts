@@ -295,13 +295,14 @@ procurementRouter.post(
   async (req, res) => {
     const actor = (req as AuthenticatedRequest).auth;
     const body = z
-      .object({ termsAndConditions: z.string().optional() })
+      .object({ termsAndConditions: z.string().optional(), applyVat: z.boolean().optional() })
       .safeParse(req.body);
     try {
       const po = await poService.createPurchaseOrderFromRequisition(
         req.params.requisitionId,
         actor.email,
-        body.success ? body.data.termsAndConditions : undefined
+        body.success ? body.data.termsAndConditions : undefined,
+        body.success ? (body.data.applyVat ?? true) : true
       );
       res.status(201).json({ success: true, purchaseOrder: po });
     } catch (error) {

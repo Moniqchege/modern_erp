@@ -173,6 +173,9 @@ export interface PurchaseOrder {
   id: string;
   poNumber: string;
   status: PurchaseOrderStatus;
+  subtotal: string | number;
+  taxRate: string | number;
+  taxAmount: string | number;
   totalAmount: string | number;
   currency: string;
   supplier?: Supplier;
