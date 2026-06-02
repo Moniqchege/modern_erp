@@ -435,6 +435,94 @@ procurementRouter.post("/grns/:id/post", async (req, res) => {
 
 // ─── Finance: 3-way match ─────────────────────────────────────────────────────
 
+procurementRouter.get("/three-way-match", async (_req, res) => {
+  const matches = await prisma.threeWayMatch.findMany({
+    include: {
+      grn: { include: { purchaseOrder: { include: { supplier: true } } } },
+      supplierInvoice: true,
+      paymentVouchers: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({ success: true, matches });
+});
+
+procurementRouter.get("/three-way-match/:id", async (req, res) => {
+  const match = await prisma.threeWayMatch.findUnique({
+    where: { id: req.params.id },
+    include: {
+      grn: {
+        include: {
+          lines: { include: { purchaseOrderLine: { include: { itemProfile: true } } } },
+          purchaseOrder: { include: { supplier: true, lines: { include: { itemProfile: true } } } },
+          qcResults: true,
+        },
+      },
+      supplierInvoice: true,
+      paymentVouchers: { orderBy: { createdAt: "desc" } },
+    },
+  });
+  if (!match) return res.status(404).json({ message: "Match not found" });
+  res.json({ success: true, match });
+});
+
+/** Combined: register supplier invoice then immediately run 3-way match.
+ *  Accepts the invoice fields plus grnId and matchedBy — single round-trip from the UI.
+ */
+procurementRouter.post("/three-way-match/register-and-match", async (req, res) => {
+  const schema = z.object({
+    // invoice fields
+    invoiceNumber: z.string().min(1),
+    invoiceDate: z.coerce.date(),
+    dueDate: z.coerce.date().optional(),
+    currency: z.enum(["KES", "USD", "EUR", "UGX", "TZS"]).optional(),
+    subtotal: z.number().nonnegative(),
+    taxAmount: z.number().nonnegative(),
+    totalAmount: z.number().nonnegative(),
+    fileUrl: z.string().url().optional(),
+    // match fields
+    grnId: z.string().min(1),
+    matchedBy: z.string().min(1),
+    tolerancePct: z.number().min(0).max(100).optional(),
+  });
+  const parse = schema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ errors: parse.error.flatten() });
+
+  try {
+    // Resolve supplierId and purchaseOrderId from the GRN
+    const grn = await prisma.goodsReceivedNote.findUnique({
+      where: { id: parse.data.grnId },
+      include: { purchaseOrder: { include: { supplier: true } } },
+    });
+    if (!grn) return res.status(404).json({ message: "GRN not found" });
+    if (grn.status !== "POSTED") return res.status(400).json({ message: "GRN must be POSTED before running 3-way match" });
+
+    const invoice = await financeService.registerSupplierInvoice({
+      supplierId: grn.purchaseOrder.supplierId,
+      purchaseOrderId: grn.purchaseOrderId,
+      invoiceNumber: parse.data.invoiceNumber,
+      invoiceDate: parse.data.invoiceDate,
+      dueDate: parse.data.dueDate,
+      currency: parse.data.currency,
+      subtotal: parse.data.subtotal,
+      taxAmount: parse.data.taxAmount,
+      totalAmount: parse.data.totalAmount,
+      fileUrl: parse.data.fileUrl,
+    });
+
+    const match = await financeService.runThreeWayMatch({
+      grnId: parse.data.grnId,
+      supplierInvoiceId: invoice.id,
+      matchedBy: parse.data.matchedBy,
+      tolerancePct: parse.data.tolerancePct,
+    });
+
+    res.status(201).json({ success: true, invoice, match });
+  } catch (error) {
+    res.status(400).json({ message: String(error) });
+  }
+});
+
 procurementRouter.post("/supplier-invoices", async (req, res) => {
   const schema = z.object({
     supplierId: z.string().min(1),

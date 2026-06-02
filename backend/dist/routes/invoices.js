@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.invoicesRouter = void 0;
+const express_1 = require("express");
+const async_handler_1 = require("../middleware/async-handler");
+const invoice_controller_1 = require("../controllers/sales/invoice.controller");
+exports.invoicesRouter = (0, express_1.Router)();
+exports.invoicesRouter.get("/", (0, async_handler_1.asyncHandler)(invoice_controller_1.listInvoicesController));
+exports.invoicesRouter.post("/generate", (0, async_handler_1.asyncHandler)(invoice_controller_1.generateInvoiceController));
+exports.invoicesRouter.post("/", (0, async_handler_1.asyncHandler)(invoice_controller_1.createLegacyInvoiceController));

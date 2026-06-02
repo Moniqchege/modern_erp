@@ -130,7 +130,28 @@ export const procurementApi = {
       json<{ success: boolean; qc: unknown }>(`${BASE}/qc/packaging`, { method: "POST", body: JSON.stringify(body) }),
   },
   finance: {
+    /** Register supplier invoice and run 3-way match in one call */
+    registerAndMatch: (body: Record<string, unknown>) =>
+      json<{ success: boolean; invoice: unknown; match: unknown }>(
+        `${BASE}/three-way-match/register-and-match`,
+        { method: "POST", body: JSON.stringify(body) }
+      ),
+    listMatches: () =>
+      json<{ success: boolean; matches: unknown[] }>(`${BASE}/three-way-match`),
+    getMatch: (id: string) =>
+      json<{ success: boolean; match: unknown }>(`${BASE}/three-way-match/${id}`),
+    /** Legacy: run match against an already-registered invoice id */
     threeWayMatch: (body: Record<string, unknown>) =>
-      json(`${BASE}/three-way-match`, { method: "POST", body: JSON.stringify(body) }),
+      json<{ success: boolean; match: unknown }>(`${BASE}/three-way-match`, { method: "POST", body: JSON.stringify(body) }),
+    approvePayment: (matchId: string, approverName: string) =>
+      json<{ success: boolean; match: unknown; voucher: unknown }>(
+        `${BASE}/three-way-match/${matchId}/approve-payment`,
+        { method: "POST", body: JSON.stringify({ approverName }) }
+      ),
+    pushAP: (voucherId: string) =>
+      json<{ success: boolean; voucher: unknown }>(
+        `${BASE}/payment-vouchers/${voucherId}/push-ap`,
+        { method: "POST" }
+      ),
   },
 };

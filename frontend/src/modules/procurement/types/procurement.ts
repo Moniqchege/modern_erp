@@ -247,6 +247,62 @@ export interface ThreeWayMatch {
   id: string;
   matchNumber: string;
   status: ThreeWayMatchStatus;
+  poTotal?: string | number | null;
+  grnTotal?: string | number | null;
+  invoiceTotal?: string | number | null;
   priceVariancePct?: string | number | null;
   quantityVariancePct?: string | number | null;
+  tolerancePct?: string | number | null;
+  discrepancyNotes?: string | null;
+  matchedAt?: string | null;
+  matchedBy?: string | null;
+  createdAt?: string;
+  grn?: GoodsReceivedNote & {
+    purchaseOrder?: PurchaseOrder & {
+      supplier?: { name: string };
+      lines?: Array<{
+        id: string;
+        description?: string | null;
+        quantity: number | string;
+        unitPrice: number | string;
+        quantityReceived: number | string;
+        itemProfile: { name: string; category: ProcurementCategory; unit: string };
+      }>;
+    };
+    lines?: GrnLine[];
+  };
+  supplierInvoice?: SupplierInvoice;
+  paymentVouchers?: PaymentVoucher[];
+}
+
+export interface SupplierInvoice {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  purchaseOrderId: string;
+  invoiceDate: string;
+  dueDate?: string | null;
+  currency: string;
+  subtotal: string | number;
+  taxAmount: string | number;
+  totalAmount: string | number;
+  fileUrl?: string | null;
+  createdAt: string;
+}
+
+export type PaymentVoucherStatus = "DRAFT" | "APPROVED" | "PAID" | "VOID";
+
+export interface PaymentVoucher {
+  id: string;
+  voucherNumber: string;
+  threeWayMatchId: string;
+  supplierInvoiceId: string;
+  amount: string | number;
+  currency: string;
+  status: PaymentVoucherStatus;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  paidAt?: string | null;
+  apQueuePushedAt?: string | null;
+  createdAt: string;
 }

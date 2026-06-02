@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 
 import { routes } from "./routes";
+import { globalErrorHandler } from "./middleware/error-handler";
 
 export const app = express();
 
@@ -14,5 +15,6 @@ app.get("/health", (_req: unknown, res: unknown) => {
 });
 
 app.use("/api", routes);
+app.use(globalErrorHandler);
 
 

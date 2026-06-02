@@ -781,6 +781,59 @@ model PackagingRunFinishedProductOutput {
 }
 
 
+// ============================================
+// CUSTOMERS & SALES MODULE (Maize Flour Plant)
+// ============================================
+
+enum CustomerType {
+  DISTRIBUTOR
+  WHOLESALER
+  RETAILER
+  WALK_IN
+}
+
+enum CustomerAccountStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SalesOrderPaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+  FULFILLED
+}
+
+enum SalesDispatchStatus {
+  PENDING
+  LOADING
+  DISPATCHED
+  DELIVERED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIAL
+  PAID
+  VOID
+  OVERDUE
+}
+
+enum CustomerPaymentMethod {
+  MPESA
+  BANK
+  CASH
+  CHEQUE
+}
+
 model Customer {
   id      String  @id @default(cuid())
   name    String
@@ -788,30 +841,144 @@ model Customer {
   phone   String?
   address String?
 
+  type           CustomerType          @default(RETAILER)
+  creditLimit    Decimal               @default(0) @db.Decimal(12, 2)
+  currentBalance Decimal               @default(0) @db.Decimal(12, 2)
+  creditDays     Int                   @default(30)
+  taxPin         String?               @db.VarChar(32)
+  status         CustomerAccountStatus @default(ACTIVE)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invoices   Invoice[]
-  dispatches DispatchLog[]
+  invoices    Invoice[]
+  dispatches  DispatchLog[]
+  salesOrders SalesOrder[]
+  payments    CustomerPayment[]
+
+  @@index([type])
+  @@index([status])
+  @@index([currentBalance])
+}
+
+model SalesProduct {
+  id          String  @id @default(cuid())
+  sku         String  @unique
+  name        String
+  description String? @db.Text
+  basePrice   Decimal @db.Decimal(10, 2)
+  unit        String  @default("bag")
+  category    String  @default("FLOUR") @db.VarChar(64)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderLines SalesOrderItem[]
+
+  @@index([sku])
+  @@index([isActive])
+}
+
+model SalesOrder {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  orderDate      DateTime                @default(now())
+  subtotal       Decimal                 @db.Decimal(12, 2)
+  taxAmount      Decimal                 @db.Decimal(12, 2)
+  totalAmount    Decimal                 @db.Decimal(12, 2)
+  paymentStatus  SalesOrderPaymentStatus @default(PENDING)
+  orderStatus    SalesOrderStatus        @default(DRAFT)
+  dispatchStatus SalesDispatchStatus     @default(PENDING)
+
+  items   SalesOrderItem[]
+  invoice Invoice?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([dispatchStatus])
+  @@index([orderDate])
+}
+
+model SalesOrderItem {
+  id String @id @default(cuid())
+
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  productSku       String
+  salesProduct     SalesProduct? @relation(fields: [productSku], references: [sku])
+  quantity         Decimal       @db.Decimal(12, 3)
+  unitPrice        Decimal       @db.Decimal(10, 2)
+  discountPercent  Decimal       @default(0) @db.Decimal(5, 2)
+  lineTotal        Decimal       @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesOrderId])
+  @@index([productSku])
 }
 
 model Invoice {
-  id String @id @default(cuid())
-  invoiceNumber String @unique
-  dispatches DispatchLog[]
-  subtotal Decimal @db.Decimal(10, 2)
-  tax      Decimal @db.Decimal(10, 2)
-  total    Decimal @db.Decimal(10, 2)
-  status   String    @default("DRAFT")
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  dispatches    DispatchLog[]
+
+  subtotal  Decimal @db.Decimal(10, 2)
+  tax       Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+  amountDue Decimal @db.Decimal(10, 2)
+  status    InvoiceStatus @default(DRAFT)
+
+  dueDate  DateTime?
   issuedAt DateTime?
+
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  salesOrderId String?    @unique
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+
   createdById String
-  createdBy   User   @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  createdBy   User @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+
+  payments CustomerPayment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model CustomerPayment {
+  id String @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  amountPaid           Decimal               @db.Decimal(12, 2)
+  paymentMethod        CustomerPaymentMethod
+  transactionReference String?               @db.VarChar(128)
+  paidAt               DateTime              @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([customerId])
+  @@index([invoiceId])
+  @@index([paidAt])
 }
 
 // ============================================

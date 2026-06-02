@@ -4,6 +4,7 @@ import { app } from "./app";
 import { registerProcurementListeners } from "./events/procurementListeners";
 import { ensureDefaultStores } from "./services/store-seed.service";
 import { seedDefaultUserIfNeeded } from "./services/auth.service";
+import { seedSalesModuleIfNeeded } from "./services/sales-seed.service";
 
 export const prisma = new PrismaClient();
 
@@ -13,6 +14,7 @@ void (async () => {
   try {
     await seedDefaultUserIfNeeded();
     await ensureDefaultStores();
+    await seedSalesModuleIfNeeded();
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn("[startup] store/user seed skipped:", err);
