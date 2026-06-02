@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { ROUTES } from "../../app/router/routes";
 import { procurementApi } from "../../modules/procurement/api/procurementClient";
+import { getAccessToken } from "../../auth/authClient";
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -138,16 +139,27 @@ export function ProcurementDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       try {
         const res = await fetch("/api/procurement/dashboard", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}` },
+          headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
         });
-        if (res.ok) setData(await res.json());
-      } catch { /* offline */ }
-      finally { setLoading(false); }
+        const body = await res.json();
+        if (res.ok) {
+          setData(body);
+        } else {
+          console.error("[ProcurementDashboard] API error:", body);
+          setError(body.message ?? `HTTP ${res.status}`);
+        }
+      } catch (err) {
+        console.error("[ProcurementDashboard] fetch error:", err);
+        setError("Could not reach the server.");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -155,6 +167,16 @@ export function ProcurementDashboard() {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <p className="text-sm font-bold text-slate-700">Failed to load procurement dashboard</p>
+        <p className="text-xs text-slate-500">{error}</p>
       </div>
     );
   }

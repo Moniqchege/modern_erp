@@ -175,194 +175,203 @@ procurementRouter.get("/reports/:reportType", requireAuth, async (req, res) => {
 // ─── Reports dashboard ───────────────────────────────────────────────────────
 
 procurementRouter.get("/dashboard", requireAuth, async (_req, res) => {
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now);
-  thirtyDaysAgo.setDate(now.getDate() - 30);
-  const ninetyDaysAgo = new Date(now);
-  ninetyDaysAgo.setDate(now.getDate() - 90);
+  try {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(now.getDate() - 90);
 
-  const [
-    totalSuppliers,
-    activeSuppliers,
-    totalRequisitions,
-    reqByStatus,
-    totalPOs,
-    poByStatus,
-    poSpend,
-    openPOValue,
-    totalGrns,
-    grnPosted,
-    matchData,
-    recentPOs,
-    topSuppliers,
-    monthlySpend,
-    vatBreakdown,
-  ] = await Promise.all([
-    // supplier counts
-    prisma.supplier.count(),
-    prisma.supplier.count({ where: { status: "ACTIVE" } }),
-
-    // requisition counts
-    prisma.purchaseRequisition.count(),
-    prisma.purchaseRequisition.groupBy({ by: ["status"], _count: { _all: true } }),
-
-    // PO counts
-    prisma.purchaseOrder.count(),
-    prisma.purchaseOrder.groupBy({ by: ["status"], _count: { _all: true } }),
-
-    // total spend on all POs (sum totalAmount)
-    prisma.purchaseOrder.aggregate({ _sum: { totalAmount: true } }),
-
-    // open PO value (DRAFT + ISSUED + PARTIALLY_RECEIVED)
-    prisma.purchaseOrder.aggregate({
-      where: { status: { in: ["DRAFT", "ISSUED", "PARTIALLY_RECEIVED"] } },
-      _sum: { totalAmount: true },
-    }),
-
-    // GRN counts
-    prisma.goodsReceivedNote.count(),
-    prisma.goodsReceivedNote.count({ where: { status: "POSTED" } }),
-
-    // 3-way match stats
-    prisma.threeWayMatch.groupBy({ by: ["status"], _count: { _all: true } }),
-
-    // recent POs (last 10)
-    prisma.purchaseOrder.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        poNumber: true,
-        status: true,
-        currency: true,
-        subtotal: true,
-        taxRate: true,
-        taxAmount: true,
-        totalAmount: true,
-        createdAt: true,
-        supplier: { select: { name: true } },
-      },
-    }),
-
-    // top suppliers by PO value (last 90 days)
-    prisma.purchaseOrder.groupBy({
-      by: ["supplierId"],
-      where: { createdAt: { gte: ninetyDaysAgo } },
-      _sum: { totalAmount: true },
-      _count: { _all: true },
-      orderBy: { _sum: { totalAmount: "desc" } },
-      take: 8,
-    }),
-
-    // monthly PO spend (last 6 months) — raw aggregation via findMany + JS group
-    prisma.purchaseOrder.findMany({
-      where: { createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } },
-      select: { createdAt: true, totalAmount: true, taxAmount: true, subtotal: true },
-    }),
-
-    // VAT vs non-VAT breakdown
-    prisma.purchaseOrder.groupBy({
-      by: ["taxRate"],
-      _count: { _all: true },
-      _sum: { totalAmount: true, taxAmount: true },
-    }),
-  ]);
-
-  // resolve supplier names for top suppliers
-  const supplierIds = topSuppliers.map((s) => s.supplierId);
-  const supplierNames = await prisma.supplier.findMany({
-    where: { id: { in: supplierIds } },
-    select: { id: true, name: true },
-  });
-  const nameMap = Object.fromEntries(supplierNames.map((s) => [s.id, s.name]));
-
-  // build monthly spend buckets
-  const monthBuckets: Record<string, { label: string; totalSpend: number; vatAmount: number; subtotal: number; count: number }> = {};
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleString("en-KE", { month: "short", year: "2-digit" });
-    monthBuckets[key] = { label, totalSpend: 0, vatAmount: 0, subtotal: 0, count: 0 };
-  }
-  for (const po of monthlySpend) {
-    const d = new Date(po.createdAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    if (monthBuckets[key]) {
-      monthBuckets[key].totalSpend += Number(po.totalAmount) || 0;
-      monthBuckets[key].vatAmount += Number(po.taxAmount) || 0;
-      monthBuckets[key].subtotal += Number(po.subtotal) || 0;
-      monthBuckets[key].count += 1;
-    }
-  }
-
-  // build status maps
-  const reqStatusMap: Record<string, number> = {};
-  for (const r of reqByStatus) reqStatusMap[r.status] = r._count._all;
-
-  const poStatusMap: Record<string, number> = {};
-  for (const p of poByStatus) poStatusMap[p.status] = p._count._all;
-
-  const matchStatusMap: Record<string, number> = {};
-  for (const m of matchData) matchStatusMap[m.status] = m._count._all;
-
-  res.json({
-    success: true,
-    kpis: {
+    const [
       totalSuppliers,
       activeSuppliers,
       totalRequisitions,
-      pendingApprovals:
-        (reqStatusMap["PENDING_HEAD_PROCUREMENT"] ?? 0) +
-        (reqStatusMap["PENDING_FINANCE"] ?? 0),
-      convertedRequisitions: reqStatusMap["CONVERTED_TO_PO"] ?? 0,
+      reqByStatus,
       totalPOs,
-      openPOs:
-        (poStatusMap["DRAFT"] ?? 0) +
-        (poStatusMap["ISSUED"] ?? 0) +
-        (poStatusMap["PARTIALLY_RECEIVED"] ?? 0),
-      fullyReceivedPOs: poStatusMap["FULLY_RECEIVED"] ?? 0,
-      cancelledPOs: poStatusMap["CANCELLED"] ?? 0,
-      totalSpendKes: Number(poSpend._sum.totalAmount) || 0,
-      openPOValueKes: Number(openPOValue._sum.totalAmount) || 0,
+      poByStatus,
+      poSpend,
+      openPOValue,
       totalGrns,
-      postedGrns: grnPosted,
-      pendingQcGrns: totalGrns - grnPosted,
-      matchedInvoices: matchStatusMap["MATCHED"] ?? 0,
-      approvedForPayment: matchStatusMap["APPROVED_FOR_PAYMENT"] ?? 0,
-      discrepancies:
-        (matchStatusMap["PRICE_DISCREPANCY"] ?? 0) +
-        (matchStatusMap["QUANTITY_DISCREPANCY"] ?? 0) +
-        (matchStatusMap["BOTH_DISCREPANCY"] ?? 0),
-    },
-    reqByStatus: reqStatusMap,
-    poByStatus: poStatusMap,
-    matchByStatus: matchStatusMap,
-    monthlySpend: Object.values(monthBuckets),
-    topSuppliersBySpend: topSuppliers.map((s) => ({
-      supplierId: s.supplierId,
-      supplierName: nameMap[s.supplierId] ?? "Unknown",
-      totalSpend: Number(s._sum.totalAmount) || 0,
-      poCount: s._count._all,
-    })),
-    vatBreakdown: vatBreakdown.map((v) => ({
-      taxRate: Number(v.taxRate),
-      poCount: v._count._all,
-      totalAmount: Number(v._sum.totalAmount) || 0,
-      taxAmount: Number(v._sum.taxAmount) || 0,
-    })),
-    recentPOs: recentPOs.map((po) => ({
-      id: po.id,
-      poNumber: po.poNumber,
-      status: po.status,
-      currency: po.currency,
-      subtotal: Number(po.subtotal),
-      taxRate: Number(po.taxRate),
-      taxAmount: Number(po.taxAmount),
-      totalAmount: Number(po.totalAmount),
-      supplierName: po.supplier?.name ?? "—",
-      createdAt: po.createdAt,
-    })),
-  });
+      grnPosted,
+      matchData,
+      recentPOs,
+      topSuppliers,
+      monthlySpend,
+      vatBreakdown,
+    ] = await Promise.all([
+      // supplier counts
+      prisma.supplier.count(),
+      prisma.supplier.count({ where: { status: "ACTIVE" } }),
+
+      // requisition counts
+      prisma.purchaseRequisition.count(),
+      prisma.purchaseRequisition.groupBy({ by: ["status"], _count: { _all: true } }),
+
+      // PO counts
+      prisma.purchaseOrder.count(),
+      prisma.purchaseOrder.groupBy({ by: ["status"], _count: { _all: true } }),
+
+      // total spend on all POs (sum totalAmount)
+      prisma.purchaseOrder.aggregate({ _sum: { totalAmount: true } }),
+
+      // open PO value (DRAFT + ISSUED + PARTIALLY_RECEIVED)
+      prisma.purchaseOrder.aggregate({
+        where: { status: { in: ["DRAFT", "ISSUED", "PARTIALLY_RECEIVED"] } },
+        _sum: { totalAmount: true },
+      }),
+
+      // GRN counts
+      prisma.goodsReceivedNote.count(),
+      prisma.goodsReceivedNote.count({ where: { status: "POSTED" } }),
+
+      // 3-way match stats
+      prisma.threeWayMatch.groupBy({ by: ["status"], _count: { _all: true } }),
+
+      // recent POs (last 10)
+      prisma.purchaseOrder.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          poNumber: true,
+          status: true,
+          currency: true,
+          subtotal: true,
+          taxRate: true,
+          taxAmount: true,
+          totalAmount: true,
+          createdAt: true,
+          supplier: { select: { name: true } },
+        },
+      }),
+
+      // top suppliers by PO value (last 90 days)
+      prisma.purchaseOrder.groupBy({
+        by: ["supplierId"],
+        where: { createdAt: { gte: ninetyDaysAgo } },
+        _sum: { totalAmount: true },
+        _count: { _all: true },
+        orderBy: { _sum: { totalAmount: "desc" } },
+        take: 8,
+      }),
+
+      // monthly PO spend (last 6 months) — raw aggregation via findMany + JS group
+      prisma.purchaseOrder.findMany({
+        where: { createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } },
+        select: { createdAt: true, totalAmount: true, taxAmount: true, subtotal: true },
+      }),
+
+      // VAT vs non-VAT breakdown
+      prisma.purchaseOrder.groupBy({
+        by: ["taxRate"],
+        _count: { _all: true },
+        _sum: { totalAmount: true, taxAmount: true },
+      }),
+    ]);
+
+    // resolve supplier names for top suppliers
+    const supplierIds = topSuppliers.map((s) => s.supplierId);
+    const supplierNames = await prisma.supplier.findMany({
+      where: { id: { in: supplierIds } },
+      select: { id: true, name: true },
+    });
+    const nameMap = Object.fromEntries(supplierNames.map((s) => [s.id, s.name]));
+
+    // build monthly spend buckets
+    const monthBuckets: Record<string, { label: string; totalSpend: number; vatAmount: number; subtotal: number; count: number }> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("en-KE", { month: "short", year: "2-digit" });
+      monthBuckets[key] = { label, totalSpend: 0, vatAmount: 0, subtotal: 0, count: 0 };
+    }
+    for (const po of monthlySpend) {
+      const d = new Date(po.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (monthBuckets[key]) {
+        monthBuckets[key].totalSpend += Number(po.totalAmount) || 0;
+        monthBuckets[key].vatAmount += Number(po.taxAmount) || 0;
+        monthBuckets[key].subtotal += Number(po.subtotal) || 0;
+        monthBuckets[key].count += 1;
+      }
+    }
+
+    // build status maps
+    const reqStatusMap: Record<string, number> = {};
+    for (const r of reqByStatus) reqStatusMap[r.status] = r._count._all;
+
+    const poStatusMap: Record<string, number> = {};
+    for (const p of poByStatus) poStatusMap[p.status] = p._count._all;
+
+    const matchStatusMap: Record<string, number> = {};
+    for (const m of matchData) matchStatusMap[m.status] = m._count._all;
+
+    res.json({
+      success: true,
+      kpis: {
+        totalSuppliers,
+        activeSuppliers,
+        totalRequisitions,
+        pendingApprovals:
+          (reqStatusMap["PENDING_HEAD_PROCUREMENT"] ?? 0) +
+          (reqStatusMap["PENDING_FINANCE"] ?? 0),
+        convertedRequisitions: reqStatusMap["CONVERTED_TO_PO"] ?? 0,
+        totalPOs,
+        openPOs:
+          (poStatusMap["DRAFT"] ?? 0) +
+          (poStatusMap["ISSUED"] ?? 0) +
+          (poStatusMap["PARTIALLY_RECEIVED"] ?? 0),
+        fullyReceivedPOs: poStatusMap["FULLY_RECEIVED"] ?? 0,
+        cancelledPOs: poStatusMap["CANCELLED"] ?? 0,
+        totalSpendKes: Number(poSpend._sum.totalAmount) || 0,
+        openPOValueKes: Number(openPOValue._sum.totalAmount) || 0,
+        totalGrns,
+        postedGrns: grnPosted,
+        pendingQcGrns: totalGrns - grnPosted,
+        matchedInvoices: matchStatusMap["MATCHED"] ?? 0,
+        approvedForPayment: matchStatusMap["APPROVED_FOR_PAYMENT"] ?? 0,
+        discrepancies:
+          (matchStatusMap["PRICE_DISCREPANCY"] ?? 0) +
+          (matchStatusMap["QUANTITY_DISCREPANCY"] ?? 0) +
+          (matchStatusMap["BOTH_DISCREPANCY"] ?? 0),
+      },
+      reqByStatus: reqStatusMap,
+      poByStatus: poStatusMap,
+      matchByStatus: matchStatusMap,
+      monthlySpend: Object.values(monthBuckets),
+      topSuppliersBySpend: topSuppliers.map((s) => ({
+        supplierId: s.supplierId,
+        supplierName: nameMap[s.supplierId] ?? "Unknown",
+        totalSpend: Number(s._sum.totalAmount) || 0,
+        poCount: s._count._all,
+      })),
+      vatBreakdown: vatBreakdown.map((v) => ({
+        taxRate: Number(v.taxRate),
+        poCount: v._count._all,
+        totalAmount: Number(v._sum.totalAmount) || 0,
+        taxAmount: Number(v._sum.taxAmount) || 0,
+      })),
+      recentPOs: recentPOs.map((po) => ({
+        id: po.id,
+        poNumber: po.poNumber,
+        status: po.status,
+        currency: po.currency,
+        subtotal: Number(po.subtotal),
+        taxRate: Number(po.taxRate),
+        taxAmount: Number(po.taxAmount),
+        totalAmount: Number(po.totalAmount),
+        supplierName: po.supplier?.name ?? "—",
+        createdAt: po.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error("[procurement/dashboard] error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to load procurement dashboard",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 // ─── Requisitions ────────────────────────────────────────────────────────────
