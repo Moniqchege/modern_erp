@@ -14,8 +14,8 @@ export const authRouter = Router();
 
 authRouter.post("/seed", async (_req, res) => {
     try {
-        const u = await seedDefaultUserIfNeeded();
-        res.status(200).json({ success: true, user: { id: u.id, email: u.email, role: u.role } });
+        await seedDefaultUserIfNeeded();
+        res.status(200).json({ success: true, message: "Seed complete" });
     } catch (e) {
         res.status(500).json({ success: false, message: String(e) });
     }

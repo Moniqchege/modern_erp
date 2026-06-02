@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -6,8 +6,6 @@ import {
   Factory,
   Box,
   FileSpreadsheet,
-  ArrowLeft,
-  Search,
   Bell,
   ChevronDown,
   LogOut,
@@ -16,8 +14,13 @@ import {
   X,
   ArrowLeftRight,
   Store,
+  Search,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
+import { getCurrentUser, logout } from "../auth/authClient";
+import { apiFetch } from "../api/apiClient";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type InventoryNavKey =
   | "dashboard"
@@ -25,8 +28,8 @@ export type InventoryNavKey =
   | "production"
   | "packaging"
   | "stockTransfers"
-  | "reports"
-  | "stores";
+  | "stores"
+  | "reports";
 
 interface NavItem {
   key: InventoryNavKey;
@@ -34,9 +37,12 @@ interface NavItem {
   path: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
+  adminOnly?: boolean;
 }
 
-const inventoryNavItems: NavItem[] = [
+// ─── Nav definition ───────────────────────────────────────────────────────────
+
+const ALL_NAV_ITEMS: NavItem[] = [
   {
     key: "dashboard",
     label: "Dashboard",
@@ -57,6 +63,7 @@ const inventoryNavItems: NavItem[] = [
     path: ROUTES.INVENTORY_PRODUCTION,
     icon: Factory,
     description: "Raw maize to bulk flour",
+    adminOnly: true,
   },
   {
     key: "packaging",
@@ -64,6 +71,7 @@ const inventoryNavItems: NavItem[] = [
     path: ROUTES.INVENTORY_PACKAGING,
     icon: Box,
     description: "24 kg bales & materials",
+    adminOnly: true,
   },
   {
     key: "stockTransfers",
@@ -78,6 +86,7 @@ const inventoryNavItems: NavItem[] = [
     path: ROUTES.INVENTORY_STORES,
     icon: Store,
     description: "Register & manage stores",
+    adminOnly: true,
   },
   {
     key: "reports",
@@ -95,11 +104,11 @@ function getActiveKey(pathname: string): InventoryNavKey {
   if (pathname.startsWith(ROUTES.INVENTORY_STOCK_TRANSFERS)) return "stockTransfers";
   if (pathname.startsWith(ROUTES.INVENTORY_STORES)) return "stores";
   if (pathname.startsWith(ROUTES.INVENTORY_REPORTS)) return "reports";
-  if (pathname === ROUTES.INVENTORY || pathname === `${ROUTES.INVENTORY}/`) {
-    return "dashboard";
-  }
+  if (pathname === ROUTES.INVENTORY || pathname === `${ROUTES.INVENTORY}/`) return "dashboard";
   return "dashboard";
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function InventoryLayout() {
   const location = useLocation();
@@ -107,12 +116,52 @@ export function InventoryLayout() {
   const activeKey = getActiveKey(location.pathname);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const closeSidebar = () => setIsSidebarOpen(false);
+  // Current user + their store assignment
+  const user = getCurrentUser();
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+  const [storeName, setStoreName] = useState<string | null>(null);
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
-    closeSidebar();
+  useEffect(() => {
+    if (!isAdmin) {
+      apiFetch("/api/stores/me")
+        .then((r) => r.json())
+        .then((j: { store?: { name: string } | null }) => {
+          setStoreName(j.store?.name ?? null);
+        })
+        .catch(() => null);
+    }
+  }, [isAdmin]);
+
+  const navItems = ALL_NAV_ITEMS.filter(
+    (item) => !item.adminOnly || isAdmin
+  );
+
+  const closeSidebar = () => setIsSidebarOpen(false);
+  const handleNavigate = (path: string) => { navigate(path); closeSidebar(); };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
   };
+
+  const userInitials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : "??";
+
+  const roleLabelMap: Record<string, string> = {
+    ADMIN: "Admin",
+    SUPERADMIN: "Super Admin",
+    MAIN_STORE_MANAGER: "Main Store",
+    MAIZE_STORE_MANAGER: "Maize Store",
+    PACKAGING_STORE_MANAGER: "Packaging Store",
+    DISPATCH_STORE_MANAGER: "Dispatch Store",
+    MANAGER: "Manager",
+    EMPLOYEE: "Employee",
+    WAREHOUSE_OPERATOR: "Warehouse Operator",
+  };
+
+  const roleLabel = user?.role ? (roleLabelMap[user.role] ?? user.role) : "—";
+  const storeLabel = storeName ?? (isAdmin ? "All Stores" : roleLabel);
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "short",
@@ -143,6 +192,7 @@ export function InventoryLayout() {
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
+        {/* Logo */}
         <div className="p-6 border-b border-slate-200/80">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -160,11 +210,10 @@ export function InventoryLayout() {
                   Inventory
                 </span>
                 <span className="text-[10px] text-orange-700 font-bold tracking-wider uppercase">
-                  Stock & Operations
+                  {isAdmin ? "All Stores" : storeLabel}
                 </span>
               </div>
             </div>
-            {/* Close button — mobile only */}
             <button
               type="button"
               onClick={closeSidebar}
@@ -176,11 +225,20 @@ export function InventoryLayout() {
           </div>
         </div>
 
+        {/* Store context badge for non-admins */}
+        {!isAdmin && storeName && (
+          <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-orange-50 border border-orange-100">
+            <p className="text-[9px] font-extrabold text-orange-500 uppercase tracking-wider">Your store</p>
+            <p className="text-xs font-bold text-orange-800 mt-0.5 truncate">{storeName}</p>
+          </div>
+        )}
+
+        {/* Nav */}
         <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
           <span className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">
-            Module Menu
+            {isAdmin ? "Admin Menu" : "My Menu"}
           </span>
-          {inventoryNavItems.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeKey === item.key;
             return (
@@ -197,14 +255,10 @@ export function InventoryLayout() {
                 {isActive && (
                   <div className="absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-md bg-orange-500" />
                 )}
-                <div
-                  className={`p-1.5 rounded-lg ${
-                    isActive ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-400"
-                  }`}
-                >
+                <div className={`p-1.5 rounded-lg ${isActive ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-400"}`}>
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="flex flex-col relative">
+                <div className="flex flex-col">
                   <span className="text-xs font-bold tracking-wide">{item.label}</span>
                   <span className="text-[9px] text-slate-400 leading-none mt-0.5">{item.description}</span>
                 </div>
@@ -213,16 +267,24 @@ export function InventoryLayout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-200/80 space-y-2">
+        {/* User widget */}
+        <div className="p-4 border-t border-slate-200/80">
           <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-bold text-slate-800 truncate">Warehouse Operator</span>
-              <span className="text-[9px] text-slate-500">Plant 1</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-7 w-7 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-[10px] font-extrabold text-orange-700 shrink-0">
+                {userInitials}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800 truncate">{user?.email ?? "—"}</p>
+                <p className="text-[9px] text-slate-500 truncate">{roleLabel}</p>
+              </div>
             </div>
             <button
               type="button"
-              className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg"
+              onClick={handleLogout}
+              className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg shrink-0"
               title="Log out"
+              aria-label="Log out"
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>
@@ -230,11 +292,10 @@ export function InventoryLayout() {
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
         <header className="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
-            {/* Hamburger — mobile only */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
@@ -249,26 +310,36 @@ export function InventoryLayout() {
               <input
                 type="text"
                 placeholder="Search SKUs, batches, movements..."
+                aria-label="Search inventory"
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-1.5 text-xs placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500/10"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 bg-orange-50 text-orange-800 border border-orange-200/60 px-2.5 py-1 rounded-lg text-[10px] font-bold">
+            {/* Store context pill */}
+            <div className="hidden sm:flex items-center gap-1.5 bg-orange-50 text-orange-800 border border-orange-200/60 px-2.5 py-1 rounded-lg text-[10px] font-bold">
               <span className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
-              Inventory online
+              {isAdmin ? "Admin view" : (storeName ?? roleLabel)}
             </div>
+
             <span className="text-xs font-bold text-slate-500 hidden sm:block">{currentDate}</span>
+
             <button
               type="button"
+              aria-label="Notifications"
               className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl border border-slate-200 bg-white"
             >
               <Bell className="h-3.5 w-3.5" />
             </button>
-            <button type="button" className="flex items-center gap-1.5 hover:bg-slate-50 px-2 py-1 rounded-lg">
+
+            <button
+              type="button"
+              aria-label="User menu"
+              className="flex items-center gap-1.5 hover:bg-slate-50 px-2 py-1 rounded-lg"
+            >
               <div className="h-6 w-6 rounded-lg bg-orange-50 flex items-center justify-center text-[10px] font-extrabold text-orange-700 border border-orange-100">
-                WH
+                {userInitials}
               </div>
               <ChevronDown className="h-3 w-3 text-slate-400" />
             </button>

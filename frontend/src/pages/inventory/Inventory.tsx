@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Package, Search, Plus, Loader2, Info, Check,
   AlertCircle, RefreshCw, Pencil, Eye, X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../../app/router/routes";
+import { getCurrentUser } from "../../auth/authClient";
+import { apiFetch } from "../../api/apiClient";
 
 export interface InventoryItem {
   id: string;
@@ -171,9 +173,8 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
 
     if (apiConnected) {
       try {
-        const res = await fetch(`/api/inventory/${item.id}`, {
+        const res = await apiFetch(`/api/inventory/${item.id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
@@ -366,6 +367,9 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
 // ─── Main Inventory Component ──────────────────────────────────────────────────
 
 export function Inventory({ onViewItem }: InventoryProps) {
+  const user = getCurrentUser();
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -373,6 +377,10 @@ export function Inventory({ onViewItem }: InventoryProps) {
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [apiStatus, setApiStatus] = useState<"idle" | "connected" | "offline">("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  // My store (non-admin)
+  const [myStoreCode, setMyStoreCode] = useState<string | null | undefined>(undefined);
+  const [myStoreName, setMyStoreName] = useState<string | null>(null);
 
   // Add-form state
   const [sku, setSku] = useState("");
@@ -422,14 +430,27 @@ const filteredUnits =
 
   const navigate = useNavigate();
 
-  const fetchInventory = async () => {
+  // Resolve non-admin store code once
+  useEffect(() => {
+    if (isAdmin) { setMyStoreCode(null); return; }
+    apiFetch("/api/stores/me")
+      .then((r) => r.json())
+      .then((j: { storeCode: string | null; store?: { name: string } | null }) => {
+        setMyStoreCode(j.storeCode);
+        setMyStoreName(j.store?.name ?? null);
+      })
+      .catch(() => setMyStoreCode(null));
+  }, [isAdmin]);
+
+  const fetchInventory = useCallback(async (storeCode?: string | null) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/inventory");
+      const qs = storeCode ? `?storeCode=${encodeURIComponent(storeCode)}` : "";
+      const response = await apiFetch(`/api/inventory${qs}`);
       if (response.ok) {
         const data = await response.json();
         if (data && Array.isArray(data.items)) {
-          setItems(Array.isArray(data?.items) ? data.items : []);
+          setItems(data.items);
           setApiStatus("connected");
         }
       } else {
@@ -440,9 +461,13 @@ const filteredUnits =
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchInventory(); }, []);
+  // Fetch once store code is resolved
+  useEffect(() => {
+    if (myStoreCode === undefined && !isAdmin) return; // still loading
+    void fetchInventory(isAdmin ? null : myStoreCode);
+  }, [myStoreCode, isAdmin, fetchInventory]);
 
   useEffect(() => {
   setTypeQuery(
@@ -472,9 +497,8 @@ const filteredUnits =
 
     if (apiStatus === "connected") {
       try {
-        const res = await fetch("/api/inventory", {
+        const res = await apiFetch("/api/inventory", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -528,8 +552,14 @@ const filteredUnits =
       {/* ── Title Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Stock & Assets Catalog</h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium">Trace raw maize warehouses, milled flour products, and commercial by-products.</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            {myStoreName ? `${myStoreName} — Stock Catalogue` : "Stock & Assets Catalog"}
+          </h1>
+          <p className="text-xs text-slate-500 mt-1 font-medium">
+            {myStoreName
+              ? `Items with stock in your store (${myStoreName}).`
+              : "Trace raw maize warehouses, milled flour products, and commercial by-products."}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {apiStatus === "connected" ? (
@@ -563,7 +593,7 @@ const filteredUnits =
           />
         </div>
         <button
-          onClick={fetchInventory}
+          onClick={() => fetchInventory(isAdmin ? null : myStoreCode)}
           className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm bg-white"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Refresh

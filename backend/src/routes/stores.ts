@@ -11,6 +11,8 @@ import {
     removeManagerController,
     updateStoreController,
 } from "../controllers/store-onboarding.controller";
+import { resolveScopedStoreCode } from "../services/store-rbac.service";
+import { prisma } from "../server";
 
 const handle = (fn: (req: AuthenticatedRequest, res: Response) => Promise<unknown>) =>
     (req: unknown, res: Response, next: NextFunction) =>
@@ -20,6 +22,28 @@ export const storesRouter = Router();
 
 // All store management endpoints require authentication
 storesRouter.use(requireAuth);
+
+// ─── Current user's store context ────────────────────────────────────────────
+
+/**
+ * GET /api/stores/me
+ * Returns the calling user's store assignment (code, id, name) so the
+ * frontend knows which store to scope data to.  Admins get null storeCode.
+ */
+storesRouter.get("/me", handle(async (req: AuthenticatedRequest, res: Response) => {
+    const storeCode = await resolveScopedStoreCode(req.auth);
+
+    if (!storeCode) {
+        return res.json({ storeCode: null, store: null });
+    }
+
+    const store = await prisma.inventoryLocation.findUnique({
+        where: { code: storeCode },
+        select: { id: true, code: true, name: true, isActive: true },
+    });
+
+    return res.json({ storeCode, store });
+}));
 
 // ─── Store CRUD ───────────────────────────────────────────────────────────────
 

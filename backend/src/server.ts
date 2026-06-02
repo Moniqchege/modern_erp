@@ -12,8 +12,8 @@ registerProcurementListeners();
 
 void (async () => {
   try {
-    await seedDefaultUserIfNeeded();
-    await ensureDefaultStores();
+    await ensureDefaultStores();       // stores must exist before user→store assignments
+    await seedDefaultUserIfNeeded();   // creates admin + demo store managers + assignments
     await seedSalesModuleIfNeeded();
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -24,8 +24,8 @@ void (async () => {
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 
 app.listen(PORT, () => {
-    // eslint-disable-next-line no-console
-    console.log(`ERP backend listening on port ${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(`ERP backend listening on port ${PORT}`);
 });
 
 

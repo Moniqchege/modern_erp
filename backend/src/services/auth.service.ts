@@ -8,6 +8,24 @@ const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || "admin@local.test
 const DEFAULT_ADMIN_NAME = process.env.DEFAULT_ADMIN_NAME || "Default Admin";
 const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || "Admin123!";
 
+// ─── Dev store-manager accounts ──────────────────────────────────────────────
+// These are created on startup so the app can be demoed with different roles
+// without manual DB setup. All share the same temporary password and are
+// flagged forcePasswordReset = true.
+const DEMO_PASSWORD = "Manager123!";
+
+const DEMO_USERS: Array<{
+    email: string;
+    name: string;
+    role: "MAIN_STORE_MANAGER" | "MAIZE_STORE_MANAGER" | "PACKAGING_STORE_MANAGER" | "DISPATCH_STORE_MANAGER";
+    storeCode: string;
+}> = [
+        { email: "main.store@local.test", name: "Main Store Manager", role: "MAIN_STORE_MANAGER", storeCode: "MAIN_STORE" },
+        { email: "maize.store@local.test", name: "Maize Store Manager", role: "MAIZE_STORE_MANAGER", storeCode: "MAIZE_STORE" },
+        { email: "packaging.store@local.test", name: "Packaging Store Manager", role: "PACKAGING_STORE_MANAGER", storeCode: "PACKAGING_STORE" },
+        { email: "dispatch.store@local.test", name: "Dispatch Store Manager", role: "DISPATCH_STORE_MANAGER", storeCode: "DISPATCH_STORE" },
+    ];
+
 function otpTtlMs() {
     const v = process.env.OTP_TTL_MS;
     return v ? Number(v) : 5 * 60 * 1000;
@@ -24,19 +42,44 @@ function hashToken(raw: string) {
 
 export async function seedDefaultUserIfNeeded() {
     const existing = await prisma.user.findUnique({ where: { email: DEFAULT_ADMIN_EMAIL } });
-    if (existing) return existing;
+    if (!existing) {
+        const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+        await prisma.user.create({
+            data: {
+                email: DEFAULT_ADMIN_EMAIL,
+                name: DEFAULT_ADMIN_NAME,
+                role: "SUPERADMIN",
+                passwordHash,
+                forcePasswordReset: true,
+            },
+        });
+    }
 
-    const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+    // Seed demo store-manager users (idempotent)
+    const demoHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+    for (const demo of DEMO_USERS) {
+        const user = await prisma.user.upsert({
+            where: { email: demo.email },
+            update: {}, // don't overwrite if already set up
+            create: {
+                email: demo.email,
+                name: demo.name,
+                role: demo.role,
+                passwordHash: demoHash,
+                forcePasswordReset: false,
+            },
+        });
 
-    return prisma.user.create({
-        data: {
-            email: DEFAULT_ADMIN_EMAIL,
-            name: DEFAULT_ADMIN_NAME,
-            role: "SUPERADMIN",
-            passwordHash,
-            forcePasswordReset: true,
-        },
-    });
+        // Ensure the legacy store location exists and link via StoreManagerAssignment
+        const store = await prisma.inventoryLocation.findUnique({ where: { code: demo.storeCode } });
+        if (store) {
+            await prisma.storeManagerAssignment.upsert({
+                where: { userId: user.id },
+                update: { storeId: store.id },
+                create: { userId: user.id, storeId: store.id, assignedAt: new Date() },
+            });
+        }
+    }
 }
 
 export async function loginWithPasswordThenOtp(params: { email: string; password: string }) {

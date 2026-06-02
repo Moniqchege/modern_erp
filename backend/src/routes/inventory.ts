@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { z } from "zod";
 import { prisma } from "../server";
 import { checkReorderAlert } from "../services/inventory-alert.service";
@@ -10,6 +10,8 @@ import {
 import { getInventoryDashboardAnalytics } from "../services/inventory-dashboard.service";
 import { getLocationIdByCode, ensureDefaultStores } from "../services/store-seed.service";
 import { adjustStoreBalance, recordTransferMovement } from "../services/store-inventory.service";
+import { requireAuth } from "../middleware/auth";
+import type { AuthenticatedRequest } from "../middleware/auth";
 
 export const inventoryRouter = Router();
 
@@ -180,9 +182,10 @@ inventoryRouter.get("/location-stock", async (req, res) => {
 });
 
 // GET inventory module dashboard analytics
-inventoryRouter.get("/dashboard", async (_req, res) => {
+inventoryRouter.get("/dashboard", requireAuth, async (req: Request, res) => {
   try {
-    const data = await getInventoryDashboardAnalytics();
+    const storeCode = typeof req.query.storeCode === "string" ? req.query.storeCode : undefined;
+    const data = await getInventoryDashboardAnalytics(storeCode);
     res.status(200).json({ success: true, ...data });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch inventory dashboard", error: String(error) });
@@ -190,12 +193,12 @@ inventoryRouter.get("/dashboard", async (_req, res) => {
 });
 
 // GET report catalog
-inventoryRouter.get("/reports", (_req, res) => {
+inventoryRouter.get("/reports", requireAuth, (_req, res) => {
   res.status(200).json({ reports: REPORT_TYPES });
 });
 
 // GET Excel export
-inventoryRouter.get("/reports/:reportType", async (req, res) => {
+inventoryRouter.get("/reports/:reportType", requireAuth, async (req: Request, res) => {
   try {
     const reportType = req.params.reportType as ReportType;
     const valid = REPORT_TYPES.some((r) => r.id === reportType);
@@ -203,11 +206,12 @@ inventoryRouter.get("/reports/:reportType", async (req, res) => {
       return res.status(400).json({ message: "Unknown report type", available: REPORT_TYPES.map((r) => r.id) });
     }
 
-    const { from, to } = req.query;
+    const { from, to, storeCode } = req.query;
     const buffer = await generateInventoryReportBuffer(
       reportType,
       typeof from === "string" ? from : undefined,
-      typeof to === "string" ? to : undefined
+      typeof to === "string" ? to : undefined,
+      typeof storeCode === "string" ? storeCode : undefined
     );
 
     const filename = `inventory-${reportType}-${new Date().toISOString().slice(0, 10)}.xlsx`;
@@ -219,18 +223,38 @@ inventoryRouter.get("/reports/:reportType", async (req, res) => {
   }
 });
 
-// GET all items
-inventoryRouter.get("/", async (_req, res) => {
+// GET all items — optionally filtered to items that have stock in a specific store
+inventoryRouter.get("/", async (req, res) => {
   try {
+    const storeCode = typeof req.query.storeCode === "string" ? req.query.storeCode : undefined;
+
+    // If storeCode provided, only return items that have a balance in that store
+    let itemIds: string[] | undefined;
+    if (storeCode) {
+      await ensureDefaultStores();
+      const balances = await prisma.storeInventoryBalance.findMany({
+        where: { location: { code: storeCode } },
+        select: { itemId: true },
+      });
+      itemIds = balances.map((b) => b.itemId);
+    }
+
     const items = await prisma.inventoryItem.findMany({
+      where: itemIds ? { id: { in: itemIds } } : {},
       orderBy: { createdAt: "desc" },
       include: {
         priceHistory: {
           orderBy: { effectiveDate: "desc" },
           take: 1,
         },
+        // When scoped to a store, also include the per-store balance
+        ...(storeCode ? {
+          storeBalances: {
+            where: { location: { code: storeCode } },
+            include: { location: { select: { code: true, name: true } } },
+          },
+        } : {}),
       },
-
     });
 
     const formatted = items.map((item) => {
@@ -240,13 +264,24 @@ inventoryRouter.get("/", async (_req, res) => {
           ? item.priceHistory[0]
           : null;
 
+      // When store-scoped, replace global quantity with store's physical qty
+      const storeBalances = (item as typeof item & { storeBalances?: Array<{ physicalQty: unknown; transitQty: unknown; location: { code: string; name: string } }> }).storeBalances;
+      const storeBalance = storeBalances?.[0];
+      const displayQty = storeBalance ? Number(storeBalance.physicalQty) : Number(item.quantity);
+
       return {
-        ...formatPrismaItem(item),
+        ...formatPrismaItem({ ...item, quantity: displayQty }),
         unitPrice: priceRow ? Number(priceRow.unitPrice) : null,
         priceHistory: undefined,
+        storeBalances: undefined,
+        ...(storeBalance ? {
+          storePhysicalQty: Number(storeBalance.physicalQty),
+          storeTransitQty: Number(storeBalance.transitQty),
+          storeCode: storeBalance.location.code,
+          storeName: storeBalance.location.name,
+        } : {}),
       };
     });
-
 
     res.status(200).json({ items: formatted });
   } catch (error) {

@@ -14,12 +14,6 @@ import { ROUTES } from "../../app/router/routes";
 import { apiFetch, decodeJwtPayload } from "../../api/apiClient";
 import { getAccessToken } from "../../auth/authClient";
 
-type StoreCode =
-  | "MAIN_STORE"
-  | "MAIZE_STORE"
-  | "PACKAGING_STORE"
-  | "DISPATCH_STORE";
-
 type TransferStatus =
   | "PENDING"
   | "APPROVED_IN_TRANSIT"
@@ -41,8 +35,8 @@ type StockTransfer = {
   status: TransferStatus;
   notes: string | null;
   rejectionReason: string | null;
-  sourceLocation: { code: StoreCode; name: string };
-  destinationLocation: { code: StoreCode; name: string };
+  sourceLocation: { code: string; name: string };
+  destinationLocation: { code: string; name: string };
   items: TransferLine[];
   requestedBy: { name: string; role: string };
 };
@@ -92,9 +86,10 @@ function canApprove(role: string) {
   );
 }
 
-function canReceive(role: string, dest: StoreCode) {
+function canReceive(role: string, dest: string) {
   if (role === "SUPERADMIN" || role === "ADMIN") return true;
-  const map: Record<string, StoreCode> = {
+  // Legacy role mapping
+  const map: Record<string, string> = {
     MAIZE_STORE_MANAGER: "MAIZE_STORE",
     PACKAGING_STORE_MANAGER: "PACKAGING_STORE",
     DISPATCH_STORE_MANAGER: "DISPATCH_STORE",
