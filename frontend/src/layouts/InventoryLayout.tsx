@@ -268,7 +268,7 @@ export function InventoryLayout() {
         </nav>
 
         {/* User widget */}
-        <div className="p-4 border-t border-slate-200/80">
+        <div className="p-4 border-t cursor-pointer border-slate-200/80" onClick={handleLogout}>
           <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="h-7 w-7 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-[10px] font-extrabold text-orange-700 shrink-0">
@@ -282,7 +282,7 @@ export function InventoryLayout() {
             <button
               type="button"
               onClick={handleLogout}
-              className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg shrink-0"
+              className="text-slate-400 cursor-pointer hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg shrink-0"
               title="Log out"
               aria-label="Log out"
             >
@@ -336,7 +336,7 @@ export function InventoryLayout() {
             <button
               type="button"
               aria-label="User menu"
-              className="flex items-center gap-1.5 hover:bg-slate-50 px-2 py-1 rounded-lg"
+              className="flex items-center cursor-pointer gap-1.5 hover:bg-slate-50 px-2 py-1 rounded-lg"
             >
               <div className="h-6 w-6 rounded-lg bg-orange-50 flex items-center justify-center text-[10px] font-extrabold text-orange-700 border border-orange-100">
                 {userInitials}

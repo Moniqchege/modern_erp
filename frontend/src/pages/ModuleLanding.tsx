@@ -29,7 +29,7 @@ export function ModuleLanding() {
     },
     {
       title: "Inventory Management",
-      subtitle: "Dashboard, stock, milling, packaging & reports",
+      subtitle: "Stock Catalogue & Production Management",
       icon: Boxes,
       to: "/inventory",
     },
@@ -65,6 +65,30 @@ export function ModuleLanding() {
     },
   ];
 
+  const [currentDate, setCurrentDate] = React.useState(
+  new Date().toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+);
+
+React.useEffect(() => {
+  const timer = setInterval(() => {
+    setCurrentDate(
+      new Date().toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    );
+  }, 60000); 
+
+  return () => clearInterval(timer);
+}, []);
+
   return (
     <div className="w-full min-h-screen mt-8 bg-slate-50 text-slate-900 flex flex-col">
       {/* HERO HEADER (ERP STYLE) */}
@@ -93,7 +117,7 @@ export function ModuleLanding() {
               <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
               Plant Online
             </div>
-            <span>Thu, May 21, 2026</span>
+            <span>{currentDate}</span>
           </div>
         </div>
       </div>

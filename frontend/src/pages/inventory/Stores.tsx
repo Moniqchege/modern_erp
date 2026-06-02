@@ -9,6 +9,7 @@ import {
   RefreshCw,
   X,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { apiFetch } from "../../api/apiClient";
 import { getCurrentUser } from "../../auth/authClient";
@@ -307,6 +308,8 @@ function EditStoreModal({ store, onClose, onSaved }: EditStoreModalProps) {
 
 // ─── Assign Manager Modal ─────────────────────────────────────────────────────
 
+type UserOption = { id: string; name: string; email: string; role: string };
+
 interface AssignManagerModalProps {
   activeStores: Store[];
   onClose: () => void;
@@ -319,16 +322,41 @@ function AssignManagerModal({ activeStores, onClose, onSaved }: AssignManagerMod
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // User list for the dropdown
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [userSearch, setUserSearch] = useState("");
+
+  // Load all users on mount
+  useEffect(() => {
+    apiFetch("/api/users")
+      .then((r) => r.json())
+      .then((j: { users: UserOption[] }) => setUsers(j.users ?? []))
+      .catch(() => setError("Could not load users."))
+      .finally(() => setLoadingUsers(false));
+  }, []);
+
+  const filteredUsers = userSearch.trim()
+    ? users.filter(
+        (u) =>
+          u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+          u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+          u.role.toLowerCase().includes(userSearch.toLowerCase())
+      )
+    : users;
+
+  const selectedUser = users.find((u) => u.id === userId);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeId) { setError("Please select a store."); return; }
-    if (!userId.trim()) { setError("User ID is required."); return; }
+    if (!userId) { setError("Please select a user."); return; }
     setError(null);
     setSaving(true);
     try {
       const res = await apiFetch(`/api/stores/${storeId}/assign-manager`, {
         method: "POST",
-        body: JSON.stringify({ userId: userId.trim() }),
+        body: JSON.stringify({ userId }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.message ?? `HTTP ${res.status}`);
@@ -338,6 +366,13 @@ function AssignManagerModal({ activeStores, onClose, onSaved }: AssignManagerMod
     } finally {
       setSaving(false);
     }
+  };
+
+  const ROLE_LABEL: Record<string, string> = {
+    ADMIN: "Admin", SUPERADMIN: "Super Admin",
+    MAIN_STORE_MANAGER: "Main Store Mgr", MAIZE_STORE_MANAGER: "Maize Store Mgr",
+    PACKAGING_STORE_MANAGER: "Packaging Store Mgr", DISPATCH_STORE_MANAGER: "Dispatch Store Mgr",
+    MANAGER: "Manager", EMPLOYEE: "Employee", WAREHOUSE_OPERATOR: "Warehouse Op.",
   };
 
   return (
@@ -357,6 +392,7 @@ function AssignManagerModal({ activeStores, onClose, onSaved }: AssignManagerMod
             <X className="h-4 w-4" />
           </button>
         </div>
+
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
             <div className="flex gap-2 items-start text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
@@ -364,6 +400,8 @@ function AssignManagerModal({ activeStores, onClose, onSaved }: AssignManagerMod
               <span>{error}</span>
             </div>
           )}
+
+          {/* Store selector */}
           <div className="space-y-1">
             <label htmlFor="assign-store-select" className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Store *</label>
             <select
@@ -373,28 +411,79 @@ function AssignManagerModal({ activeStores, onClose, onSaved }: AssignManagerMod
               onChange={(e) => setStoreId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/20"
             >
-              {activeStores.length === 0 && (
-                <option value="">No active stores available</option>
-              )}
+              {activeStores.length === 0 && <option value="">No active stores available</option>}
               {activeStores.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
+                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
               ))}
             </select>
           </div>
+
+          {/* User picker */}
           <div className="space-y-1">
-            <label htmlFor="assign-user-id" className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">User ID *</label>
-            <input
-              id="assign-user-id"
-              type="text"
-              required
-              placeholder="Paste the user's UUID…"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/20"
-            />
+            <label htmlFor="assign-user-search" className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">User *</label>
+
+            {loadingUsers ? (
+              <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading users…
+              </div>
+            ) : (
+              <>
+                {/* Search box */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  <input
+                    id="assign-user-search"
+                    type="text"
+                    placeholder="Search by name, email or role…"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/20"
+                  />
+                </div>
+
+                {/* Scrollable user list */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                  {filteredUsers.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-4">No users found.</p>
+                  ) : (
+                    filteredUsers.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => setUserId(u.id)}
+                        className={`w-full text-left px-3 py-2.5 flex items-center justify-between gap-3 transition-colors text-xs border-b border-slate-100 last:border-0 ${
+                          userId === u.id
+                            ? "bg-orange-50 text-orange-900"
+                            : "hover:bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold truncate">{u.name}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
+                        </div>
+                        <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                          userId === u.id
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {ROLE_LABEL[u.role] ?? u.role}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Selected user confirmation */}
+                {selectedUser && (
+                  <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                    Selected: {selectedUser.name} ({selectedUser.email})
+                  </p>
+                )}
+              </>
+            )}
           </div>
+
           <div className="pt-2 flex justify-end gap-2.5 border-t border-slate-100">
             <button
               type="button"
@@ -405,7 +494,7 @@ function AssignManagerModal({ activeStores, onClose, onSaved }: AssignManagerMod
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !userId}
               className="flex items-center gap-2 bg-[#ff7d12] text-white text-xs font-bold rounded-lg px-4 py-2 disabled:opacity-60"
             >
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

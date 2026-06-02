@@ -18,6 +18,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
+import { logout } from "../auth/authClient";
 
 export type ProcurementNavKey =
   | "dashboard"
@@ -135,6 +136,11 @@ export function ProcurementLayout() {
     closeSidebar();
   };
 
+   const handleLogout = () => {
+      logout();
+      navigate("/login");
+    };
+
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "short",
     year: "numeric",
@@ -230,7 +236,7 @@ export function ProcurementLayout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-200/80 space-y-2">
+        <div className="p-4 border-t cursor-pointer border-slate-200/80 space-y-2" onClick={handleLogout}>
           <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-800 truncate">Procurement Officer</span>
@@ -238,7 +244,8 @@ export function ProcurementLayout() {
             </div>
             <button
               type="button"
-              className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg"
+              onClick={handleLogout}
+              className="text-slate-400 cursor-pointer hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg"
               title="Log out"
             >
               <LogOut className="h-3.5 w-3.5" />
