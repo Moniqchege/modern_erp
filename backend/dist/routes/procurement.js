@@ -42,6 +42,7 @@ const poService = __importStar(require("../services/procurement/purchase-order.s
 const receivingService = __importStar(require("../services/procurement/receiving.service"));
 const financeService = __importStar(require("../services/procurement/finance-match.service"));
 const itemProfileSyncService = __importStar(require("../services/procurement/item-profile-sync.service"));
+const procurement_reports_service_1 = require("../services/procurement-reports.service");
 const auth_1 = require("../middleware/auth");
 exports.procurementRouter = (0, express_1.Router)();
 // ─── Role helpers ────────────────────────────────────────────────────────────
@@ -146,6 +147,192 @@ exports.procurementRouter.post("/item-profiles", async (req, res) => {
 exports.procurementRouter.post("/item-profiles/sync-from-inventory", async (_req, res) => {
     const result = await itemProfileSyncService.syncItemProfilesFromInventory();
     res.json({ success: true, ...result });
+});
+// ─── Reports ──────────────────────────────────────────────────────────────────
+exports.procurementRouter.get("/reports", (_req, res) => {
+    res.json({ success: true, reports: procurement_reports_service_1.PROCUREMENT_REPORT_TYPES });
+});
+exports.procurementRouter.get("/reports/:reportType", auth_1.requireAuth, async (req, res) => {
+    try {
+        const reportType = req.params.reportType;
+        const valid = procurement_reports_service_1.PROCUREMENT_REPORT_TYPES.some((r) => r.id === reportType);
+        if (!valid) {
+            return res.status(400).json({
+                message: "Unknown report type",
+                available: procurement_reports_service_1.PROCUREMENT_REPORT_TYPES.map((r) => r.id),
+            });
+        }
+        const { from, to } = req.query;
+        const buffer = await (0, procurement_reports_service_1.generateProcurementReportBuffer)(reportType, typeof from === "string" ? from : undefined, typeof to === "string" ? to : undefined);
+        const filename = `procurement-${reportType}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.send(buffer);
+    }
+    catch (error) {
+        res.status(500).json({
+            message: "Failed to generate report",
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+// ─── Reports dashboard ───────────────────────────────────────────────────────
+exports.procurementRouter.get("/dashboard", auth_1.requireAuth, async (_req, res) => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(now.getDate() - 90);
+    const [totalSuppliers, activeSuppliers, totalRequisitions, reqByStatus, totalPOs, poByStatus, poSpend, openPOValue, totalGrns, grnPosted, matchData, recentPOs, topSuppliers, monthlySpend, vatBreakdown,] = await Promise.all([
+        // supplier counts
+        server_1.prisma.supplier.count(),
+        server_1.prisma.supplier.count({ where: { status: "ACTIVE" } }),
+        // requisition counts
+        server_1.prisma.purchaseRequisition.count(),
+        server_1.prisma.purchaseRequisition.groupBy({ by: ["status"], _count: { _all: true } }),
+        // PO counts
+        server_1.prisma.purchaseOrder.count(),
+        server_1.prisma.purchaseOrder.groupBy({ by: ["status"], _count: { _all: true } }),
+        // total spend on all POs (sum totalAmount)
+        server_1.prisma.purchaseOrder.aggregate({ _sum: { totalAmount: true } }),
+        // open PO value (DRAFT + ISSUED + PARTIALLY_RECEIVED)
+        server_1.prisma.purchaseOrder.aggregate({
+            where: { status: { in: ["DRAFT", "ISSUED", "PARTIALLY_RECEIVED"] } },
+            _sum: { totalAmount: true },
+        }),
+        // GRN counts
+        server_1.prisma.goodsReceivedNote.count(),
+        server_1.prisma.goodsReceivedNote.count({ where: { status: "POSTED" } }),
+        // 3-way match stats
+        server_1.prisma.threeWayMatch.groupBy({ by: ["status"], _count: { _all: true } }),
+        // recent POs (last 10)
+        server_1.prisma.purchaseOrder.findMany({
+            orderBy: { createdAt: "desc" },
+            take: 10,
+            select: {
+                id: true,
+                poNumber: true,
+                status: true,
+                currency: true,
+                subtotal: true,
+                taxRate: true,
+                taxAmount: true,
+                totalAmount: true,
+                createdAt: true,
+                supplier: { select: { name: true } },
+            },
+        }),
+        // top suppliers by PO value (last 90 days)
+        server_1.prisma.purchaseOrder.groupBy({
+            by: ["supplierId"],
+            where: { createdAt: { gte: ninetyDaysAgo } },
+            _sum: { totalAmount: true },
+            _count: { _all: true },
+            orderBy: { _sum: { totalAmount: "desc" } },
+            take: 8,
+        }),
+        // monthly PO spend (last 6 months) — raw aggregation via findMany + JS group
+        server_1.prisma.purchaseOrder.findMany({
+            where: { createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } },
+            select: { createdAt: true, totalAmount: true, taxAmount: true, subtotal: true },
+        }),
+        // VAT vs non-VAT breakdown
+        server_1.prisma.purchaseOrder.groupBy({
+            by: ["taxRate"],
+            _count: { _all: true },
+            _sum: { totalAmount: true, taxAmount: true },
+        }),
+    ]);
+    // resolve supplier names for top suppliers
+    const supplierIds = topSuppliers.map((s) => s.supplierId);
+    const supplierNames = await server_1.prisma.supplier.findMany({
+        where: { id: { in: supplierIds } },
+        select: { id: true, name: true },
+    });
+    const nameMap = Object.fromEntries(supplierNames.map((s) => [s.id, s.name]));
+    // build monthly spend buckets
+    const monthBuckets = {};
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const label = d.toLocaleString("en-KE", { month: "short", year: "2-digit" });
+        monthBuckets[key] = { label, totalSpend: 0, vatAmount: 0, subtotal: 0, count: 0 };
+    }
+    for (const po of monthlySpend) {
+        const d = new Date(po.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (monthBuckets[key]) {
+            monthBuckets[key].totalSpend += Number(po.totalAmount) || 0;
+            monthBuckets[key].vatAmount += Number(po.taxAmount) || 0;
+            monthBuckets[key].subtotal += Number(po.subtotal) || 0;
+            monthBuckets[key].count += 1;
+        }
+    }
+    // build status maps
+    const reqStatusMap = {};
+    for (const r of reqByStatus)
+        reqStatusMap[r.status] = r._count._all;
+    const poStatusMap = {};
+    for (const p of poByStatus)
+        poStatusMap[p.status] = p._count._all;
+    const matchStatusMap = {};
+    for (const m of matchData)
+        matchStatusMap[m.status] = m._count._all;
+    res.json({
+        success: true,
+        kpis: {
+            totalSuppliers,
+            activeSuppliers,
+            totalRequisitions,
+            pendingApprovals: (reqStatusMap["PENDING_HEAD_PROCUREMENT"] ?? 0) +
+                (reqStatusMap["PENDING_FINANCE"] ?? 0),
+            convertedRequisitions: reqStatusMap["CONVERTED_TO_PO"] ?? 0,
+            totalPOs,
+            openPOs: (poStatusMap["DRAFT"] ?? 0) +
+                (poStatusMap["ISSUED"] ?? 0) +
+                (poStatusMap["PARTIALLY_RECEIVED"] ?? 0),
+            fullyReceivedPOs: poStatusMap["FULLY_RECEIVED"] ?? 0,
+            cancelledPOs: poStatusMap["CANCELLED"] ?? 0,
+            totalSpendKes: Number(poSpend._sum.totalAmount) || 0,
+            openPOValueKes: Number(openPOValue._sum.totalAmount) || 0,
+            totalGrns,
+            postedGrns: grnPosted,
+            pendingQcGrns: totalGrns - grnPosted,
+            matchedInvoices: matchStatusMap["MATCHED"] ?? 0,
+            approvedForPayment: matchStatusMap["APPROVED_FOR_PAYMENT"] ?? 0,
+            discrepancies: (matchStatusMap["PRICE_DISCREPANCY"] ?? 0) +
+                (matchStatusMap["QUANTITY_DISCREPANCY"] ?? 0) +
+                (matchStatusMap["BOTH_DISCREPANCY"] ?? 0),
+        },
+        reqByStatus: reqStatusMap,
+        poByStatus: poStatusMap,
+        matchByStatus: matchStatusMap,
+        monthlySpend: Object.values(monthBuckets),
+        topSuppliersBySpend: topSuppliers.map((s) => ({
+            supplierId: s.supplierId,
+            supplierName: nameMap[s.supplierId] ?? "Unknown",
+            totalSpend: Number(s._sum.totalAmount) || 0,
+            poCount: s._count._all,
+        })),
+        vatBreakdown: vatBreakdown.map((v) => ({
+            taxRate: Number(v.taxRate),
+            poCount: v._count._all,
+            totalAmount: Number(v._sum.totalAmount) || 0,
+            taxAmount: Number(v._sum.taxAmount) || 0,
+        })),
+        recentPOs: recentPOs.map((po) => ({
+            id: po.id,
+            poNumber: po.poNumber,
+            status: po.status,
+            currency: po.currency,
+            subtotal: Number(po.subtotal),
+            taxRate: Number(po.taxRate),
+            taxAmount: Number(po.taxAmount),
+            totalAmount: Number(po.totalAmount),
+            supplierName: po.supplier?.name ?? "—",
+            createdAt: po.createdAt,
+        })),
+    });
 });
 // ─── Requisitions ────────────────────────────────────────────────────────────
 exports.procurementRouter.get("/requisitions", auth_1.requireAuth, async (req, res) => {
@@ -275,10 +462,10 @@ exports.procurementRouter.get("/purchase-orders/:id", auth_1.requireAuth, async 
 exports.procurementRouter.post("/purchase-orders/from-requisition/:requisitionId", auth_1.requireAuth, requireApprover, async (req, res) => {
     const actor = req.auth;
     const body = zod_1.z
-        .object({ termsAndConditions: zod_1.z.string().optional() })
+        .object({ termsAndConditions: zod_1.z.string().optional(), applyVat: zod_1.z.boolean().optional() })
         .safeParse(req.body);
     try {
-        const po = await poService.createPurchaseOrderFromRequisition(req.params.requisitionId, actor.email, body.success ? body.data.termsAndConditions : undefined);
+        const po = await poService.createPurchaseOrderFromRequisition(req.params.requisitionId, actor.email, body.success ? body.data.termsAndConditions : undefined, body.success ? (body.data.applyVat ?? true) : true);
         res.status(201).json({ success: true, purchaseOrder: po });
     }
     catch (error) {
@@ -403,6 +590,92 @@ exports.procurementRouter.post("/grns/:id/post", async (req, res) => {
     }
 });
 // ─── Finance: 3-way match ─────────────────────────────────────────────────────
+exports.procurementRouter.get("/three-way-match", async (_req, res) => {
+    const matches = await server_1.prisma.threeWayMatch.findMany({
+        include: {
+            grn: { include: { purchaseOrder: { include: { supplier: true } } } },
+            supplierInvoice: true,
+            paymentVouchers: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+        orderBy: { createdAt: "desc" },
+    });
+    res.json({ success: true, matches });
+});
+exports.procurementRouter.get("/three-way-match/:id", async (req, res) => {
+    const match = await server_1.prisma.threeWayMatch.findUnique({
+        where: { id: req.params.id },
+        include: {
+            grn: {
+                include: {
+                    lines: { include: { purchaseOrderLine: { include: { itemProfile: true } } } },
+                    purchaseOrder: { include: { supplier: true, lines: { include: { itemProfile: true } } } },
+                    qcResults: true,
+                },
+            },
+            supplierInvoice: true,
+            paymentVouchers: { orderBy: { createdAt: "desc" } },
+        },
+    });
+    if (!match)
+        return res.status(404).json({ message: "Match not found" });
+    res.json({ success: true, match });
+});
+/** Combined: register supplier invoice then immediately run 3-way match.
+ *  Accepts the invoice fields plus grnId and matchedBy — single round-trip from the UI.
+ */
+exports.procurementRouter.post("/three-way-match/register-and-match", async (req, res) => {
+    const schema = zod_1.z.object({
+        // invoice fields
+        invoiceNumber: zod_1.z.string().min(1),
+        invoiceDate: zod_1.z.coerce.date(),
+        dueDate: zod_1.z.coerce.date().optional(),
+        currency: zod_1.z.enum(["KES", "USD", "EUR", "UGX", "TZS"]).optional(),
+        subtotal: zod_1.z.number().nonnegative(),
+        taxAmount: zod_1.z.number().nonnegative(),
+        totalAmount: zod_1.z.number().nonnegative(),
+        fileUrl: zod_1.z.string().url().optional(),
+        // match fields
+        grnId: zod_1.z.string().min(1),
+        matchedBy: zod_1.z.string().min(1),
+        tolerancePct: zod_1.z.number().min(0).max(100).optional(),
+    });
+    const parse = schema.safeParse(req.body);
+    if (!parse.success)
+        return res.status(400).json({ errors: parse.error.flatten() });
+    try {
+        // Resolve supplierId and purchaseOrderId from the GRN
+        const grn = await server_1.prisma.goodsReceivedNote.findUnique({
+            where: { id: parse.data.grnId },
+            include: { purchaseOrder: { include: { supplier: true } } },
+        });
+        if (!grn)
+            return res.status(404).json({ message: "GRN not found" });
+        if (grn.status !== "POSTED")
+            return res.status(400).json({ message: "GRN must be POSTED before running 3-way match" });
+        const invoice = await financeService.registerSupplierInvoice({
+            supplierId: grn.purchaseOrder.supplierId,
+            purchaseOrderId: grn.purchaseOrderId,
+            invoiceNumber: parse.data.invoiceNumber,
+            invoiceDate: parse.data.invoiceDate,
+            dueDate: parse.data.dueDate,
+            currency: parse.data.currency,
+            subtotal: parse.data.subtotal,
+            taxAmount: parse.data.taxAmount,
+            totalAmount: parse.data.totalAmount,
+            fileUrl: parse.data.fileUrl,
+        });
+        const match = await financeService.runThreeWayMatch({
+            grnId: parse.data.grnId,
+            supplierInvoiceId: invoice.id,
+            matchedBy: parse.data.matchedBy,
+            tolerancePct: parse.data.tolerancePct,
+        });
+        res.status(201).json({ success: true, invoice, match });
+    }
+    catch (error) {
+        res.status(400).json({ message: String(error) });
+    }
+});
 exports.procurementRouter.post("/supplier-invoices", async (req, res) => {
     const schema = zod_1.z.object({
         supplierId: zod_1.z.string().min(1),

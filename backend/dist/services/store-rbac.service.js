@@ -1,16 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.STORE_CODES = void 0;
+exports.LEGACY_STORE_CODES = void 0;
 exports.isGlobalInventoryAdmin = isGlobalInventoryAdmin;
 exports.isMainStoreApprover = isMainStoreApprover;
 exports.getScopedStoreCode = getScopedStoreCode;
+exports.resolveScopedStoreCode = resolveScopedStoreCode;
 exports.assertCanCreateRequest = assertCanCreateRequest;
 exports.assertCanApproveIssue = assertCanApproveIssue;
 exports.assertCanAcknowledgeReceipt = assertCanAcknowledgeReceipt;
 exports.assertCanReject = assertCanReject;
 exports.stockTransferVisibilityFilter = stockTransferVisibilityFilter;
 exports.storeBalanceVisibilityFilter = storeBalanceVisibilityFilter;
-exports.STORE_CODES = [
+const server_1 = require("../server");
+exports.LEGACY_STORE_CODES = [
     "MAIN_STORE",
     "PACKAGING_STORE",
     "MAIZE_STORE",
@@ -33,6 +35,23 @@ function getScopedStoreCode(role) {
     if (isGlobalInventoryAdmin(role))
         return null;
     return ROLE_TO_STORE[role] ?? null;
+}
+/**
+ * Resolves a user's scoped store code, checking dynamic assignments first,
+ * then falling back to the legacy role-to-store mapping.
+ */
+async function resolveScopedStoreCode(auth) {
+    if (isGlobalInventoryAdmin(auth.role))
+        return null;
+    // Check dynamic assignment
+    const assignment = await server_1.prisma.storeManagerAssignment.findUnique({
+        where: { userId: auth.userId },
+        include: { store: { select: { code: true } } },
+    });
+    if (assignment)
+        return assignment.store.code;
+    // Fall back to legacy role mapping
+    return ROLE_TO_STORE[auth.role] ?? null;
 }
 function assertCanCreateRequest(role, destinationStoreCode) {
     if (isGlobalInventoryAdmin(role))

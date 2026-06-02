@@ -1,7 +1,6 @@
 import {
   Prisma,
   StockTransferStatus,
-  StoreCode,
 } from "@prisma/client";
 import type { AccessTokenPayload } from "../auth/jwt";
 import { prisma } from "../server";
@@ -20,8 +19,8 @@ import {
 import { ensureDefaultStores, getLocationIdByCode } from "./store-seed.service";
 
 export type CreateStockTransferInput = {
-  sourceStoreCode: StoreCode;
-  destinationStoreCode: StoreCode;
+  sourceStoreCode: string;
+  destinationStoreCode: string;
   notes?: string;
   items: Array<{ itemId: string; qtyRequested: number }>;
 };
@@ -387,7 +386,7 @@ export async function getStockTransferRequest(
 
 export async function listStoreInventoryBalances(
   auth: AccessTokenPayload,
-  filters?: { itemId?: string; storeCode?: StoreCode }
+  filters?: { itemId?: string; storeCode?: string }
 ) {
   await ensureDefaultStores();
   const balances = await prisma.storeInventoryBalance.findMany({

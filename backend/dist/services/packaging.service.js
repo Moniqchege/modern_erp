@@ -112,6 +112,28 @@ async function processPackagingRun(input) {
     if (totalPackagedKg > totalFlourIn + 0.01) {
         throw new Error("Packaged output cannot exceed total flour input (incl. spillage).");
     }
+    // Pre-validate: compute total deduction per flour item (consumption + proportional spillage)
+    // and check against current stock before entering the transaction.
+    for (const row of input.flourConsumption) {
+        if (row.consumedKg <= 0)
+            continue;
+        const spillageShare = totalFlourBulkIn > 0
+            ? (input.flourSpillage * row.consumedKg) / totalFlourBulkIn
+            : 0;
+        const totalRequired = row.consumedKg + spillageShare;
+        const item = await server_1.prisma.inventoryItem.findUnique({
+            where: { id: row.flourInventoryItemId },
+            select: { sku: true, quantity: true },
+        });
+        if (!item)
+            throw new Error(`Flour inventory item not found: ${row.flourInventoryItemId}`);
+        const available = Number(item.quantity);
+        if (available < totalRequired - 0.001) {
+            throw new Error(`Insufficient stock for ${item.sku}. ` +
+                `Available: ${available.toFixed(3)} kg, required: ${totalRequired.toFixed(3)} kg ` +
+                `(${row.consumedKg.toFixed(3)} consumed + ${spillageShare.toFixed(3)} spillage).`);
+        }
+    }
     return server_1.prisma.$transaction(async (tx) => {
         const runNumber = `PKG-${Date.now().toString().slice(-8)}`;
         const outputCreateData = await Promise.all(input.flourPackedOutputs.flatMap((flourOutput) => flourOutput.outputLines.map(async (line, lineIndex) => {

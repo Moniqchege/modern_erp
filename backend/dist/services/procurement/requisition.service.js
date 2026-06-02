@@ -49,7 +49,7 @@ async function createRequisition(input) {
         });
         autoSelectedSupplierId = preferredLink?.supplierId;
     }
-    const requisitionNo = await (0, helpers_1.nextSequence)("PR");
+    const baseNo = await (0, helpers_1.nextSequence)("PR");
     let estimatedTotal = 0;
     const lineData = input.lines.map((line) => {
         const lineTotal = (line.unitPriceEstimate ?? 0) * line.quantity;
@@ -62,33 +62,52 @@ async function createRequisition(input) {
             notes: line.notes,
         };
     });
-    const requisition = await server_1.prisma.purchaseRequisition.create({
-        data: {
-            requisitionNo,
-            requestedBy: input.requestedBy,
-            department: input.department,
-            supplierId: input.supplierId ?? autoSelectedSupplierId,
-            source: (input.source ?? "MANUAL_PROCUREMENT"),
-            justification: input.justification ??
-                (autoSelectedSupplierId
-                    ? "Auto-selected preferred supplier from supplied stock mapping."
-                    : undefined),
-            requiredByDate: input.requiredByDate,
-            currency: (input.currency ?? "KES"),
-            estimatedTotal: (0, helpers_1.toDecimal)(estimatedTotal),
-            lines: { create: lineData },
-        },
-        include: { lines: { include: { itemProfile: true } }, supplier: true },
-    });
-    await writeAuditLog({
-        entityType: "PurchaseRequisition",
-        entityId: requisition.id,
-        action: "CREATE",
-        actorId: input.requestedById,
-        actorName: input.requestedBy,
-        afterState: { requisitionNo, status: "DRAFT", estimatedTotal },
-    });
-    return requisition;
+    // Retry up to 5 times to handle concurrent duplicate sequence collisions
+    const MAX_ATTEMPTS = 5;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // On first attempt use the base number; on retries append a suffix
+        const requisitionNo = attempt === 0 ? baseNo : `${baseNo}-R${attempt}`;
+        try {
+            const requisition = await server_1.prisma.purchaseRequisition.create({
+                data: {
+                    requisitionNo,
+                    requestedBy: input.requestedBy,
+                    department: input.department,
+                    supplierId: input.supplierId ?? autoSelectedSupplierId,
+                    source: (input.source ?? "MANUAL_PROCUREMENT"),
+                    justification: input.justification ??
+                        (autoSelectedSupplierId
+                            ? "Auto-selected preferred supplier from supplied stock mapping."
+                            : undefined),
+                    requiredByDate: input.requiredByDate,
+                    currency: (input.currency ?? "KES"),
+                    estimatedTotal: (0, helpers_1.toDecimal)(estimatedTotal),
+                    lines: { create: lineData },
+                },
+                include: { lines: { include: { itemProfile: true } }, supplier: true },
+            });
+            await writeAuditLog({
+                entityType: "PurchaseRequisition",
+                entityId: requisition.id,
+                action: "CREATE",
+                actorId: input.requestedById,
+                actorName: input.requestedBy,
+                afterState: { requisitionNo, status: "DRAFT", estimatedTotal },
+            });
+            return requisition;
+        }
+        catch (err) {
+            // Unique constraint violation on requisitionNo — retry with a different suffix
+            if (err?.code === "P2002" && err?.meta?.target?.includes("requisitionNo")) {
+                if (attempt < MAX_ATTEMPTS - 1)
+                    continue;
+                throw new Error("Failed to generate a unique requisition number after multiple attempts");
+            }
+            throw err;
+        }
+    }
+    // Should never reach here
+    throw new Error("Failed to create requisition");
 }
 // ─── submit (Maker → PENDING) ────────────────────────────────────────────────
 async function submitRequisition(requisitionId, actorId, actorName) {

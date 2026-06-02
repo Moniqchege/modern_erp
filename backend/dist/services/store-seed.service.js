@@ -13,8 +13,8 @@ async function ensureDefaultStores() {
     for (const store of DEFAULT_STORES) {
         await server_1.prisma.inventoryLocation.upsert({
             where: { code: store.code },
-            update: { name: store.name },
-            create: { code: store.code, name: store.name },
+            update: { name: store.name, isLegacy: true },
+            create: { code: store.code, name: store.name, isActive: true, isLegacy: true },
         });
     }
 }

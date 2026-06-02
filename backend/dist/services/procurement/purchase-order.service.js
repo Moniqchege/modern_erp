@@ -8,7 +8,7 @@ const server_1 = require("../../server");
 const eventBus_1 = require("../../events/eventBus");
 const procurementEventTypes_1 = require("../../events/procurementEventTypes");
 const helpers_1 = require("./helpers");
-async function createPurchaseOrderFromRequisition(requisitionId, issuedBy, termsAndConditions) {
+async function createPurchaseOrderFromRequisition(requisitionId, issuedBy, termsAndConditions, applyVat = true) {
     const req = await server_1.prisma.purchaseRequisition.findUnique({
         where: { id: requisitionId },
         include: { lines: { include: { itemProfile: true } }, supplier: true },
@@ -35,7 +35,7 @@ async function createPurchaseOrderFromRequisition(requisitionId, issuedBy, terms
             taxAmount: (0, helpers_1.toDecimal)(0),
         };
     });
-    const taxRate = 16;
+    const taxRate = applyVat ? 16 : 0;
     const taxAmount = subtotal * (taxRate / 100);
     const totalAmount = subtotal + taxAmount;
     const po = await server_1.prisma.$transaction(async (tx) => {

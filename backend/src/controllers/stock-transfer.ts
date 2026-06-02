@@ -12,12 +12,7 @@ import {
   rejectStockTransferRequest,
 } from "../services/stock-transfer.service";
 
-const StoreCodeSchema = z.enum([
-  "MAIN_STORE",
-  "PACKAGING_STORE",
-  "MAIZE_STORE",
-  "DISPATCH_STORE",
-]);
+const StoreCodeSchema = z.string().min(1).max(64).regex(/^\S+$/, "Store code must not contain whitespace");
 
 const CreateRequestSchema = z.object({
   sourceStoreCode: StoreCodeSchema,
@@ -200,7 +195,7 @@ export async function listStoreBalancesController(
       typeof req.query.itemId === "string" ? req.query.itemId : undefined;
     const storeCode =
       typeof req.query.storeCode === "string"
-        ? (req.query.storeCode as z.infer<typeof StoreCodeSchema>)
+        ? req.query.storeCode
         : undefined;
 
     const balances = await listStoreInventoryBalances(req.auth, {

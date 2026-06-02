@@ -9,12 +9,7 @@ exports.rejectStockTransferController = rejectStockTransferController;
 exports.listStoreBalancesController = listStoreBalancesController;
 const zod_1 = require("zod");
 const stock_transfer_service_1 = require("../services/stock-transfer.service");
-const StoreCodeSchema = zod_1.z.enum([
-    "MAIN_STORE",
-    "PACKAGING_STORE",
-    "MAIZE_STORE",
-    "DISPATCH_STORE",
-]);
+const StoreCodeSchema = zod_1.z.string().min(1).max(64).regex(/^\S+$/, "Store code must not contain whitespace");
 const CreateRequestSchema = zod_1.z.object({
     sourceStoreCode: StoreCodeSchema,
     destinationStoreCode: StoreCodeSchema,

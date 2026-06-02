@@ -13,11 +13,13 @@ import { suppliersRouter } from "./suppliers";
 import { procurementRouter } from "./procurement";
 import { traceabilityRouter } from "./traceability";
 import { stockTransferRouter } from "./stock-transfer";
+import { storesRouter } from "./stores";
 
 export const routes = Router();
 
 routes.use("/auth", authRouter);
 routes.use("/inventory", inventoryRouter);
+routes.use("/stores", storesRouter);
 routes.use("/customers", customersRouter);
 routes.use("/sales-orders", salesOrdersRouter);
 routes.use("/invoices", invoicesRouter);

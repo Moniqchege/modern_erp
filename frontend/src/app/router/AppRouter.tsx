@@ -33,6 +33,9 @@ const StockTransfers = lazy(() =>
 const StockTransferForm = lazy(() =>
   import("../../pages/inventory/StockTransferForm").then((m) => ({ default: m.StockTransferForm }))
 );
+const Stores = lazy(() =>
+  import("../../pages/inventory/Stores").then((m) => ({ default: m.Stores }))
+);
 const Customers = lazy(() => import("../../pages/Customers").then((m) => ({ default: m.Customers })));
 const Invoices = lazy(() => import("../../pages/Invoices").then((m) => ({ default: m.Invoices })));
 const ProcurementDashboard = lazy(() =>
@@ -119,6 +122,7 @@ export function AppRouter() {
             <Route path="reports" element={<InventoryReports />} />
             <Route path="stock-transfers" element={<StockTransfers />} />
             <Route path="stock-transfers/new" element={<StockTransferForm />} />
+            <Route path="stores" element={<Stores />} />
           </Route>
 
           <Route path="/production" element={<Navigate to={ROUTES.INVENTORY_PRODUCTION} replace />} />

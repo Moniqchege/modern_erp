@@ -1,14 +1,15 @@
-import { Prisma, StoreCode, UserRole } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import type { AccessTokenPayload } from "../auth/jwt";
+import { prisma } from "../server";
 
-export const STORE_CODES: StoreCode[] = [
+export const LEGACY_STORE_CODES: string[] = [
   "MAIN_STORE",
   "PACKAGING_STORE",
   "MAIZE_STORE",
   "DISPATCH_STORE",
 ];
 
-const ROLE_TO_STORE: Partial<Record<UserRole, StoreCode>> = {
+const ROLE_TO_STORE: Partial<Record<UserRole, string>> = {
   MAIN_STORE_MANAGER: "MAIN_STORE",
   MAIZE_STORE_MANAGER: "MAIZE_STORE",
   PACKAGING_STORE_MANAGER: "PACKAGING_STORE",
@@ -26,14 +27,34 @@ export function isMainStoreApprover(role: string): boolean {
   );
 }
 
-export function getScopedStoreCode(role: string): StoreCode | null {
+export function getScopedStoreCode(role: string): string | null {
   if (isGlobalInventoryAdmin(role)) return null;
   return ROLE_TO_STORE[role as UserRole] ?? null;
 }
 
+/**
+ * Resolves a user's scoped store code, checking dynamic assignments first,
+ * then falling back to the legacy role-to-store mapping.
+ */
+export async function resolveScopedStoreCode(
+  auth: AccessTokenPayload
+): Promise<string | null> {
+  if (isGlobalInventoryAdmin(auth.role)) return null;
+
+  // Check dynamic assignment
+  const assignment = await prisma.storeManagerAssignment.findUnique({
+    where: { userId: auth.userId },
+    include: { store: { select: { code: true } } },
+  });
+  if (assignment) return assignment.store.code;
+
+  // Fall back to legacy role mapping
+  return ROLE_TO_STORE[auth.role as UserRole] ?? null;
+}
+
 export function assertCanCreateRequest(
   role: string,
-  destinationStoreCode: StoreCode
+  destinationStoreCode: string
 ) {
   if (isGlobalInventoryAdmin(role)) return;
 
@@ -59,7 +80,7 @@ export function assertCanApproveIssue(role: string) {
 
 export function assertCanAcknowledgeReceipt(
   role: string,
-  destinationStoreCode: StoreCode
+  destinationStoreCode: string
 ) {
   if (isGlobalInventoryAdmin(role)) return;
 

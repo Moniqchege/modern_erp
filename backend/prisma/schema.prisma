@@ -24,13 +24,6 @@ enum UserRole {
   WEIGHBRIDGE_OPERATOR
 }
 
-enum StoreCode {
-  MAIN_STORE
-  PACKAGING_STORE
-  MAIZE_STORE
-  DISPATCH_STORE
-}
-
 enum StockTransferStatus {
   PENDING
   APPROVED_IN_TRANSIT
@@ -105,6 +98,7 @@ model User {
   invoices                Invoice[]              @relation("InvoiceCreatedBy")
   stockTransfersRequested StockTransferRequest[] @relation("StockTransferRequestedBy")
   stockTransfersApproved  StockTransferRequest[] @relation("StockTransferApprovedBy")
+  storeManagerAssignment  StoreManagerAssignment?
 }
 
 model OtpCode {
@@ -219,16 +213,58 @@ model InventoryMovement {
 // ============================================
 
 model InventoryLocation {
-  id        String    @id @default(cuid())
-  code      StoreCode @unique
-  name      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String    @db.VarChar(255)
+  description String?   @db.VarChar(1000)
+  address     String?   @db.VarChar(500)
+  isActive    Boolean   @default(true)
+  isLegacy    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   balances             StoreInventoryBalance[]
   movements            InventoryMovement[]
-  sourceTransfers      StockTransferRequest[]  @relation("TransferSourceStore")
-  destinationTransfers StockTransferRequest[]  @relation("TransferDestinationStore")
+  sourceTransfers      StockTransferRequest[]   @relation("TransferSourceStore")
+  destinationTransfers StockTransferRequest[]   @relation("TransferDestinationStore")
+  managerAssignments   StoreManagerAssignment[]
+  auditLogs            StoreAuditLog[]
+}
+
+model StoreManagerAssignment {
+  id         String            @id @default(cuid())
+  userId     String            @unique
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeId    String
+  store      InventoryLocation @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignedAt DateTime          @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([storeId])
+}
+
+enum StoreAuditAction {
+  STORE_CREATED
+  STORE_UPDATED
+  STORE_ACTIVATED
+  STORE_DEACTIVATED
+  MANAGER_ASSIGNED
+  MANAGER_REMOVED
+}
+
+model StoreAuditLog {
+  id               String           @id @default(cuid())
+  action           StoreAuditAction
+  storeId          String
+  store            InventoryLocation @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  performedByUserId String
+  snapshot         Json
+  createdAt        DateTime         @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([performedByUserId])
 }
 
 model StoreInventoryBalance {
