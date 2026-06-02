@@ -32,6 +32,7 @@ export const ROUTES = {
     PROCUREMENT_WEIGHBRIDGE: "/procurement/weighbridge",
     PROCUREMENT_LAB: "/procurement/lab",
     PROCUREMENT_FINANCE: "/procurement/finance",
+    PROCUREMENT_REPORTS: "/procurement/reports",
 
     ROOT: "/",
 } as const;

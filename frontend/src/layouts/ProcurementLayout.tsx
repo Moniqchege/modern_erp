@@ -15,6 +15,7 @@ import {
   Landmark,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
 
@@ -26,7 +27,8 @@ export type ProcurementNavKey =
   | "receiving"
   | "lab"
   | "weighbridge-outbound"
-  | "finance";
+  | "finance"
+  | "reports";
 
 
 interface NavItem {
@@ -94,6 +96,13 @@ const procurementNavItems: NavItem[] = [
     icon: GitCompare,
     description: "Invoice match & payments",
   },
+  {
+    key: "reports",
+    label: "Reports",
+    path: ROUTES.PROCUREMENT_REPORTS,
+    icon: BarChart3,
+    description: "Spend analytics & KPIs",
+  },
 ];
 
 
@@ -105,6 +114,7 @@ function getActiveKey(pathname: string): ProcurementNavKey {
   if (pathname.startsWith(`${ROUTES.PROCUREMENT}/lab`)) return "lab";
   if (pathname.startsWith(`${ROUTES.PROCUREMENT}/weighbridge/outbound`)) return "weighbridge-outbound";
   if (pathname.startsWith(ROUTES.PROCUREMENT_FINANCE)) return "finance";
+  if (pathname.startsWith(ROUTES.PROCUREMENT_REPORTS)) return "reports";
   if (pathname === ROUTES.PROCUREMENT || pathname === `${ROUTES.PROCUREMENT}/`) {
     return "dashboard";
   }

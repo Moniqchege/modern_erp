@@ -71,6 +71,9 @@ const ProcurementWeighbridgeOutbound = lazy(() =>
 const ProcurementFinance = lazy(() =>
   import("../../pages/procurement/ThreeWayMatch").then((m) => ({ default: m.ThreeWayMatch }))
 );
+const ProcurementReports = lazy(() =>
+  import("../../pages/procurement/ProcurementReports").then((m) => ({ default: m.ProcurementReports }))
+);
 
 
 const Login = lazy(() => import("../../pages/Login").then((m) => ({ default: m.Login })));
@@ -138,6 +141,7 @@ export function AppRouter() {
           <Route path={ROUTES.PROCUREMENT_LAB} element={<ProcurementLab />} />
           <Route path="/procurement/weighbridge/outbound" element={<ProcurementWeighbridgeOutbound />} />
           <Route path={ROUTES.PROCUREMENT_FINANCE} element={<ProcurementFinance />} />
+          <Route path={ROUTES.PROCUREMENT_REPORTS} element={<ProcurementReports />} />
 
           <Route path="*" element={<NotFound />} />
 
