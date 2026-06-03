@@ -120,10 +120,13 @@ export const procurementApi = {
       json<{ success: boolean; grn: unknown }>(`${BASE}/grns/${id}/post`, { method: "POST", body: JSON.stringify({ postedBy }) }),
   },
   weighbridge: {
+    list: () => json<{ success: boolean; tickets: unknown[] }>(`${BASE}/weighbridge/tickets`),
     create: (body: Record<string, unknown>) =>
       json<{ success: boolean; ticket: unknown }>(`${BASE}/weighbridge/tickets`, { method: "POST", body: JSON.stringify(body) }),
   },
   qc: {
+    listResults: (category?: string) =>
+      json<{ success: boolean; results: unknown[] }>(`${BASE}/qc/results${category ? `?category=${category}` : ""}`),
     submitMaize: (body: Record<string, unknown>) =>
       json<{ success: boolean; qc: unknown }>(`${BASE}/qc/maize`, { method: "POST", body: JSON.stringify(body) }),
     submitPackaging: (body: Record<string, unknown>) =>

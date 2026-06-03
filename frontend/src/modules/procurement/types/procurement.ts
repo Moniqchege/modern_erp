@@ -309,3 +309,60 @@ export interface PaymentVoucher {
   apQueuePushedAt?: string | null;
   createdAt: string;
 }
+
+// ─── Weighbridge & QC history types ──────────────────────────────────────────
+
+export type WeighbridgeDirection = "INBOUND" | "OUTBOUND";
+
+export interface WeighbridgeTicket {
+  id: string;
+  ticketNumber: string;
+  direction: WeighbridgeDirection;
+  truckRegistration: string;
+  driverName?: string | null;
+  grossWeightKg: number | string;
+  tareWeightKg: number | string;
+  netWeightKg: number | string;
+  weighedInAt: string;
+  weighedOutAt?: string | null;
+  operatorName?: string | null;
+  createdAt: string;
+  purchaseOrder?: {
+    poNumber: string;
+    supplier?: { name: string } | null;
+  } | null;
+  qcResults?: QCResult[];
+}
+
+export interface LabQCResult {
+  id: string;
+  qcNumber: string;
+  category: ProcurementCategory;
+  status: ProcurementQCStatus;
+  testedBy: string;
+  testedAt: string;
+  moistureContentPct?: number | string | null;
+  aflatoxinPpb?: number | string | null;
+  rottenBrokenPct?: number | string | null;
+  foreignMatterPct?: number | string | null;
+  liveInsectsCount?: number | null;
+  assignedGrade?: RawMaizeGrade | null;
+  priceDeductionPct?: number | string | null;
+  acceptedQuantity?: number | string | null;
+  blocksInventoryPost: boolean;
+  rejectionNote?: string | null;
+  remarks?: string | null;
+  createdAt: string;
+  weighbridgeTicket?: {
+    ticketNumber: string;
+    truckRegistration: string;
+    driverName?: string | null;
+  } | null;
+  grn?: {
+    grnNumber: string;
+    purchaseOrder?: {
+      poNumber: string;
+      supplier?: { name: string } | null;
+    } | null;
+  } | null;
+}

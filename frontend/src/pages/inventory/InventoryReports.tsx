@@ -136,7 +136,9 @@ export function InventoryReports() {
           <input id="report-to" type="date" value={to} onChange={(e) => setTo(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs" />
         </div>
-        <p className="text-[10px] text-slate-400 font-medium pb-1">Date range applies to movement ledger and packaging runs.</p>
+        <p className="text-[10px] text-slate-400 font-medium pb-1">
+          Date range applies to movement ledger{isAdmin ? " and packaging runs" : ""}.
+        </p>
       </div>
 
       {error && (
@@ -147,7 +149,7 @@ export function InventoryReports() {
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div>
       ) : (
         <div className="space-y-3">
-          {reports.map((r) => (
+          {reports.filter((r) => isAdmin || (r.id !== "valuation" && r.id !== "packaging-runs")).map((r) => (
             <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">

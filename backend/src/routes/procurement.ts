@@ -595,6 +595,22 @@ procurementRouter.patch("/purchase-orders/:id/expected-delivery", requireAuth, r
 
 // ─── Weighbridge ─────────────────────────────────────────────────────────────
 
+procurementRouter.get("/weighbridge/tickets", async (_req, res) => {
+  try {
+    const tickets = await prisma.weighbridgeTicket.findMany({
+      where: { direction: "INBOUND" },
+      include: {
+        purchaseOrder: { include: { supplier: true } },
+        qcResults: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { weighedInAt: "desc" },
+    });
+    res.json({ success: true, tickets });
+  } catch (error) {
+    res.status(500).json({ success: false, message: String(error) });
+  }
+});
+
 procurementRouter.post("/weighbridge/tickets", async (req, res) => {
   const schema = z.object({
     purchaseOrderId: z.string().optional(),
@@ -616,6 +632,23 @@ procurementRouter.post("/weighbridge/tickets", async (req, res) => {
 });
 
 // ─── QC ──────────────────────────────────────────────────────────────────────
+
+procurementRouter.get("/qc/results", async (req, res) => {
+  try {
+    const category = req.query.category as string | undefined;
+    const results = await prisma.procurementQCLabResult.findMany({
+      where: category ? { category: category as never } : undefined,
+      include: {
+        weighbridgeTicket: true,
+        grn: { include: { purchaseOrder: { include: { supplier: true } } } },
+      },
+      orderBy: { testedAt: "desc" },
+    });
+    res.json({ success: true, results });
+  } catch (error) {
+    res.status(500).json({ success: false, message: String(error) });
+  }
+});
 
 procurementRouter.post("/qc/maize", async (req, res) => {
   const parse = MaizeQCSchema.safeParse(req.body);
