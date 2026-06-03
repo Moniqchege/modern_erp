@@ -10,6 +10,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Zap,
 } from "lucide-react";
 
 // ─── Bale types — fixed company enum, never fetched from inventory ────────────
@@ -55,10 +56,12 @@ export interface PackagingRun {
   flourSpillage: number;
   totalPackagedKg: number;
   yieldPercent: number;
+  electricityKwh?: number | null;
   notes?: string | null;
   createdAt: string;
   finishedProductInputs: Array<{
     flourConsumedKg: number;
+    flourSpillageKg?: number;
     inventoryItem: { name: string; sku: string; type: string; unit: string };
   }>;
   finishedProductOutputs: Array<{
@@ -96,6 +99,7 @@ interface OutputLine {
 interface FlourBlock {
   flourInventoryItemId: string;
   consumedKg: string;
+  spillageKg: string;
   outputLines: OutputLine[];
 }
 
@@ -200,6 +204,8 @@ function FlourBlockCard({ block, flourItem, onChange }: FlourBlockProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const consumed = parseFloat(block.consumedKg) || 0;
+  const spillage = parseFloat(block.spillageKg) || 0;
+  const totalIn = consumed + spillage;
   const allocatedKg = kgForBlock(block);
   const diff = consumed - allocatedKg;
   const isOver = diff < -0.01;
@@ -252,13 +258,28 @@ function FlourBlockCard({ block, flourItem, onChange }: FlourBlockProps) {
             placeholder="0.00"
             value={block.consumedKg}
             onChange={(e) => onChange({ ...block, consumedKg: e.target.value })}
-            className="min-w-[140px] w-40 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+            className="w-28 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+          />
+          <span className="text-[10px] text-slate-400">kg</span>
+        </div>
+
+        {/* Per-flour spillage input */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-bold text-amber-500 uppercase">Spillage</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={block.spillageKg}
+            onChange={(e) => onChange({ ...block, spillageKg: e.target.value })}
+            className="w-24 bg-white border border-amber-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-800 focus:outline-none focus:border-amber-500"
           />
           <span className="text-[10px] text-slate-400">kg</span>
         </div>
 
         {/* Balance badge */}
-        {consumed > 0 && (
+        {totalIn > 0 && (
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
               isOver
@@ -341,7 +362,10 @@ export function PackagingForm() {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
 
   const [operatorName, setOperatorName] = useState("");
-  const [flourSpillage, setFlourSpillage] = useState("");
+  // Electricity kWh — persisted as a "constant" setting across runs
+  const [electricityKwh, setElectricityKwh] = useState<string>(() =>
+    localStorage.getItem("packaging_electricity_kwh") ?? ""
+  );
   const [notes, setNotes] = useState("");
 
   const [flourBlocks, setFlourBlocks] = useState<FlourBlock[]>([]);
@@ -375,8 +399,11 @@ export function PackagingForm() {
     (s, b) => s + (parseFloat(b.consumedKg) || 0),
     0
   );
-  const spill = parseFloat(flourSpillage) || 0;
-  const totalInput = totalFlourConsumed + spill;
+  const totalFlourSpillage = flourBlocks.reduce(
+    (s, b) => s + (parseFloat(b.spillageKg) || 0),
+    0
+  );
+  const totalInput = totalFlourConsumed + totalFlourSpillage;
   const totalPackagedKg = flourBlocks.reduce((s, b) => s + kgForBlock(b), 0);
   const yieldPct = totalInput > 0 ? (totalPackagedKg / totalInput) * 100 : 0;
   const outputExceeded = totalPackagedKg > totalInput + 0.01;
@@ -424,6 +451,7 @@ export function PackagingForm() {
         flour.map((item) => ({
           flourInventoryItemId: item.id,
           consumedKg: "",
+          spillageKg: "",
           outputLines: [],
         }))
       );
@@ -463,12 +491,12 @@ export function PackagingForm() {
     const payload = {
       operatorName: operatorName.trim(),
       flourConsumption: flourBlocks
-        .filter((b) => parseFloat(b.consumedKg) > 0)
+        .filter((b) => parseFloat(b.consumedKg) > 0 || parseFloat(b.spillageKg) > 0)
         .map((b) => ({
           flourInventoryItemId: b.flourInventoryItemId,
           consumedKg: parseFloat(b.consumedKg) || 0,
+          spillageKg: parseFloat(b.spillageKg) || 0,
         })),
-      flourSpillage: spill,
       packagingMaterials: packagingMaterialRows.map((r) => ({
         inventoryItemId: r.inventoryItemId,
         received: parseFloat(r.received) || 0,
@@ -488,6 +516,7 @@ export function PackagingForm() {
             })),
         }))
         .filter((o) => o.outputLines.length > 0),
+      electricityKwh: parseFloat(electricityKwh) > 0 ? parseFloat(electricityKwh) : undefined,
       notes: notes.trim() || undefined,
     };
 
@@ -505,12 +534,14 @@ export function PackagingForm() {
       setSuccessMessage(`Run ${data.run?.runNumber ?? ""} recorded.`);
       if (data.run) setRuns((prev) => [data.run, ...prev]);
 
+      // Persist electricity kWh for next run
+      if (electricityKwh) localStorage.setItem("packaging_electricity_kwh", electricityKwh);
+
       // Reset form
       setOperatorName("");
-      setFlourSpillage("");
       setNotes("");
       setFlourBlocks((prev) =>
-        prev.map((b) => ({ ...b, consumedKg: "", outputLines: [] }))
+        prev.map((b) => ({ ...b, consumedKg: "", spillageKg: "", outputLines: [] }))
       );
       setPackagingMaterialRows((prev) =>
         prev.map((r) => ({ ...r, received: "", consumed: "", destroyed: "" }))
@@ -682,19 +713,23 @@ export function PackagingForm() {
             </div>
           </div>
 
-          {/* ── Spillage ── */}
+          {/* ── Electricity ── */}
           <div className="space-y-1">
-            <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-              Flour spillage (kg)
+            <label className="text-[9px] font-extrabold text-slate-400 uppercase flex items-center gap-1">
+              <Zap className="h-3 w-3 text-yellow-500" />
+              Electricity used (kWh) — saved for next run
             </label>
             <input
               type="number"
               min="0"
-              step="0.01"
-              placeholder="0"
-              value={flourSpillage}
-              onChange={(e) => setFlourSpillage(e.target.value)}
-              className="w-full bg-slate-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-amber-500 text-slate-800"
+              step="0.001"
+              placeholder="0.000"
+              value={electricityKwh}
+              onChange={(e) => {
+                setElectricityKwh(e.target.value);
+                localStorage.setItem("packaging_electricity_kwh", e.target.value);
+              }}
+              className="w-full bg-slate-50 border border-yellow-200 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-yellow-400 text-slate-800"
             />
           </div>
 
@@ -737,6 +772,10 @@ export function PackagingForm() {
               <span className="font-mono font-black">{totalInput.toFixed(2)} kg</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-slate-500 font-bold uppercase text-[10px]">Total spillage</span>
+              <span className="font-mono font-black text-amber-600">{totalFlourSpillage.toFixed(2)} kg</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-500 font-bold uppercase text-[10px]">Packaged out</span>
               <span
                 className={`font-mono font-black ${
@@ -752,6 +791,16 @@ export function PackagingForm() {
                 {totalInput > 0 ? `${yieldPct.toFixed(1)}%` : "—"}
               </span>
             </div>
+            {parseFloat(electricityKwh) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold uppercase text-[10px] flex items-center gap-1">
+                  <Zap className="h-3 w-3 text-yellow-500" /> Electricity
+                </span>
+                <span className="font-mono font-black text-yellow-600">
+                  {parseFloat(electricityKwh).toFixed(3)} kWh
+                </span>
+              </div>
+            )}
 
             {/* Per-flour breakdown */}
             <div className="border-t border-slate-100 pt-3 space-y-3">
@@ -759,8 +808,9 @@ export function PackagingForm() {
               {flourBlocks.map((b) => {
                 const item = inventoryItems.find((i) => i.id === b.flourInventoryItemId);
                 const consumed = parseFloat(b.consumedKg) || 0;
+                const spillage = parseFloat(b.spillageKg) || 0;
                 const allocated = kgForBlock(b);
-                if (consumed === 0 && allocated === 0) return null;
+                if (consumed === 0 && allocated === 0 && spillage === 0) return null;
                 return (
                   <div key={b.flourInventoryItemId} className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-600 truncate">
@@ -770,6 +820,12 @@ export function PackagingForm() {
                       <span className="text-slate-400">Consumed</span>
                       <span className="font-mono">{consumed.toFixed(1)} kg</span>
                     </div>
+                    {spillage > 0 && (
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-amber-500">Spillage</span>
+                        <span className="font-mono text-amber-600">{spillage.toFixed(1)} kg</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-[10px]">
                       <span className="text-slate-400">Allocated to outputs</span>
                       <span
@@ -844,6 +900,7 @@ export function PackagingForm() {
                   <th className="px-4 py-3 text-right">Packaged kg</th>
                   <th className="px-4 py-3 text-right">Spill</th>
                   <th className="px-4 py-3 text-right">Yield</th>
+                  <th className="px-4 py-3 text-right">kWh</th>
                   <th className="px-4 py-3">Flour consumed</th>
                   <th className="px-4 py-3">Outputs</th>
                 </tr>
@@ -862,6 +919,9 @@ export function PackagingForm() {
                     <td className="px-4 py-3 text-right font-mono">
                       {Number(r.yieldPercent).toFixed(1)}%
                     </td>
+                    <td className="px-4 py-3 text-right font-mono text-yellow-700">
+                      {r.electricityKwh != null ? Number(r.electricityKwh).toFixed(1) : "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {r.finishedProductInputs?.map((inp, i) => (
@@ -870,6 +930,9 @@ export function PackagingForm() {
                             className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold whitespace-nowrap"
                           >
                             {Number(inp.flourConsumedKg).toFixed(1)} kg {inp.inventoryItem.name}
+                            {inp.flourSpillageKg != null && Number(inp.flourSpillageKg) > 0
+                              ? ` (+${Number(inp.flourSpillageKg).toFixed(1)} spill)`
+                              : ""}
                           </span>
                         ))}
                       </div>

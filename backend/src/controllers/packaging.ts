@@ -36,11 +36,10 @@ export const ProcessPackagingSchema = z.object({
       z.object({
         flourInventoryItemId: z.string().min(1),
         consumedKg: z.number().nonnegative(),
+        spillageKg: z.number().nonnegative().default(0),
       })
     )
     .min(1, "At least one flour consumption row is required"),
-
-  flourSpillage: z.number().nonnegative().default(0),
 
   packagingMaterials: z
     .array(
@@ -55,6 +54,7 @@ export const ProcessPackagingSchema = z.object({
     .default([]),
   flourPackedOutputs: z.array(FlourPackedOutputSchema).default([]),
 
+  electricityKwh: z.number().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
 });
 

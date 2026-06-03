@@ -758,8 +758,9 @@ model PackagingRun {
   packagingMaterialConsumed  Decimal @default(0) @db.Decimal(12, 3)
   packagingMaterialDestroyed Decimal @default(0) @db.Decimal(12, 3)
 
-  totalPackagedKg Decimal @db.Decimal(12, 3)
-  yieldPercent    Decimal @db.Decimal(5, 2)
+  totalPackagedKg Decimal  @db.Decimal(12, 3)
+  yieldPercent    Decimal  @db.Decimal(5, 2)
+  electricityKwh  Decimal? @db.Decimal(10, 3)
 
   notes String? @db.Text
 
@@ -786,6 +787,7 @@ model PackagingRunFinishedProductInput {
   inventoryItem       InventoryItem @relation(fields: [inventoryItemId], references: [id])
   finishedProductName String        @db.VarChar(255)
   flourConsumedKg     Decimal       @db.Decimal(12, 3)
+  flourSpillageKg     Decimal       @default(0) @db.Decimal(12, 3)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
