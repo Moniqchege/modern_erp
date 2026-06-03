@@ -9,6 +9,7 @@ import {
   getStockTransferRequest,
   listStockTransferRequests,
   listStoreInventoryBalances,
+  rejectStockTransferReceipt,
   rejectStockTransferRequest,
 } from "../services/stock-transfer.service";
 
@@ -33,7 +34,18 @@ const ApproveIssueSchema = z.object({
     .array(
       z.object({
         lineId: z.string().min(1),
+        /**
+         * How much to actually issue for this line.
+         * May be less than qtyRequested when main store stock is limited.
+         * Defaults to qtyRequested when omitted.
+         */
         qtyIssued: z.number().positive().optional(),
+        /**
+         * Required when qtyIssued is less than qtyRequested.
+         * Explains the shortfall so the receiving store understands
+         * without needing to follow up.
+         */
+        partialIssueReason: z.string().min(1).max(1000).optional(),
       })
     )
     .optional(),
@@ -50,8 +62,14 @@ const ReceiveSchema = z.object({
     .min(1),
 });
 
+/** Rejection of a pending request by main store — reason is mandatory */
 const RejectSchema = z.object({
-  rejectionReason: z.string().max(2000).optional(),
+  rejectionReason: z.string().min(1, "Rejection reason is required").max(2000),
+});
+
+/** Rejection of a received delivery by receiving store — reason is mandatory */
+const RejectReceiptSchema = z.object({
+  rejectionReason: z.string().min(1, "Rejection reason is required").max(2000),
 });
 
 export async function createStockTransferController(
@@ -182,6 +200,32 @@ export async function rejectStockTransferController(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Reject failed";
+    res.status(400).json({ message });
+  }
+}
+
+export async function rejectReceiptController(
+  req: AuthenticatedRequest,
+  res: Response
+) {
+  try {
+    const parse = RejectReceiptSchema.safeParse(req.body ?? {});
+    if (!parse.success) {
+      return res.status(400).json({
+        message: "Invalid reject-receipt payload",
+        errors: parse.error.flatten(),
+      });
+    }
+
+    const transfer = await rejectStockTransferReceipt(
+      req.auth,
+      req.params.id,
+      parse.data.rejectionReason
+    );
+    res.json({ success: true, transfer });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Receipt rejection failed";
     res.status(400).json({ message });
   }
 }

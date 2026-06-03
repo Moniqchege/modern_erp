@@ -31,6 +31,11 @@ const STYLES: Record<string, string> = {
   CANCELLED: "border-slate-200 text-slate-400",
   CLOSED: "border-slate-200 text-slate-500",
 
+  // Stock transfers
+  APPROVED_IN_TRANSIT: "border-blue-200 text-blue-700",
+  RECEIPT_REJECTED: "border-orange-200 text-orange-700",
+  PENDING_CORRECTION: "border-orange-200 text-orange-700",
+
   // requisition lifecycle
   PENDING_HEAD_PROCUREMENT: "border-amber-200 text-amber-700",
   PENDING_FINANCE: "border-violet-200 text-violet-700",

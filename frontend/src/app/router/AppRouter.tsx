@@ -33,6 +33,9 @@ const StockTransfers = lazy(() =>
 const StockTransferForm = lazy(() =>
   import("../../pages/inventory/StockTransferForm").then((m) => ({ default: m.StockTransferForm }))
 );
+const StockTransferDetail = lazy(() =>
+  import("../../pages/inventory/StockTransferDetail").then((m) => ({ default: m.StockTransferDetail }))
+);
 const Stores = lazy(() =>
   import("../../pages/inventory/Stores").then((m) => ({ default: m.Stores }))
 );
@@ -122,6 +125,7 @@ export function AppRouter() {
             <Route path="reports" element={<InventoryReports />} />
             <Route path="stock-transfers" element={<StockTransfers />} />
             <Route path="stock-transfers/new" element={<StockTransferForm />} />
+            <Route path="stock-transfers/:transferId" element={<StockTransferDetail />} />
             <Route path="stores" element={<Stores />} />
           </Route>
 

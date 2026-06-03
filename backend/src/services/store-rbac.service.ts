@@ -92,6 +92,19 @@ export function assertCanAcknowledgeReceipt(
   }
 }
 
+/**
+ * Receiving store manager rejects a delivery and sends it back to main store.
+ * Uses the same RBAC rule as acknowledging a receipt — only the manager of
+ * the destination store can reject its own incoming transfer.
+ */
+export function assertCanRejectReceipt(
+  role: string,
+  destinationStoreCode: string
+) {
+  assertCanAcknowledgeReceipt(role, destinationStoreCode);
+}
+
+/** Only main store managers / admins can fully reject a pending request */
 export function assertCanReject(role: string) {
   assertCanApproveIssue(role);
 }

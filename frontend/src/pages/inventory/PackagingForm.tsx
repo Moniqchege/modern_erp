@@ -33,16 +33,11 @@ const BALE_TYPES = [
 
 type BaleTypeKey = typeof BALE_TYPES[number]["key"];
 
-// ─── Packaging material types — used only for the materials table ─────────────
-
-const PACKAGING_MATERIAL_TYPES = new Set([
-  "CLEAR_TAPES",
-  "GLUE",
-]);
+// ─── Types that are NOT packaging materials (excluded from the materials table) ─
 
 const NON_PACKAGING_TYPES = new Set([
   "RAW_MATERIAL",
-  "FINISHED_GOOD", 
+  "FINISHED_GOOD",
   "BY_PRODUCT",
 ]);
 
@@ -109,7 +104,7 @@ interface PackagingMaterialRow {
   inventoryItemId: string;
   name: string;
   unit: string;
-  received: string;
+  availableQty: number;
   consumed: string;
   destroyed: string;
 }
@@ -437,6 +432,7 @@ export function PackagingForm() {
 
   const fetchInventory = useCallback(async () => {
     try {
+      // Fetch all items for flour blocks
       const res = await fetch("/api/inventory");
       if (!res.ok) throw new Error("Failed to fetch inventory");
       const data = await res.json();
@@ -456,14 +452,20 @@ export function PackagingForm() {
         }))
       );
 
-      // Packaging material rows — consumables only, not bale/bag types
-      const pkgMaterials = items.filter((i) => !NON_PACKAGING_TYPES.has(i.type));
+      // Packaging materials — fetch scoped to PACKAGING_STORE so we only show
+      // items physically present there and the quantity reflects that store's balance
+      const pkgRes = await fetch("/api/inventory?storeCode=PACKAGING_STORE");
+      if (!pkgRes.ok) throw new Error("Failed to fetch packaging store inventory");
+      const pkgData = await pkgRes.json();
+      const pkgItems: InventoryItem[] = pkgData.items || [];
+
+      const pkgMaterials = pkgItems.filter((i) => !NON_PACKAGING_TYPES.has(i.type));
       setPackagingMaterialRows(
         pkgMaterials.map((item) => ({
           inventoryItemId: item.id,
           name: item.name,
           unit: item.unit,
-          received: "",
+          availableQty: item.quantity,
           consumed: "",
           destroyed: "",
         }))
@@ -499,7 +501,7 @@ export function PackagingForm() {
         })),
       packagingMaterials: packagingMaterialRows.map((r) => ({
         inventoryItemId: r.inventoryItemId,
-        received: parseFloat(r.received) || 0,
+        received: 0,
         consumed: parseFloat(r.consumed) || 0,
         destroyed: parseFloat(r.destroyed) || 0,
       })),
@@ -544,7 +546,7 @@ export function PackagingForm() {
         prev.map((b) => ({ ...b, consumedKg: "", spillageKg: "", outputLines: [] }))
       );
       setPackagingMaterialRows((prev) =>
-        prev.map((r) => ({ ...r, received: "", consumed: "", destroyed: "" }))
+        prev.map((r) => ({ ...r, consumed: "", destroyed: "" }))
       );
     } catch {
       setErrorMessage("Network error.");
@@ -654,8 +656,11 @@ export function PackagingForm() {
 
           {/* ── Packaging materials ── */}
           <div className="space-y-2">
-            <div className="text-[9px] font-extrabold text-slate-400 uppercase">
-              Packaging materials
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] font-extrabold text-slate-400 uppercase">
+                Packaging materials
+              </div>
+              <span className="text-[9px] text-slate-400">From Packaging Store</span>
             </div>
             <input
               value={packagingSearch}
@@ -665,50 +670,71 @@ export function PackagingForm() {
             />
             <div className="max-h-72 overflow-y-auto pr-1 space-y-2 border border-slate-100 rounded-xl p-2 bg-white">
               {filteredPackagingRows.length === 0 ? (
-                <p className="text-[10px] text-slate-500 p-2">No packaging materials found.</p>
+                <p className="text-[10px] text-slate-500 p-2">
+                  No packaging materials in Packaging Store. Transfer stock to Packaging Store first.
+                </p>
               ) : (
-                filteredPackagingRows.map((row) => (
-                  <div
-                    key={row.inventoryItemId}
-                    className="grid grid-cols-2 md:grid-cols-6 gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                  >
-                    <div className="space-y-1 md:col-span-2">
-                      <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-                        Material
-                      </label>
-                      <p className="text-xs font-bold text-slate-700">{row.name}</p>
-                    </div>
-                    {(["received", "consumed", "destroyed"] as const).map((field) => (
-                      <div key={field} className="space-y-1 md:col-span-1">
+                filteredPackagingRows.map((row) => {
+                  const consumed = parseFloat(row.consumed) || 0;
+                  const destroyed = parseFloat(row.destroyed) || 0;
+                  const totalOut = consumed + destroyed;
+                  const overStock = totalOut > row.availableQty + 0.001;
+                  return (
+                    <div
+                      key={row.inventoryItemId}
+                      className={`grid grid-cols-2 md:grid-cols-5 gap-3 p-2 border rounded-lg ${
+                        overStock ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <div className="space-y-1 md:col-span-3">
                         <label className="text-[9px] font-extrabold text-slate-400 uppercase">
-                          {field}
+                          Material
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0"
-                          value={row[field]}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setPackagingMaterialRows((prev) =>
-                              prev.map((r) =>
-                                r.inventoryItemId === row.inventoryItemId
-                                  ? { ...r, [field]: v }
-                                  : r
-                              )
-                            );
-                          }}
-                          className={`w-full bg-slate-50 border rounded-lg px-3 py-1.5 text-xs font-mono ${
-                            field === "destroyed"
-                              ? "border-rose-200"
-                              : "border-slate-200"
-                          }`}
-                        />
+                        <p className="text-xs font-bold text-slate-700">{row.name}</p>
+                        <p className="text-[10px] font-mono text-slate-400">
+                          In stock: {row.availableQty.toFixed(2)} {row.unit.toLowerCase()}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                ))
+                      {(["consumed", "destroyed"] as const).map((field) => (
+                        <div key={field} className="space-y-1 md:col-span-1">
+                          <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+                            {field}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0"
+                            value={row[field]}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setPackagingMaterialRows((prev) =>
+                                prev.map((r) =>
+                                  r.inventoryItemId === row.inventoryItemId
+                                    ? { ...r, [field]: v }
+                                    : r
+                                )
+                              );
+                            }}
+                            className={`w-full bg-white border rounded-lg px-3 py-1.5 text-xs font-mono ${
+                              field === "destroyed"
+                                ? "border-rose-200"
+                                : overStock
+                                ? "border-rose-300"
+                                : "border-slate-200"
+                            }`}
+                          />
+                        </div>
+                      ))}
+                      {overStock && (
+                        <div className="md:col-span-5 flex items-center gap-1 text-[10px] text-rose-600 font-bold">
+                          <AlertCircle className="h-3 w-3" />
+                          Exceeds packaging store stock ({row.availableQty.toFixed(2)} available)
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

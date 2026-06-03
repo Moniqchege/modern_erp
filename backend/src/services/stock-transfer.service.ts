@@ -9,6 +9,7 @@ import {
   assertCanApproveIssue,
   assertCanCreateRequest,
   assertCanReject,
+  assertCanRejectReceipt,
   stockTransferVisibilityFilter,
   storeBalanceVisibilityFilter,
 } from "./store-rbac.service";
@@ -27,7 +28,18 @@ export type CreateStockTransferInput = {
 
 export type ApproveIssueLineInput = {
   lineId: string;
+  /**
+   * Quantity to issue. May be less than qtyRequested when main store stock is
+   * limited. Defaults to qtyRequested when omitted.
+   * When less than qtyRequested, partialIssueReason is required.
+   */
   qtyIssued?: number;
+  /**
+   * Mandatory when qtyIssued < qtyRequested. Explains why the full requested
+   * quantity could not be fulfilled (e.g. "Only 80kg in stock, remainder
+   * expected from procurement next week").
+   */
+  partialIssueReason?: string;
 };
 
 export type ReceiveLineInput = {
@@ -40,6 +52,7 @@ const transferInclude = {
   destinationLocation: true,
   requestedBy: { select: { id: true, name: true, email: true, role: true } },
   approvedBy: { select: { id: true, name: true, email: true, role: true } },
+  receiptRejectedBy: { select: { id: true, name: true, email: true, role: true } },
   items: {
     include: {
       item: { select: { id: true, sku: true, name: true, unit: true } },
@@ -90,7 +103,10 @@ async function getTransferForUser(
   return transfer;
 }
 
-/** CREATE_REQUEST → PENDING */
+// ─────────────────────────────────────────────────────────────────────────────
+// CREATE REQUEST  PENDING
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function createStockTransferRequest(
   auth: AccessTokenPayload,
   input: CreateStockTransferInput
@@ -149,7 +165,16 @@ export async function createStockTransferRequest(
   });
 }
 
-/** APPROVE_AND_ISSUE → APPROVED_IN_TRANSIT */
+// ─────────────────────────────────────────────────────────────────────────────
+// APPROVE & ISSUE  APPROVED_IN_TRANSIT
+//
+// The main store manager specifies how much of each line they can actually
+// issue. Partial quantities (qtyIssued < qtyRequested) are allowed — the
+// issued amount is what gets deducted from main store inventory and put
+// in-transit to the destination. The requesting store manager can see
+// qtyRequested vs qtyIssued on the transfer.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function approveAndIssueStockTransfer(
   auth: AccessTokenPayload,
   transferId: string,
@@ -161,33 +186,52 @@ export async function approveAndIssueStockTransfer(
   return prisma.$transaction(async (tx) => {
     const transfer = await getTransferForUser(transferId, auth, tx);
 
-    if (transfer.status !== "PENDING") {
+    // Allow re-issuing a transfer that came back from receipt rejection
+    if (
+      transfer.status !== "PENDING" &&
+      transfer.status !== "PENDING_CORRECTION"
+    ) {
       throw new Error(`Cannot issue transfer in status ${transfer.status}`);
     }
 
     const issueByLineId = new Map(
-      (lines ?? []).map((l) => [l.lineId, l.qtyIssued])
+      (lines ?? []).map((l) => [l.lineId, l])
     );
 
     for (const line of transfer.items) {
-      const qtyIssued =
-        issueByLineId.get(line.id) ?? Number(line.qtyRequested);
+      const qtyRequested = Number(line.qtyRequested);
+      const qtyIssued = issueByLineId.get(line.id)?.qtyIssued ?? qtyRequested;
+      const partialIssueReason = issueByLineId.get(line.id)?.partialIssueReason;
 
       if (!Number.isFinite(qtyIssued) || qtyIssued <= 0) {
-        throw new Error("Issued quantity must be greater than zero");
-      }
-      if (qtyIssued > Number(line.qtyRequested) + 0.0005) {
         throw new Error(
-          `Issued quantity cannot exceed requested for ${line.item.sku}`
+          `Issued quantity for ${line.item.sku} must be greater than zero`
+        );
+      }
+      if (qtyIssued > qtyRequested + 0.0005) {
+        throw new Error(
+          `Issued quantity (${qtyIssued}) cannot exceed requested quantity (${qtyRequested}) for ${line.item.sku}`
         );
       }
 
+      // When issuing less than requested, a reason is mandatory so the
+      // receiving store knows why they are getting a short delivery.
+      const isPartial = qtyIssued < qtyRequested - 0.0005;
+      if (isPartial && !partialIssueReason?.trim()) {
+        throw new Error(
+          `A reason is required when issuing less than the requested quantity for ${line.item.sku} ` +
+          `(requested: ${qtyRequested}, issuing: ${qtyIssued})`
+        );
+      }
+
+      // Deduct from source (main store) physical inventory
       await adjustStoreBalance(tx, {
         itemId: line.itemId,
         locationId: transfer.sourceLocationId,
         physicalDelta: -qtyIssued,
       });
 
+      // Place in-transit at destination
       await adjustStoreBalance(tx, {
         itemId: line.itemId,
         locationId: transfer.destinationLocationId,
@@ -205,7 +249,13 @@ export async function approveAndIssueStockTransfer(
 
       await tx.stockTransferItem.update({
         where: { id: line.id },
-        data: { qtyIssued: qtyIssued.toFixed(3) },
+        data: {
+          qtyIssued: qtyIssued.toFixed(3),
+          partialIssueReason: isPartial ? partialIssueReason!.trim() : null,
+          // Clear any previous received qty and discrepancy note on re-issue
+          qtyReceived: null,
+          discrepancyNote: null,
+        },
       });
     }
 
@@ -215,6 +265,10 @@ export async function approveAndIssueStockTransfer(
         status: "APPROVED_IN_TRANSIT",
         approvedByUserId: auth.userId,
         approvedAt: new Date(),
+        // Clear receipt rejection fields on re-issue
+        receiptRejectionReason: null,
+        receiptRejectedByUserId: null,
+        receiptRejectedAt: null,
       },
       include: transferInclude,
     });
@@ -223,7 +277,15 @@ export async function approveAndIssueStockTransfer(
   });
 }
 
-/** ACKNOWLEDGE_RECEIPT → COMPLETED */
+// ─────────────────────────────────────────────────────────────────────────────
+// ACKNOWLEDGE RECEIPT  COMPLETED
+//
+// The receiving store manager records how much they actually received.
+// If quantity received differs from what was issued the discrepancy is logged,
+// but the transfer still completes. To dispute the transfer entirely, use
+// rejectReceipt instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function acknowledgeStockTransferReceipt(
   auth: AccessTokenPayload,
   transferId: string,
@@ -266,10 +328,11 @@ export async function acknowledgeStockTransferReceipt(
       }
       if (qtyReceived > qtyIssued + 0.0005) {
         throw new Error(
-          `Received quantity cannot exceed issued for ${line.item.sku}`
+          `Received quantity (${qtyReceived}) cannot exceed issued quantity (${qtyIssued}) for ${line.item.sku}`
         );
       }
 
+      // Remove from in-transit and add to physical at destination
       await adjustStoreBalance(tx, {
         itemId: line.itemId,
         locationId: transfer.destinationLocationId,
@@ -279,6 +342,12 @@ export async function acknowledgeStockTransferReceipt(
 
       if (qtyReceived + 0.0005 < qtyIssued) {
         const qtyShort = qtyIssued - qtyReceived;
+
+        // Delete any old discrepancy for this line before creating a new one
+        await tx.stockTransferDiscrepancy.deleteMany({
+          where: { transferId: transfer.id, itemId: line.itemId },
+        });
+
         await tx.stockTransferDiscrepancy.create({
           data: {
             transferId: transfer.id,
@@ -328,15 +397,107 @@ export async function acknowledgeStockTransferReceipt(
   });
 }
 
-export async function rejectStockTransferRequest(
+// ─────────────────────────────────────────────────────────────────────────────
+// REJECT RECEIPT  RECEIPT_REJECTED → PENDING_CORRECTION
+//
+// The receiving store manager rejects the entire delivery (wrong items,
+// wrong quantities, damaged goods, etc.). A mandatory reason is required.
+//
+// Inventory effect: all in-transit quantities for this transfer are reversed
+// back to the main store's physical stock so the main store manager can
+// correct and re-issue.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function rejectStockTransferReceipt(
   auth: AccessTokenPayload,
   transferId: string,
-  rejectionReason?: string
+  rejectionReason: string
 ) {
-  assertCanReject(auth.role);
+  await ensureDefaultStores();
+
+  const reason = rejectionReason?.trim();
+  if (!reason) {
+    throw new Error("A rejection reason is required when rejecting a receipt");
+  }
 
   return prisma.$transaction(async (tx) => {
     const transfer = await getTransferForUser(transferId, auth, tx);
+
+    assertCanRejectReceipt(auth.role, transfer.destinationLocation.code);
+
+    if (transfer.status !== "APPROVED_IN_TRANSIT") {
+      throw new Error(
+        `Cannot reject receipt for transfer in status ${transfer.status}`
+      );
+    }
+
+    // Reverse inventory: remove in-transit from destination and return
+    // physical stock to source (main store)
+    for (const line of transfer.items) {
+      const qtyIssued = line.qtyIssued != null ? Number(line.qtyIssued) : null;
+      if (qtyIssued == null) continue; // safety – should always be set here
+
+      // Remove from destination in-transit
+      await adjustStoreBalance(tx, {
+        itemId: line.itemId,
+        locationId: transfer.destinationLocationId,
+        transitDelta: -qtyIssued,
+      });
+
+      // Return to source (main store) physical
+      await adjustStoreBalance(tx, {
+        itemId: line.itemId,
+        locationId: transfer.sourceLocationId,
+        physicalDelta: qtyIssued,
+      });
+
+      await recordTransferMovement(tx, {
+        itemId: line.itemId,
+        locationId: transfer.sourceLocationId,
+        quantityDelta: qtyIssued,
+        movementType: "ADJUSTMENT",
+        stockTransferRequestId: transfer.id,
+        notes: `Receipt rejected — ${transfer.requestNumber} returned to ${transfer.sourceLocation.code}: ${reason}`,
+      });
+    }
+
+    const updated = await tx.stockTransferRequest.update({
+      where: { id: transfer.id },
+      data: {
+        status: "PENDING_CORRECTION",
+        receiptRejectionReason: reason,
+        receiptRejectedByUserId: auth.userId,
+        receiptRejectedAt: new Date(),
+      },
+      include: transferInclude,
+    });
+
+    return formatTransfer(updated);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REJECT PENDING REQUEST  REJECTED
+//
+// Main store manager rejects the request outright (unnecessary, duplicate,
+// or request for items not available at all). Reason is mandatory.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function rejectStockTransferRequest(
+  auth: AccessTokenPayload,
+  transferId: string,
+  rejectionReason: string
+) {
+  assertCanReject(auth.role);
+
+  const reason = rejectionReason?.trim();
+  if (!reason) {
+    throw new Error("A rejection reason is required");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const transfer = await getTransferForUser(transferId, auth, tx);
+
     if (transfer.status !== "PENDING") {
       throw new Error(`Cannot reject transfer in status ${transfer.status}`);
     }
@@ -345,7 +506,7 @@ export async function rejectStockTransferRequest(
       where: { id: transfer.id },
       data: {
         status: "REJECTED",
-        rejectionReason: rejectionReason?.trim() || "Rejected by approver",
+        rejectionReason: reason,
         approvedByUserId: auth.userId,
       },
       include: transferInclude,
@@ -354,6 +515,10 @@ export async function rejectStockTransferRequest(
     return formatTransfer(updated);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIST / GET
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function listStockTransferRequests(
   auth: AccessTokenPayload,

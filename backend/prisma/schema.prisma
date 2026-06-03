@@ -29,6 +29,8 @@ enum StockTransferStatus {
   APPROVED_IN_TRANSIT
   COMPLETED
   REJECTED
+  RECEIPT_REJECTED
+  PENDING_CORRECTION
 }
 
 enum ItemType {
@@ -98,6 +100,7 @@ model User {
   invoices                Invoice[]              @relation("InvoiceCreatedBy")
   stockTransfersRequested StockTransferRequest[] @relation("StockTransferRequestedBy")
   stockTransfersApproved  StockTransferRequest[] @relation("StockTransferApprovedBy")
+  stockTransfersReceiptRejected StockTransferRequest[] @relation("StockTransferReceiptRejectedBy")
   storeManagerAssignment  StoreManagerAssignment?
 }
 
@@ -298,6 +301,13 @@ model StockTransferRequest {
   notes                 String?             @db.Text
   approvedAt            DateTime?
   completedAt           DateTime?
+
+  /// Set when receiving store rejects a delivered transfer
+  receiptRejectionReason  String?           @db.Text
+  receiptRejectedByUserId String?
+  receiptRejectedBy       User?             @relation("StockTransferReceiptRejectedBy", fields: [receiptRejectedByUserId], references: [id])
+  receiptRejectedAt       DateTime?
+
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
@@ -319,6 +329,8 @@ model StockTransferItem {
   item            InventoryItem        @relation(fields: [itemId], references: [id])
   qtyRequested    Decimal              @db.Decimal(12, 3)
   qtyIssued       Decimal?             @db.Decimal(12, 3)
+  /// Reason provided by main store manager when qtyIssued < qtyRequested
+  partialIssueReason String?           @db.Text
   qtyReceived     Decimal?             @db.Decimal(12, 3)
   discrepancyNote String?              @db.Text
   createdAt       DateTime             @default(now())
