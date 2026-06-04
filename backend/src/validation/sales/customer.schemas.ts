@@ -31,5 +31,10 @@ export const ListCustomersQuerySchema = z.object({
   status: CustomerAccountStatusSchema.optional(),
 });
 
+export const UpdateCustomerSchema = CreateCustomerSchema.partial().extend({
+  name: z.string().min(1).max(255).optional(),
+});
+
 export type CreateCustomerInput = z.infer<typeof CreateCustomerSchema>;
+export type UpdateCustomerInput = z.infer<typeof UpdateCustomerSchema>;
 export type ListCustomersQuery = z.infer<typeof ListCustomersQuerySchema>;

@@ -15,6 +15,7 @@ import {
   ArrowLeftRight,
   Store,
   Search,
+  Truck,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
 import { getCurrentUser, logout } from "../auth/authClient";
@@ -28,6 +29,7 @@ export type InventoryNavKey =
   | "production"
   | "packaging"
   | "stockTransfers"
+  | "baleTransfers"
   | "stores"
   | "reports";
 
@@ -38,6 +40,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   description: string;
   adminOnly?: boolean;
+  baleOnly?: boolean;
 }
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
@@ -81,6 +84,14 @@ const ALL_NAV_ITEMS: NavItem[] = [
     description: "Request, issue & receive",
   },
   {
+    key: "baleTransfers",
+    label: "Bale Transfers",
+    path: ROUTES.INVENTORY_BALE_TRANSFERS,
+    icon: Truck,
+    description: "Packaging → Dispatch",
+    baleOnly: true,
+  },
+  {
     key: "stores",
     label: "Stores",
     path: ROUTES.INVENTORY_STORES,
@@ -101,6 +112,7 @@ function getActiveKey(pathname: string): InventoryNavKey {
   if (pathname.startsWith(ROUTES.INVENTORY_CATALOGUE)) return "catalogue";
   if (pathname.startsWith(ROUTES.INVENTORY_PRODUCTION)) return "production";
   if (pathname.startsWith(ROUTES.INVENTORY_PACKAGING)) return "packaging";
+  if (pathname.startsWith(ROUTES.INVENTORY_BALE_TRANSFERS)) return "baleTransfers";
   if (pathname.startsWith(ROUTES.INVENTORY_STOCK_TRANSFERS)) return "stockTransfers";
   if (pathname.startsWith(ROUTES.INVENTORY_STORES)) return "stores";
   if (pathname.startsWith(ROUTES.INVENTORY_REPORTS)) return "reports";
@@ -132,8 +144,15 @@ export function InventoryLayout() {
     }
   }, [isAdmin]);
 
+  const isBaleParticipant =
+    isAdmin ||
+    user?.role === "PACKAGING_STORE_MANAGER" ||
+    user?.role === "DISPATCH_STORE_MANAGER";
+
   const navItems = ALL_NAV_ITEMS.filter(
-    (item) => !item.adminOnly || isAdmin
+    (item) =>
+      (!item.adminOnly || isAdmin) &&
+      (!item.baleOnly || isBaleParticipant)
   );
 
   const closeSidebar = () => setIsSidebarOpen(false);

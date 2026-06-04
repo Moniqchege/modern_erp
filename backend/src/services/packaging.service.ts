@@ -350,37 +350,49 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
     }
 
     // ── Req 1: Credit finished bales to Packaging Store balance ──────────────
-    // Each output line that carries an inventoryItemId (resolved bale item)
-    // increments the Packaging Store physicalQty by the number of bales produced.
-    // typeKey-only lines that have no linked InventoryItem are resolved here;
-    // if no item can be found the run is aborted with a descriptive error.
+    // Each output line increments the Packaging Store physicalQty for the
+    // resolved packed-bale InventoryItem.
+    //
+    // Resolution priority:
+    //  1. packedBaleInventoryItemId explicitly on the line — always preferred.
+    //  2. typeKey matches exactly ONE InventoryItem.type — unambiguous fallback.
+    //  3. Multiple candidates — abort with a clear error asking for explicit id.
     for (const line of resolvedLines) {
       const balesProduced = line.unitsProduced;
       if (balesProduced <= 0) continue;
 
-      // Prefer explicit packedBaleInventoryItemId; fall back to typeKey lookup
       let baleItemId: string | null = line.packedBaleInventoryItemId ?? null;
 
       if (!baleItemId && line.typeKey && line.typeKey !== "UNKNOWN") {
-        const found = await tx.inventoryItem.findFirst({
-          where: { type: { in: ["FINISHED_GOOD"] }, sku: { contains: line.typeKey } },
-          select: { id: true },
+        const candidates = await tx.inventoryItem.findMany({
+          where: { type: line.typeKey as any },
+          select: { id: true, name: true },
         });
-        baleItemId = found?.id ?? null;
+
+        if (candidates.length === 1) {
+          baleItemId = candidates[0].id;
+        } else if (candidates.length > 1) {
+          throw new Error(
+            `Ambiguous output line: typeKey "${line.typeKey}" matches ${candidates.length} inventory items ` +
+            `(${candidates.map((c) => c.name).join(", ")}). ` +
+            `Select the specific brand using the "Brand / Item" selector on the output line.`
+          );
+        }
       }
 
       if (!baleItemId) {
         throw new Error(
           `Cannot credit Packaging Store: no InventoryItem found for typeKey "${line.typeKey}". ` +
-          `Please link a packed-bale InventoryItem to this output line.`
+          `Add a packaging item with this type or select the item explicitly on the output line.`
         );
       }
 
-      // Link the resolved item back onto the output row so it is queryable
+      // Link item back onto the output row for traceability
       await tx.packagingRunFinishedProductOutput.updateMany({
         where: {
           packagingRunId: run.id,
           typeKey: line.typeKey ?? "UNKNOWN",
+          finishedProductName: line.flourInventoryItemId,
           inventoryItemId: null,
         },
         data: { inventoryItemId: baleItemId },

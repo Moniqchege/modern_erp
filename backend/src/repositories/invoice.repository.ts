@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { InvoiceStatus, Prisma } from "@prisma/client";
 import { prisma } from "../server";
 
 const invoiceInclude = {
@@ -20,6 +20,17 @@ export const invoiceRepository = {
     return prisma.invoice.findUnique({
       where: { salesOrderId },
       include: invoiceInclude,
+    });
+  },
+
+  async findMany(filters: { customerId?: string; status?: InvoiceStatus } = {}) {
+    return prisma.invoice.findMany({
+      where: {
+        ...(filters.customerId ? { customerId: filters.customerId } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
+      },
+      include: invoiceInclude,
+      orderBy: { createdAt: "desc" },
     });
   },
 

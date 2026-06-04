@@ -2,9 +2,13 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { ConflictError, NotFoundError } from "../../errors/http-error";
 import { prisma } from "../../server";
-import { GenerateInvoiceSchema } from "../../validation/sales/invoice.schemas";
+import {
+  GenerateInvoiceSchema,
+  ListInvoicesQuerySchema,
+} from "../../validation/sales/invoice.schemas";
 import {
   generateInvoiceFromOrder,
+  getInvoiceById,
   listInvoices,
 } from "../../services/sales/invoice.service";
 
@@ -21,9 +25,21 @@ const LegacyCreateInvoiceSchema = z.object({
   dueDate: z.coerce.date().optional(),
 });
 
-export async function listInvoicesController(_req: Request, res: Response) {
-  const invoices = await listInvoices();
+export async function listInvoicesController(req: Request, res: Response) {
+  const parse = ListInvoicesQuerySchema.safeParse(req.query);
+  if (!parse.success) {
+    return res.status(400).json({
+      message: "Invalid query parameters",
+      errors: parse.error.flatten(),
+    });
+  }
+  const invoices = await listInvoices(parse.data);
   res.status(200).json({ invoices });
+}
+
+export async function getInvoiceController(req: Request, res: Response) {
+  const invoice = await getInvoiceById(req.params.id);
+  res.status(200).json({ invoice });
 }
 
 export async function generateInvoiceController(req: Request, res: Response) {

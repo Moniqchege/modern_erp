@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "./Layout";
 import { ProcurementLayout } from "./ProcurementLayout";
 import { InventoryLayout } from "./InventoryLayout";
+import { SalesLayout } from "./SalesLayout";
 import { ROUTES } from "../app/router/routes";
 
 type SidebarKey = "dashboard" | "customers" | "invoices";
@@ -13,6 +14,10 @@ function isProcurementModule(pathname: string): boolean {
 
 function isInventoryModule(pathname: string): boolean {
   return pathname === ROUTES.INVENTORY || pathname.startsWith(`${ROUTES.INVENTORY}/`);
+}
+
+function isSalesModule(pathname: string): boolean {
+  return pathname === ROUTES.SALES || pathname.startsWith(`${ROUTES.SALES}/`);
 }
 
 function getSidebarKeyFromPath(pathname: string): SidebarKey {
@@ -43,6 +48,10 @@ export function LayoutShell() {
 
   if (isProcurementModule(location.pathname)) {
     return <ProcurementLayout />;
+  }
+
+  if (isSalesModule(location.pathname)) {
+    return <SalesLayout />;
   }
 
   if (isInventoryModule(location.pathname)) {

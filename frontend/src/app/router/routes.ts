@@ -13,14 +13,32 @@ export const ROUTES = {
     INVENTORY_STOCK_TRANSFER_NEW: "/inventory/stock-transfers/new",
     INVENTORY_STOCK_TRANSFER_DETAIL: (id: string) => `/inventory/stock-transfers/${id}`,
     INVENTORY_STORES: "/inventory/stores",
+    INVENTORY_BALE_TRANSFERS: "/inventory/bale-transfers",
+    INVENTORY_BALE_TRANSFER_DETAIL: (id: string) => `/inventory/bale-transfers/${id}`,
 
     /** @deprecated Use INVENTORY_PRODUCTION */
     PRODUCTION: "/inventory/production",
     /** @deprecated Use INVENTORY_PACKAGING */
     PACKAGING: "/inventory/packaging",
 
+    /** @deprecated Use SALES_CUSTOMERS */
     CUSTOMERS: "/customers",
+    /** @deprecated Use SALES_INVOICES */
     INVOICES: "/invoices",
+
+    SALES: "/sales",
+    SALES_CUSTOMERS: "/sales/customers",
+    SALES_CUSTOMER_DETAIL: (id: string) => `/sales/customers/${id}`,
+    SALES_ORDERS: "/sales/orders",
+    SALES_ORDER_DETAIL: (id: string) => `/sales/orders/${id}`,
+    SALES_ORDER_NEW: "/sales/orders/new",
+    SALES_PRODUCTS: "/sales/products",
+    SALES_INVOICES: "/sales/invoices",
+    SALES_INVOICE_DETAIL: (id: string) => `/sales/invoices/${id}`,
+    SALES_PAYMENTS: "/sales/payments",
+    SALES_DISPATCHES: "/sales/dispatches",
+    SALES_DISPATCH_DETAIL: (id: string) => `/sales/dispatches/${id}`,
+    SALES_DISPATCH_NEW: "/sales/dispatches/new",
 
     PROCUREMENT: "/procurement",
     PROCUREMENT_SUPPLIERS: "/procurement/suppliers",

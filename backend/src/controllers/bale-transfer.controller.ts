@@ -10,6 +10,7 @@ import {
     rejectBaleDelivery,
     listBaleTransfers,
     getBaleTransferById,
+    getPackagingStoreBaleStock,
 } from "../services/bale-transfer.service";
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
@@ -240,5 +241,23 @@ export async function rejectBaleDeliveryController(
         res.json({ success: true, transfer });
     } catch (err) {
         res.status(getStatusCode(err)).json({ message: err instanceof Error ? err.message : "Failed" });
+    }
+}
+
+/**
+ * GET /bale-transfers/bale-stock
+ * Returns items that have been produced as packed bales in packaging runs,
+ * with their current Packaging Store physical and transit quantities.
+ * Used by the transfer form so only actual bale items are shown (not raw bags).
+ */
+export async function getBaleStockController(
+    req: AuthenticatedRequest,
+    res: Response
+) {
+    try {
+        const stock = await getPackagingStoreBaleStock();
+        res.json({ stock });
+    } catch (err) {
+        res.status(500).json({ message: err instanceof Error ? err.message : "Failed to load bale stock" });
     }
 }

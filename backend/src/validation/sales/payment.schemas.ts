@@ -11,4 +11,10 @@ export const RecordPaymentSchema = z.object({
   paidAt: z.coerce.date().optional(),
 });
 
+export const ListPaymentsQuerySchema = z.object({
+  customerId: z.string().min(1).optional(),
+  invoiceId: z.string().min(1).optional(),
+});
+
 export type RecordPaymentInput = z.infer<typeof RecordPaymentSchema>;
+export type ListPaymentsQuery = z.infer<typeof ListPaymentsQuerySchema>;

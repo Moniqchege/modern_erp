@@ -80,13 +80,13 @@ interface InventoryItem {
 }
 
 // ─── One output line within a flour block ─────────────────────────────────────
-// typeKey + kgPerUnit are always in sync; kgPerUnit is derived, never user-entered.
 
 interface OutputLine {
   _key: string;
   typeKey: BaleTypeKey;
   kgPerUnit: number;
   unitsProduced: string;
+  packedBaleInventoryItemId: string; // required — which item's balance to credit
 }
 
 // ─── One flour consumption block ─────────────────────────────────────────────
@@ -130,59 +130,95 @@ function baleFromKey(key: BaleTypeKey) {
 
 interface OutputLineRowProps {
   line: OutputLine;
+  packagingItems: InventoryItem[]; // baler/bag items from Packaging Store
   onChange: (updated: OutputLine) => void;
   onRemove: () => void;
 }
 
-function OutputLineRow({ line, onChange, onRemove }: OutputLineRowProps) {
+function OutputLineRow({ line, packagingItems, onChange, onRemove }: OutputLineRowProps) {
   const units = parseFloat(line.unitsProduced) || 0;
   const totalKg = units * line.kgPerUnit;
 
+  // Only show items whose type matches the selected bale typeKey
+  const matchingItems = packagingItems.filter((it) => it.type === line.typeKey);
+
   function handleTypeChange(key: string) {
     const bale = baleFromKey(key as BaleTypeKey);
-    onChange({ ...line, typeKey: bale.key, kgPerUnit: bale.kgPerUnit });
+    // Reset item selection when bale type changes
+    onChange({ ...line, typeKey: bale.key, kgPerUnit: bale.kgPerUnit, packedBaleInventoryItemId: "" });
   }
 
   return (
-    <div className="grid grid-cols-[1fr_100px_90px_28px] gap-2 items-center">
-      {/* Bale type selector */}
-      <select
-        value={line.typeKey}
-        onChange={(e) => handleTypeChange(e.target.value)}
-        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
-      >
-        {BALE_TYPES.map((b) => (
-          <option key={b.key} value={b.key}>
-            {b.label} — {b.kgPerUnit} kg/unit
-          </option>
-        ))}
-      </select>
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-[1fr_100px_90px_28px] gap-2 items-center">
+        {/* Bale type selector */}
+        <select
+          aria-label="Bale or bag type"
+          value={line.typeKey}
+          onChange={(e) => handleTypeChange(e.target.value)}
+          className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+        >
+          {BALE_TYPES.map((b) => (
+            <option key={b.key} value={b.key}>
+              {b.label} — {b.kgPerUnit} kg/unit
+            </option>
+          ))}
+        </select>
 
-      {/* Units input */}
-      <input
-        type="number"
-        min="0"
-        step="1"
-        placeholder="0"
-        value={line.unitsProduced}
-        onChange={(e) => onChange({ ...line, unitsProduced: e.target.value })}
-        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
-      />
+        {/* Units input */}
+        <input
+          type="number"
+          min="0"
+          step="1"
+          placeholder="0"
+          aria-label="Units produced"
+          value={line.unitsProduced}
+          onChange={(e) => onChange({ ...line, unitsProduced: e.target.value })}
+          className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+        />
 
-      {/* Derived kg — read-only */}
-      <span className="text-[11px] font-mono text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-right">
-        {totalKg > 0 ? `${totalKg.toFixed(1)} kg` : "—"}
-      </span>
+        {/* Derived kg — read-only */}
+        <span className="text-[11px] font-mono text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-right">
+          {totalKg > 0 ? `${totalKg.toFixed(1)} kg` : "—"}
+        </span>
 
-      {/* Remove */}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="w-6 h-6 flex items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-        aria-label="Remove line"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="w-6 h-6 flex items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+          aria-label="Remove line"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+
+      {/* Brand / item selector — shown when there are matching items in packaging store */}
+      {matchingItems.length > 0 && (
+        <div className="ml-0 pl-0">
+          <select
+            aria-label="Brand or inventory item to credit bales to"
+            value={line.packedBaleInventoryItemId}
+            onChange={(e) => onChange({ ...line, packedBaleInventoryItemId: e.target.value })}
+            className={`w-full bg-white border rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-500 ${
+              !line.packedBaleInventoryItemId ? "border-amber-300" : "border-slate-200"
+            }`}
+          >
+            <option value="">— Select brand / item to credit bales to —</option>
+            {matchingItems.map((it) => (
+              <option key={it.id} value={it.id}>
+                {it.name} ({it.sku})
+              </option>
+            ))}
+          </select>
+          {!line.packedBaleInventoryItemId && (
+            <p className="text-[9px] text-amber-600 font-bold mt-0.5 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Select which item these bales belong to so they appear in bale stock
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -192,10 +228,11 @@ function OutputLineRow({ line, onChange, onRemove }: OutputLineRowProps) {
 interface FlourBlockProps {
   block: FlourBlock;
   flourItem: InventoryItem | undefined;
+  packagingItems: InventoryItem[];
   onChange: (updated: FlourBlock) => void;
 }
 
-function FlourBlockCard({ block, flourItem, onChange }: FlourBlockProps) {
+function FlourBlockCard({ block, flourItem, packagingItems, onChange }: FlourBlockProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const consumed = parseFloat(block.consumedKg) || 0;
@@ -217,6 +254,7 @@ function FlourBlockCard({ block, flourItem, onChange }: FlourBlockProps) {
           typeKey: defaultBale.key,
           kgPerUnit: defaultBale.kgPerUnit,
           unitsProduced: "",
+          packedBaleInventoryItemId: "",
         },
       ],
     });
@@ -319,6 +357,7 @@ function FlourBlockCard({ block, flourItem, onChange }: FlourBlockProps) {
             <OutputLineRow
               key={line._key}
               line={line}
+              packagingItems={packagingItems}
               onChange={(updated) => updateLine(idx, updated)}
               onRemove={() => removeLine(idx)}
             />
@@ -515,6 +554,9 @@ export function PackagingForm() {
               typeKey: l.typeKey,
               unitsProduced: parseFloat(l.unitsProduced) || 0,
               kgPerUnit: l.kgPerUnit,
+              ...(l.packedBaleInventoryItemId
+                ? { packedBaleInventoryItemId: l.packedBaleInventoryItemId }
+                : {}),
             })),
         }))
         .filter((o) => o.outputLines.length > 0),
@@ -606,10 +648,11 @@ export function PackagingForm() {
 
           {/* Operator name */}
           <div className="space-y-1">
-            <label className="text-[9px] font-extrabold text-slate-400 uppercase">
+            <label htmlFor="operator-name" className="text-[9px] font-extrabold text-slate-400 uppercase">
               Operator name*
             </label>
             <input
+              id="operator-name"
               required
               value={operatorName}
               onChange={(e) => setOperatorName(e.target.value)}
@@ -642,6 +685,9 @@ export function PackagingForm() {
                       key={block.flourInventoryItemId}
                       block={block}
                       flourItem={flourItem}
+                      packagingItems={inventoryItems.filter(
+                        (i) => !NON_PACKAGING_TYPES.has(i.type)
+                      )}
                       onChange={(updated) =>
                         setFlourBlocks((prev) =>
                           prev.map((b, i) => (i === idx ? updated : b))
@@ -761,8 +807,9 @@ export function PackagingForm() {
 
           {/* ── Notes ── */}
           <div className="space-y-1">
-            <label className="text-[9px] font-extrabold text-slate-400 uppercase">Notes</label>
+            <label htmlFor="packaging-notes" className="text-[9px] font-extrabold text-slate-400 uppercase">Notes</label>
             <textarea
+              id="packaging-notes"
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

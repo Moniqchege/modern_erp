@@ -2,7 +2,11 @@ import { prisma } from "../../server";
 import { BadRequestError, NotFoundError } from "../../errors/http-error";
 import { customerRepository } from "../../repositories/customer.repository";
 import { salesOrderRepository } from "../../repositories/sales-order.repository";
-import type { CreateSalesOrderInput } from "../../validation/sales/sales-order.schemas";
+import type {
+  CreateSalesOrderInput,
+  ListSalesOrdersQuery,
+  UpdateSalesOrderInput,
+} from "../../validation/sales/sales-order.schemas";
 import { checkCreditAvailability, assertCreditAvailable } from "./credit.service";
 import { calculateTieredPricing, roundMoney, type PricedLine } from "./pricing.service";
 import { VAT_RATE } from "./sales.constants";
@@ -132,10 +136,77 @@ export async function createSalesOrder(input: CreateSalesOrderInput) {
   return formatOrder(order);
 }
 
+export async function listSalesOrders(query: ListSalesOrdersQuery) {
+  const rows = await salesOrderRepository.findMany(query);
+  return rows.map((o) => formatOrder(o));
+}
+
 export async function getSalesOrderById(id: string) {
   const order = await salesOrderRepository.findById(id);
   if (!order) {
     throw new NotFoundError(`Sales order ${id} not found`);
   }
   return formatOrder(order);
+}
+
+export async function updateSalesOrder(id: string, input: UpdateSalesOrderInput) {
+  const order = await salesOrderRepository.findById(id);
+  if (!order) {
+    throw new NotFoundError(`Sales order ${id} not found`);
+  }
+  if (order.orderStatus === "CANCELLED") {
+    throw new BadRequestError("Cannot update a cancelled order");
+  }
+
+  const dispatchStatus =
+    input.dispatchStatus ??
+    (input.orderStatus === "FULFILLED" ? ("DELIVERED" as const) : undefined);
+
+  const updated = await salesOrderRepository.update(id, {
+    ...(input.orderStatus ? { orderStatus: input.orderStatus } : {}),
+    ...(dispatchStatus ? { dispatchStatus } : {}),
+  });
+
+  return formatOrder(updated);
+}
+
+export async function cancelSalesOrder(id: string) {
+  const order = await salesOrderRepository.findById(id);
+  if (!order) {
+    throw new NotFoundError(`Sales order ${id} not found`);
+  }
+  if (order.orderStatus === "CANCELLED") {
+    throw new BadRequestError("Order is already cancelled");
+  }
+  if (order.invoice) {
+    throw new BadRequestError("Cannot cancel an order that already has an invoice");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.salesOrder.update({
+      where: { id },
+      data: { orderStatus: "CANCELLED", dispatchStatus: "PENDING" },
+    });
+
+    const customer = await tx.customer.findUnique({
+      where: { id: order.customerId },
+    });
+    if (
+      customer &&
+      customer.type !== "WALK_IN" &&
+      Number(customer.creditLimit) > 0
+    ) {
+      const nextBalance = Math.max(
+        0,
+        Number(customer.currentBalance) - Number(order.totalAmount)
+      );
+      await tx.customer.update({
+        where: { id: customer.id },
+        data: { currentBalance: nextBalance.toFixed(2) },
+      });
+    }
+  });
+
+  const refreshed = await salesOrderRepository.findById(id);
+  return formatOrder(refreshed!);
 }

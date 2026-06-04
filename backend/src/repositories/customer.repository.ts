@@ -41,6 +41,10 @@ export const customerRepository = {
     return prisma.customer.create({ data });
   },
 
+  async update(id: string, data: Prisma.CustomerUpdateInput) {
+    return prisma.customer.update({ where: { id }, data });
+  },
+
   async updateBalance(id: string, delta: number, tx: Prisma.TransactionClient = prisma) {
     const customer = await tx.customer.findUnique({ where: { id } });
     if (!customer) return null;

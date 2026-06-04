@@ -1,5 +1,12 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SalesDispatchStatus, SalesOrderStatus } from "@prisma/client";
 import { prisma } from "../server";
+
+export type SalesOrderListFilters = {
+  customerId?: string;
+  orderStatus?: SalesOrderStatus;
+  dispatchStatus?: SalesDispatchStatus;
+  paymentStatus?: "PENDING" | "PARTIAL" | "PAID";
+};
 
 const orderInclude = {
   customer: true,
@@ -11,6 +18,31 @@ export const salesOrderRepository = {
   async findById(id: string) {
     return prisma.salesOrder.findUnique({
       where: { id },
+      include: orderInclude,
+    });
+  },
+
+  async findMany(filters: SalesOrderListFilters = {}) {
+    return prisma.salesOrder.findMany({
+      where: {
+        ...(filters.customerId ? { customerId: filters.customerId } : {}),
+        ...(filters.orderStatus ? { orderStatus: filters.orderStatus } : {}),
+        ...(filters.dispatchStatus ? { dispatchStatus: filters.dispatchStatus } : {}),
+        ...(filters.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
+      },
+      include: orderInclude,
+      orderBy: { orderDate: "desc" },
+    });
+  },
+
+  async update(
+    id: string,
+    data: Prisma.SalesOrderUpdateInput,
+    tx: Prisma.TransactionClient = prisma
+  ) {
+    return tx.salesOrder.update({
+      where: { id },
+      data,
       include: orderInclude,
     });
   },

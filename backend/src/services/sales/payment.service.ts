@@ -4,7 +4,10 @@ import { BadRequestError, NotFoundError } from "../../errors/http-error";
 import { customerRepository } from "../../repositories/customer.repository";
 import { invoiceRepository } from "../../repositories/invoice.repository";
 import { paymentRepository } from "../../repositories/payment.repository";
-import type { RecordPaymentInput } from "../../validation/sales/payment.schemas";
+import type {
+  ListPaymentsQuery,
+  RecordPaymentInput,
+} from "../../validation/sales/payment.schemas";
 import { publishDomainEvent } from "../../events/eventBus";
 import { SALES_EVENTS } from "../../events/salesEventTypes";
 
@@ -12,6 +15,21 @@ function deriveInvoiceStatus(amountDue: number, totalPaid: number): InvoiceStatu
   if (totalPaid <= 0) return "ISSUED";
   if (totalPaid >= amountDue) return "PAID";
   return "PARTIAL";
+}
+
+export async function listCustomerPayments(query: ListPaymentsQuery = {}) {
+  const rows = await paymentRepository.findMany(query);
+  return rows.map((p) => ({
+    ...p,
+    amountPaid: Number(p.amountPaid),
+    invoice: p.invoice
+      ? {
+          ...p.invoice,
+          total: Number(p.invoice.total),
+          amountDue: Number(p.invoice.amountDue),
+        }
+      : p.invoice,
+  }));
 }
 
 export async function recordCustomerPayment(input: RecordPaymentInput) {

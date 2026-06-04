@@ -1,6 +1,24 @@
 import type { Request, Response } from "express";
-import { RecordPaymentSchema } from "../../validation/sales/payment.schemas";
-import { recordCustomerPayment } from "../../services/sales/payment.service";
+import {
+  ListPaymentsQuerySchema,
+  RecordPaymentSchema,
+} from "../../validation/sales/payment.schemas";
+import {
+  listCustomerPayments,
+  recordCustomerPayment,
+} from "../../services/sales/payment.service";
+
+export async function listPaymentsController(req: Request, res: Response) {
+  const parse = ListPaymentsQuerySchema.safeParse(req.query);
+  if (!parse.success) {
+    return res.status(400).json({
+      message: "Invalid query parameters",
+      errors: parse.error.flatten(),
+    });
+  }
+  const payments = await listCustomerPayments(parse.data);
+  res.status(200).json({ payments });
+}
 
 export async function recordPaymentController(req: Request, res: Response) {
   const parse = RecordPaymentSchema.safeParse(req.body);

@@ -41,9 +41,9 @@ export function ModuleLanding() {
     },
     {
       title: "Customer & Sales",
-      subtitle: "Customers, invoices & orders",
+      subtitle: "Orders, dispatch, invoices & payments",
       icon: Users,
-      to: "/customers",
+      to: "/sales",
     },
     {
       title: "Budget & Imprest",

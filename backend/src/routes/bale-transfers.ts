@@ -9,6 +9,7 @@ import {
     rejectPullRequestController,
     acknowledgeBaleReceiptController,
     rejectBaleDeliveryController,
+    getBaleStockController,
 } from "../controllers/bale-transfer.controller";
 
 const handle = (fn: (req: AuthenticatedRequest, res: Response) => Promise<any>) =>
@@ -18,6 +19,13 @@ const handle = (fn: (req: AuthenticatedRequest, res: Response) => Promise<any>) 
 export const baleTransferRouter = Router();
 
 baleTransferRouter.use(requireAuth);
+
+/**
+ * GET /bale-transfers/bale-stock
+ * Items produced as packed bales with their Packaging Store balances.
+ * Must be registered before /:id to avoid route collision.
+ */
+baleTransferRouter.get("/bale-stock", handle(getBaleStockController));
 
 /**
  * GET  /bale-transfers

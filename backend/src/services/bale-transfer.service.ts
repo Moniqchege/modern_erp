@@ -734,7 +734,51 @@ export async function listBaleTransfers(
     return transfers.map(formatTransfer);
 }
 
-// ─── Get Single Bale Transfer ─────────────────────────────────────────────────
+// ─── Get Bale Stock (items with packed bale balances in Packaging Store) ───────
+
+export async function getPackagingStoreBaleStock() {
+    await ensureDefaultStores();
+
+    const src = await prisma.inventoryLocation.findUniqueOrThrow({
+        where: { code: SOURCE_STORE_CODE },
+        select: { id: true },
+    });
+
+    // Items that have ever been produced as a packaging run output
+    // (these are the only items meaningful to bale transfer — not raw bags)
+    const outputItems = await prisma.packagingRunFinishedProductOutput.findMany({
+        where: { inventoryItemId: { not: null } },
+        select: { inventoryItemId: true },
+        distinct: ["inventoryItemId"],
+    });
+
+    const baleItemIds = outputItems
+        .map((r) => r.inventoryItemId)
+        .filter((id): id is string => id !== null);
+
+    if (baleItemIds.length === 0) return [];
+
+    // Get current Packaging Store balances for those items
+    const balances = await prisma.storeInventoryBalance.findMany({
+        where: {
+            locationId: src.id,
+            itemId: { in: baleItemIds },
+        },
+        include: {
+            item: { select: { id: true, sku: true, name: true, unit: true, type: true } },
+        },
+    });
+
+    return balances.map((b) => ({
+        inventoryItemId: b.itemId,
+        sku: b.item.sku,
+        name: b.item.name,
+        unit: b.item.unit,
+        type: b.item.type,
+        physicalQty: Number(b.physicalQty),
+        transitQty: Number(b.transitQty),
+    }));
+}
 
 export async function getBaleTransferById(
     auth: AccessTokenPayload,

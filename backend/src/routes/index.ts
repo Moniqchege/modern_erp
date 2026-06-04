@@ -16,6 +16,9 @@ import { stockTransferRouter } from "./stock-transfer";
 import { storesRouter } from "./stores";
 import { usersRouter } from "./users";
 import { baleTransferRouter } from "./bale-transfers";
+import { salesDashboardRouter } from "./sales-dashboard";
+import { salesProductsRouter } from "./sales-products";
+import { dispatchesRouter } from "./dispatches";
 
 export const routes = Router();
 
@@ -27,6 +30,9 @@ routes.use("/customers", customersRouter);
 routes.use("/sales-orders", salesOrdersRouter);
 routes.use("/invoices", invoicesRouter);
 routes.use("/payments", paymentsRouter);
+routes.use("/sales/dashboard", salesDashboardRouter);
+routes.use("/sales-products", salesProductsRouter);
+routes.use("/dispatches", dispatchesRouter);
 routes.use("/production", productionRouter);
 routes.use("/packaging", packagingRouter);
 routes.use("/dashboard", dashboardRouter);

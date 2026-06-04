@@ -39,8 +39,54 @@ const StockTransferDetail = lazy(() =>
 const Stores = lazy(() =>
   import("../../pages/inventory/Stores").then((m) => ({ default: m.Stores }))
 );
-const Customers = lazy(() => import("../../pages/Customers").then((m) => ({ default: m.Customers })));
-const Invoices = lazy(() => import("../../pages/Invoices").then((m) => ({ default: m.Invoices })));
+const BaleTransfers = lazy(() =>
+  import("../../pages/inventory/BaleTransfers").then((m) => ({ default: m.BaleTransfers }))
+);
+const BaleTransferForm = lazy(() =>
+  import("../../pages/inventory/BaleTransferForm").then((m) => ({ default: m.BaleTransferForm }))
+);
+const BaleTransferDetail = lazy(() =>
+  import("../../pages/inventory/BaleTransferDetail").then((m) => ({ default: m.BaleTransferDetail }))
+);
+const SalesDashboard = lazy(() =>
+  import("../../pages/sales/SalesDashboard").then((m) => ({ default: m.SalesDashboard }))
+);
+const SalesCustomers = lazy(() =>
+  import("../../pages/sales/Customers").then((m) => ({ default: m.Customers }))
+);
+const SalesCustomerDetail = lazy(() =>
+  import("../../pages/sales/CustomerDetail").then((m) => ({ default: m.CustomerDetail }))
+);
+const SalesOrders = lazy(() =>
+  import("../../pages/sales/SalesOrders").then((m) => ({ default: m.SalesOrders }))
+);
+const SalesOrderForm = lazy(() =>
+  import("../../pages/sales/SalesOrderForm").then((m) => ({ default: m.SalesOrderForm }))
+);
+const SalesOrderDetail = lazy(() =>
+  import("../../pages/sales/SalesOrderDetail").then((m) => ({ default: m.SalesOrderDetail }))
+);
+const SalesProducts = lazy(() =>
+  import("../../pages/sales/Products").then((m) => ({ default: m.Products }))
+);
+const SalesInvoices = lazy(() =>
+  import("../../pages/sales/Invoices").then((m) => ({ default: m.Invoices }))
+);
+const SalesInvoiceDetail = lazy(() =>
+  import("../../pages/sales/InvoiceDetail").then((m) => ({ default: m.InvoiceDetail }))
+);
+const SalesPayments = lazy(() =>
+  import("../../pages/sales/Payments").then((m) => ({ default: m.Payments }))
+);
+const SalesDispatches = lazy(() =>
+  import("../../pages/sales/Dispatches").then((m) => ({ default: m.Dispatches }))
+);
+const SalesDispatchForm = lazy(() =>
+  import("../../pages/sales/DispatchForm").then((m) => ({ default: m.DispatchForm }))
+);
+const SalesDispatchDetail = lazy(() =>
+  import("../../pages/sales/DispatchDetail").then((m) => ({ default: m.DispatchDetail }))
+);
 const ProcurementDashboard = lazy(() =>
   import("../../pages/procurement/ProcurementDashboard").then((m) => ({ default: m.ProcurementDashboard }))
 );
@@ -127,6 +173,10 @@ export function AppRouter() {
             <Route path="stock-transfers/new" element={<StockTransferForm />} />
             <Route path="stock-transfers/:transferId" element={<StockTransferDetail />} />
             <Route path="stores" element={<Stores />} />
+            <Route path="bale-transfers" element={<BaleTransfers />} />
+            <Route path="bale-transfers/push" element={<BaleTransferForm />} />
+            <Route path="bale-transfers/pull" element={<BaleTransferForm />} />
+            <Route path="bale-transfers/:transferId" element={<BaleTransferDetail />} />
           </Route>
 
           <Route path="/production" element={<Navigate to={ROUTES.INVENTORY_PRODUCTION} replace />} />
@@ -135,8 +185,22 @@ export function AppRouter() {
           <Route path="/inventory/:itemId/edit" element={<LegacyInventoryItemEditRedirect />} />
           <Route path="/inventory/:itemId" element={<LegacyInventoryItemRedirect />} />
 
-          <Route path={ROUTES.CUSTOMERS} element={<Customers />} />
-          <Route path={ROUTES.INVOICES} element={<Invoices />} />
+          <Route path={ROUTES.SALES} element={<SalesDashboard />} />
+          <Route path={ROUTES.SALES_CUSTOMERS} element={<SalesCustomers />} />
+          <Route path="/sales/customers/:customerId" element={<SalesCustomerDetail />} />
+          <Route path={ROUTES.SALES_ORDERS} element={<SalesOrders />} />
+          <Route path={ROUTES.SALES_ORDER_NEW} element={<SalesOrderForm />} />
+          <Route path="/sales/orders/:orderId" element={<SalesOrderDetail />} />
+          <Route path={ROUTES.SALES_PRODUCTS} element={<SalesProducts />} />
+          <Route path={ROUTES.SALES_INVOICES} element={<SalesInvoices />} />
+          <Route path="/sales/invoices/:invoiceId" element={<SalesInvoiceDetail />} />
+          <Route path={ROUTES.SALES_PAYMENTS} element={<SalesPayments />} />
+          <Route path={ROUTES.SALES_DISPATCHES} element={<SalesDispatches />} />
+          <Route path={ROUTES.SALES_DISPATCH_NEW} element={<SalesDispatchForm />} />
+          <Route path="/sales/dispatches/:dispatchId" element={<SalesDispatchDetail />} />
+
+          <Route path={ROUTES.CUSTOMERS} element={<Navigate to={ROUTES.SALES_CUSTOMERS} replace />} />
+          <Route path={ROUTES.INVOICES} element={<Navigate to={ROUTES.SALES_INVOICES} replace />} />
           <Route path={ROUTES.PROCUREMENT} element={<ProcurementDashboard />} />
           <Route path={ROUTES.PROCUREMENT_SUPPLIERS} element={<ProcurementSuppliers />} />
           <Route path="/procurement/suppliers/:supplierId" element={<ProcurementSupplierDetail />} />

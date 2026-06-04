@@ -2,7 +2,10 @@ import { prisma } from "../../server";
 import { BadRequestError, ConflictError, NotFoundError } from "../../errors/http-error";
 import { invoiceRepository } from "../../repositories/invoice.repository";
 import { salesOrderRepository } from "../../repositories/sales-order.repository";
-import type { GenerateInvoiceInput } from "../../validation/sales/invoice.schemas";
+import type {
+  GenerateInvoiceInput,
+  ListInvoicesQuery,
+} from "../../validation/sales/invoice.schemas";
 import { publishDomainEvent } from "../../events/eventBus";
 import { SALES_EVENTS } from "../../events/salesEventTypes";
 
@@ -111,15 +114,18 @@ export async function generateInvoiceFromOrder(input: GenerateInvoiceInput) {
   return formatInvoice(invoice);
 }
 
-export async function listInvoices() {
-  const rows = await prisma.invoice.findMany({
-    include: {
-      customer: true,
-      createdBy: { select: { id: true, name: true, email: true } },
-      salesOrder: true,
-      payments: true,
-    },
-    orderBy: { createdAt: "desc" },
+export async function getInvoiceById(id: string) {
+  const invoice = await invoiceRepository.findById(id);
+  if (!invoice) {
+    throw new NotFoundError(`Invoice ${id} not found`);
+  }
+  return formatInvoice(invoice);
+}
+
+export async function listInvoices(query: ListInvoicesQuery = {}) {
+  const rows = await invoiceRepository.findMany({
+    customerId: query.customerId,
+    status: query.status,
   });
-  return rows.map((inv) => formatInvoice(inv as Parameters<typeof formatInvoice>[0]));
+  return rows.map((inv) => formatInvoice(inv));
 }
