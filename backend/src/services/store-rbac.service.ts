@@ -109,6 +109,53 @@ export function assertCanReject(role: string) {
   assertCanApproveIssue(role);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BALE TRANSFER RBAC  (Packaging Store → Dispatch Store)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Packaging Store Manager can push bales directly to Dispatch Store (push transfer)
+ * or issue / reject a pull request made by Dispatch Store.
+ */
+export function assertIsPackagingStoreManager(role: string): void {
+  if (!isGlobalInventoryAdmin(role) && role !== "PACKAGING_STORE_MANAGER") {
+    throw Object.assign(
+      new Error("Only Packaging Store managers can perform this action"),
+      { statusCode: 403 }
+    );
+  }
+}
+
+/**
+ * Dispatch Store Manager can create a pull request or acknowledge / reject a
+ * bale delivery to Dispatch Store.
+ */
+export function assertIsDispatchStoreManager(role: string): void {
+  if (!isGlobalInventoryAdmin(role) && role !== "DISPATCH_STORE_MANAGER") {
+    throw Object.assign(
+      new Error("Only Dispatch Store managers can perform this action"),
+      { statusCode: 403 }
+    );
+  }
+}
+
+/**
+ * Packaging Store Manager OR Dispatch Store Manager (or admin) can list
+ * bale transfers, scoped to their own store.
+ */
+export function assertIsBaleTransferParticipant(role: string): void {
+  if (
+    !isGlobalInventoryAdmin(role) &&
+    role !== "PACKAGING_STORE_MANAGER" &&
+    role !== "DISPATCH_STORE_MANAGER"
+  ) {
+    throw Object.assign(
+      new Error("You do not have access to bale transfers"),
+      { statusCode: 403 }
+    );
+  }
+}
+
 /** Prisma filter: transfers visible to the current user */
 export function stockTransferVisibilityFilter(
   auth: AccessTokenPayload

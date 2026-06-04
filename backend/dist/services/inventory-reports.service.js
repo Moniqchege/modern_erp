@@ -20,12 +20,18 @@ function parseDateRange(from, to) {
     toDate.setHours(23, 59, 59, 999);
     return { fromDate, toDate };
 }
-async function buildWorkbook(reportType, from, to) {
+async function buildWorkbook(reportType, from, to, storeCode) {
     const wb = new exceljs_1.default.Workbook();
     wb.creator = "Modern ERP";
     const { fromDate, toDate } = parseDateRange(from, to);
+    // Resolve location filter when storeCode is provided
+    let locationId;
+    if (storeCode) {
+        const loc = await server_1.prisma.inventoryLocation.findUnique({ where: { code: storeCode } });
+        locationId = loc?.id;
+    }
     if (reportType === "stock-on-hand") {
-        const sheet = wb.addWorksheet("Stock on hand");
+        const sheet = wb.addWorksheet(storeCode ? `Stock on hand – ${storeCode}` : "Stock on hand");
         sheet.columns = [
             { header: "SKU", key: "sku", width: 14 },
             { header: "Name", key: "name", width: 28 },
@@ -34,22 +40,43 @@ async function buildWorkbook(reportType, from, to) {
             { header: "Quantity", key: "quantity", width: 12 },
             { header: "Reorder level", key: "reorderLevel", width: 14 },
             { header: "Unit price", key: "unitPrice", width: 12 },
+            ...(storeCode ? [{ header: "Store", key: "store", width: 20 }] : []),
         ];
         sheet.getRow(1).font = { bold: true };
-        const items = await server_1.prisma.inventoryItem.findMany({
-            orderBy: { sku: "asc" },
-            include: { priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 } },
-        });
-        for (const item of items) {
-            sheet.addRow({
-                sku: item.sku,
-                name: item.name,
-                type: item.type,
-                unit: item.unit,
-                quantity: Number(item.quantity),
-                reorderLevel: item.reorderLevel != null ? Number(item.reorderLevel) : "",
-                unitPrice: item.priceHistory[0] != null ? Number(item.priceHistory[0].unitPrice) : "",
+        if (locationId) {
+            // Scoped: pull from StoreInventoryBalance
+            const balances = await server_1.prisma.storeInventoryBalance.findMany({
+                where: { locationId },
+                include: {
+                    item: { include: { priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 } } },
+                    location: { select: { name: true } },
+                },
+                orderBy: { item: { sku: "asc" } },
             });
+            for (const bal of balances) {
+                const item = bal.item;
+                sheet.addRow({
+                    sku: item.sku, name: item.name, type: item.type, unit: item.unit,
+                    quantity: Number(bal.physicalQty),
+                    reorderLevel: item.reorderLevel != null ? Number(item.reorderLevel) : "",
+                    unitPrice: item.priceHistory[0] ? Number(item.priceHistory[0].unitPrice) : "",
+                    store: bal.location.name,
+                });
+            }
+        }
+        else {
+            const items = await server_1.prisma.inventoryItem.findMany({
+                orderBy: { sku: "asc" },
+                include: { priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 } },
+            });
+            for (const item of items) {
+                sheet.addRow({
+                    sku: item.sku, name: item.name, type: item.type, unit: item.unit,
+                    quantity: Number(item.quantity),
+                    reorderLevel: item.reorderLevel != null ? Number(item.reorderLevel) : "",
+                    unitPrice: item.priceHistory[0] ? Number(item.priceHistory[0].unitPrice) : "",
+                });
+            }
         }
         return wb;
     }
@@ -64,23 +91,39 @@ async function buildWorkbook(reportType, from, to) {
             { header: "Shortfall", key: "shortfall", width: 12 },
         ];
         sheet.getRow(1).font = { bold: true };
-        const items = await server_1.prisma.inventoryItem.findMany({
-            where: { reorderLevel: { not: null } },
-            orderBy: { sku: "asc" },
-        });
-        for (const item of items) {
-            const qty = Number(item.quantity);
-            const level = Number(item.reorderLevel);
-            if (qty > level)
-                continue;
-            sheet.addRow({
-                sku: item.sku,
-                name: item.name,
-                quantity: qty,
-                reorderLevel: level,
-                reorderQuantity: item.reorderQuantity != null ? Number(item.reorderQuantity) : "",
-                shortfall: Math.max(0, level - qty),
+        if (locationId) {
+            const balances = await server_1.prisma.storeInventoryBalance.findMany({
+                where: { locationId },
+                include: { item: true },
             });
+            for (const bal of balances) {
+                const item = bal.item;
+                if (item.reorderLevel == null)
+                    continue;
+                const qty = Number(bal.physicalQty);
+                const level = Number(item.reorderLevel);
+                if (qty > level)
+                    continue;
+                sheet.addRow({
+                    sku: item.sku, name: item.name, quantity: qty, reorderLevel: level,
+                    reorderQuantity: item.reorderQuantity != null ? Number(item.reorderQuantity) : "",
+                    shortfall: Math.max(0, level - qty)
+                });
+            }
+        }
+        else {
+            const items = await server_1.prisma.inventoryItem.findMany({ where: { reorderLevel: { not: null } }, orderBy: { sku: "asc" } });
+            for (const item of items) {
+                const qty = Number(item.quantity);
+                const level = Number(item.reorderLevel);
+                if (qty > level)
+                    continue;
+                sheet.addRow({
+                    sku: item.sku, name: item.name, quantity: qty, reorderLevel: level,
+                    reorderQuantity: item.reorderQuantity != null ? Number(item.reorderQuantity) : "",
+                    shortfall: Math.max(0, level - qty)
+                });
+            }
         }
         return wb;
     }
@@ -97,19 +140,18 @@ async function buildWorkbook(reportType, from, to) {
         ];
         sheet.getRow(1).font = { bold: true };
         const movements = await server_1.prisma.inventoryMovement.findMany({
-            where: { movementAt: { gte: fromDate, lte: toDate } },
+            where: {
+                movementAt: { gte: fromDate, lte: toDate },
+                ...(locationId ? { locationId } : {}),
+            },
             orderBy: { movementAt: "desc" },
             include: { item: true },
         });
         for (const m of movements) {
             sheet.addRow({
-                movementAt: m.movementAt.toISOString(),
-                sku: m.item.sku,
-                name: m.item.name,
-                movementType: m.movementType,
-                quantityDelta: Number(m.quantityDelta),
-                unitPriceApplied: Number(m.unitPriceApplied),
-                notes: m.notes ?? "",
+                movementAt: m.movementAt.toISOString(), sku: m.item.sku, name: m.item.name,
+                movementType: m.movementType, quantityDelta: Number(m.quantityDelta),
+                unitPriceApplied: Number(m.unitPriceApplied), notes: m.notes ?? "",
             });
         }
         return wb;
@@ -124,17 +166,33 @@ async function buildWorkbook(reportType, from, to) {
             { header: "Value", key: "value", width: 14 },
         ];
         sheet.getRow(1).font = { bold: true };
-        const items = await server_1.prisma.inventoryItem.findMany({
-            orderBy: { sku: "asc" },
-            include: { priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 } },
-        });
         let total = 0;
-        for (const item of items) {
-            const qty = Number(item.quantity);
-            const price = item.priceHistory[0] ? Number(item.priceHistory[0].unitPrice) : 0;
-            const value = qty * price;
-            total += value;
-            sheet.addRow({ sku: item.sku, name: item.name, quantity: qty, unitPrice: price, value });
+        if (locationId) {
+            const balances = await server_1.prisma.storeInventoryBalance.findMany({
+                where: { locationId },
+                include: { item: { include: { priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 } } } },
+                orderBy: { item: { sku: "asc" } },
+            });
+            for (const bal of balances) {
+                const qty = Number(bal.physicalQty);
+                const price = bal.item.priceHistory[0] ? Number(bal.item.priceHistory[0].unitPrice) : 0;
+                const value = qty * price;
+                total += value;
+                sheet.addRow({ sku: bal.item.sku, name: bal.item.name, quantity: qty, unitPrice: price, value });
+            }
+        }
+        else {
+            const items = await server_1.prisma.inventoryItem.findMany({
+                orderBy: { sku: "asc" },
+                include: { priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 } },
+            });
+            for (const item of items) {
+                const qty = Number(item.quantity);
+                const price = item.priceHistory[0] ? Number(item.priceHistory[0].unitPrice) : 0;
+                const value = qty * price;
+                total += value;
+                sheet.addRow({ sku: item.sku, name: item.name, quantity: qty, unitPrice: price, value });
+            }
         }
         sheet.addRow({});
         sheet.addRow({ sku: "", name: "TOTAL", quantity: "", unitPrice: "", value: total });
@@ -159,25 +217,16 @@ async function buildWorkbook(reportType, from, to) {
         const runs = await server_1.prisma.packagingRun.findMany({
             where: { createdAt: { gte: fromDate, lte: toDate } },
             orderBy: { createdAt: "desc" },
-            include: {
-                finishedProductInputs: true,
-                finishedProductOutputs: true,
-            },
+            include: { finishedProductInputs: true, finishedProductOutputs: true },
         });
         for (const r of runs) {
             const flourIn = r.finishedProductInputs.reduce((sum, i) => sum + Number(i.flourConsumedKg), 0);
             const bales = r.finishedProductOutputs.reduce((sum, o) => sum + o.balesProduced, 0);
             sheet.addRow({
-                runNumber: r.runNumber,
-                operatorName: r.operatorName,
-                flourIn,
-                spill: Number(r.flourSpillage),
-                pkgRec: Number(r.packagingMaterialReceived),
-                pkgCon: Number(r.packagingMaterialConsumed),
-                pkgDest: Number(r.packagingMaterialDestroyed),
-                bales,
-                pkgKg: Number(r.totalPackagedKg),
-                yield: Number(r.yieldPercent),
+                runNumber: r.runNumber, operatorName: r.operatorName, flourIn,
+                spill: Number(r.flourSpillage), pkgRec: Number(r.packagingMaterialReceived),
+                pkgCon: Number(r.packagingMaterialConsumed), pkgDest: Number(r.packagingMaterialDestroyed),
+                bales, pkgKg: Number(r.totalPackagedKg), yield: Number(r.yieldPercent),
                 createdAt: r.createdAt.toISOString(),
             });
         }
@@ -185,8 +234,8 @@ async function buildWorkbook(reportType, from, to) {
     }
     throw new Error(`Unknown report type: ${reportType}`);
 }
-async function generateInventoryReportBuffer(reportType, from, to) {
-    const wb = await buildWorkbook(reportType, from, to);
+async function generateInventoryReportBuffer(reportType, from, to, storeCode) {
+    const wb = await buildWorkbook(reportType, from, to, storeCode);
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.from(buf);
 }

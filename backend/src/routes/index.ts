@@ -15,6 +15,7 @@ import { traceabilityRouter } from "./traceability";
 import { stockTransferRouter } from "./stock-transfer";
 import { storesRouter } from "./stores";
 import { usersRouter } from "./users";
+import { baleTransferRouter } from "./bale-transfers";
 
 export const routes = Router();
 
@@ -33,6 +34,7 @@ routes.use("/suppliers", suppliersRouter);
 routes.use("/procurement", procurementRouter);
 routes.use("/traceability", traceabilityRouter);
 routes.use("/stock-transfers", stockTransferRouter);
+routes.use("/bale-transfers", baleTransferRouter);
 
 
 

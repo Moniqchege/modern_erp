@@ -32,9 +32,9 @@ exports.ProcessPackagingSchema = zod_1.z.object({
         .array(zod_1.z.object({
         flourInventoryItemId: zod_1.z.string().min(1),
         consumedKg: zod_1.z.number().nonnegative(),
+        spillageKg: zod_1.z.number().nonnegative().default(0),
     }))
         .min(1, "At least one flour consumption row is required"),
-    flourSpillage: zod_1.z.number().nonnegative().default(0),
     packagingMaterials: zod_1.z
         .array(zod_1.z.object({
         inventoryItemId: zod_1.z.string().min(1),
@@ -45,6 +45,7 @@ exports.ProcessPackagingSchema = zod_1.z.object({
         .optional()
         .default([]),
     flourPackedOutputs: zod_1.z.array(FlourPackedOutputSchema).default([]),
+    electricityKwh: zod_1.z.number().nonnegative().optional(),
     notes: zod_1.z.string().max(2000).optional(),
 });
 async function processPackaging(req, res) {

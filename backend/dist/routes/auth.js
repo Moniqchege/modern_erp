@@ -7,8 +7,8 @@ const auth_service_1 = require("../services/auth.service");
 exports.authRouter = (0, express_1.Router)();
 exports.authRouter.post("/seed", async (_req, res) => {
     try {
-        const u = await (0, auth_service_1.seedDefaultUserIfNeeded)();
-        res.status(200).json({ success: true, user: { id: u.id, email: u.email, role: u.role } });
+        await (0, auth_service_1.seedDefaultUserIfNeeded)();
+        res.status(200).json({ success: true, message: "Seed complete" });
     }
     catch (e) {
         res.status(500).json({ success: false, message: String(e) });

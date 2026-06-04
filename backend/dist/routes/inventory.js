@@ -9,6 +9,7 @@ const inventory_reports_service_1 = require("../services/inventory-reports.servi
 const inventory_dashboard_service_1 = require("../services/inventory-dashboard.service");
 const store_seed_service_1 = require("../services/store-seed.service");
 const store_inventory_service_1 = require("../services/store-inventory.service");
+const auth_1 = require("../middleware/auth");
 exports.inventoryRouter = (0, express_1.Router)();
 const optionalDecimal = zod_1.z.number().nonnegative().optional().nullable();
 const CreateInventoryItemSchema = zod_1.z.object({
@@ -146,9 +147,10 @@ exports.inventoryRouter.get("/location-stock", async (req, res) => {
     }
 });
 // GET inventory module dashboard analytics
-exports.inventoryRouter.get("/dashboard", async (_req, res) => {
+exports.inventoryRouter.get("/dashboard", auth_1.requireAuth, async (req, res) => {
     try {
-        const data = await (0, inventory_dashboard_service_1.getInventoryDashboardAnalytics)();
+        const storeCode = typeof req.query.storeCode === "string" ? req.query.storeCode : undefined;
+        const data = await (0, inventory_dashboard_service_1.getInventoryDashboardAnalytics)(storeCode);
         res.status(200).json({ success: true, ...data });
     }
     catch (error) {
@@ -156,19 +158,19 @@ exports.inventoryRouter.get("/dashboard", async (_req, res) => {
     }
 });
 // GET report catalog
-exports.inventoryRouter.get("/reports", (_req, res) => {
+exports.inventoryRouter.get("/reports", auth_1.requireAuth, (_req, res) => {
     res.status(200).json({ reports: inventory_reports_service_1.REPORT_TYPES });
 });
 // GET Excel export
-exports.inventoryRouter.get("/reports/:reportType", async (req, res) => {
+exports.inventoryRouter.get("/reports/:reportType", auth_1.requireAuth, async (req, res) => {
     try {
         const reportType = req.params.reportType;
         const valid = inventory_reports_service_1.REPORT_TYPES.some((r) => r.id === reportType);
         if (!valid) {
             return res.status(400).json({ message: "Unknown report type", available: inventory_reports_service_1.REPORT_TYPES.map((r) => r.id) });
         }
-        const { from, to } = req.query;
-        const buffer = await (0, inventory_reports_service_1.generateInventoryReportBuffer)(reportType, typeof from === "string" ? from : undefined, typeof to === "string" ? to : undefined);
+        const { from, to, storeCode } = req.query;
+        const buffer = await (0, inventory_reports_service_1.generateInventoryReportBuffer)(reportType, typeof from === "string" ? from : undefined, typeof to === "string" ? to : undefined, typeof storeCode === "string" ? storeCode : undefined);
         const filename = `inventory-${reportType}-${new Date().toISOString().slice(0, 10)}.xlsx`;
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -178,16 +180,35 @@ exports.inventoryRouter.get("/reports/:reportType", async (req, res) => {
         res.status(500).json({ message: "Failed to generate report", error: String(error) });
     }
 });
-// GET all items
-exports.inventoryRouter.get("/", async (_req, res) => {
+// GET all items — optionally filtered to items that have stock in a specific store
+exports.inventoryRouter.get("/", async (req, res) => {
     try {
+        const storeCode = typeof req.query.storeCode === "string" ? req.query.storeCode : undefined;
+        // If storeCode provided, only return items that have a balance in that store
+        let itemIds;
+        if (storeCode) {
+            await (0, store_seed_service_1.ensureDefaultStores)();
+            const balances = await server_1.prisma.storeInventoryBalance.findMany({
+                where: { location: { code: storeCode } },
+                select: { itemId: true },
+            });
+            itemIds = balances.map((b) => b.itemId);
+        }
         const items = await server_1.prisma.inventoryItem.findMany({
+            where: itemIds ? { id: { in: itemIds } } : {},
             orderBy: { createdAt: "desc" },
             include: {
                 priceHistory: {
                     orderBy: { effectiveDate: "desc" },
                     take: 1,
                 },
+                // When scoped to a store, also include the per-store balance
+                ...(storeCode ? {
+                    storeBalances: {
+                        where: { location: { code: storeCode } },
+                        include: { location: { select: { code: true, name: true } } },
+                    },
+                } : {}),
             },
         });
         const formatted = items.map((item) => {
@@ -195,10 +216,21 @@ exports.inventoryRouter.get("/", async (_req, res) => {
             const priceRow = item.priceHistory.length > 0 && item.priceHistory[0].priceType === priceType
                 ? item.priceHistory[0]
                 : null;
+            // When store-scoped, replace global quantity with store's physical qty
+            const storeBalances = item.storeBalances;
+            const storeBalance = storeBalances?.[0];
+            const displayQty = storeBalance ? Number(storeBalance.physicalQty) : Number(item.quantity);
             return {
-                ...formatPrismaItem(item),
+                ...formatPrismaItem({ ...item, quantity: displayQty }),
                 unitPrice: priceRow ? Number(priceRow.unitPrice) : null,
                 priceHistory: undefined,
+                storeBalances: undefined,
+                ...(storeBalance ? {
+                    storePhysicalQty: Number(storeBalance.physicalQty),
+                    storeTransitQty: Number(storeBalance.transitQty),
+                    storeCode: storeBalance.location.code,
+                    storeName: storeBalance.location.name,
+                } : {}),
             };
         });
         res.status(200).json({ items: formatted });

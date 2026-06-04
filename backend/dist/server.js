@@ -11,8 +11,8 @@ exports.prisma = new client_1.PrismaClient();
 (0, procurementListeners_1.registerProcurementListeners)();
 void (async () => {
     try {
-        await (0, auth_service_1.seedDefaultUserIfNeeded)();
-        await (0, store_seed_service_1.ensureDefaultStores)();
+        await (0, store_seed_service_1.ensureDefaultStores)(); // stores must exist before user→store assignments
+        await (0, auth_service_1.seedDefaultUserIfNeeded)(); // creates admin + demo store managers + assignments
         await (0, sales_seed_service_1.seedSalesModuleIfNeeded)();
     }
     catch (err) {

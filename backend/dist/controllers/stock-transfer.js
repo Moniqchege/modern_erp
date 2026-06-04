@@ -6,6 +6,7 @@ exports.getStockTransferController = getStockTransferController;
 exports.approveIssueStockTransferController = approveIssueStockTransferController;
 exports.acknowledgeReceiptController = acknowledgeReceiptController;
 exports.rejectStockTransferController = rejectStockTransferController;
+exports.rejectReceiptController = rejectReceiptController;
 exports.listStoreBalancesController = listStoreBalancesController;
 const zod_1 = require("zod");
 const stock_transfer_service_1 = require("../services/stock-transfer.service");
@@ -25,7 +26,18 @@ const ApproveIssueSchema = zod_1.z.object({
     lines: zod_1.z
         .array(zod_1.z.object({
         lineId: zod_1.z.string().min(1),
+        /**
+         * How much to actually issue for this line.
+         * May be less than qtyRequested when main store stock is limited.
+         * Defaults to qtyRequested when omitted.
+         */
         qtyIssued: zod_1.z.number().positive().optional(),
+        /**
+         * Required when qtyIssued is less than qtyRequested.
+         * Explains the shortfall so the receiving store understands
+         * without needing to follow up.
+         */
+        partialIssueReason: zod_1.z.string().min(1).max(1000).optional(),
     }))
         .optional(),
 });
@@ -37,8 +49,13 @@ const ReceiveSchema = zod_1.z.object({
     }))
         .min(1),
 });
+/** Rejection of a pending request by main store — reason is mandatory */
 const RejectSchema = zod_1.z.object({
-    rejectionReason: zod_1.z.string().max(2000).optional(),
+    rejectionReason: zod_1.z.string().min(1, "Rejection reason is required").max(2000),
+});
+/** Rejection of a received delivery by receiving store — reason is mandatory */
+const RejectReceiptSchema = zod_1.z.object({
+    rejectionReason: zod_1.z.string().min(1, "Rejection reason is required").max(2000),
 });
 async function createStockTransferController(req, res) {
     try {
@@ -126,6 +143,23 @@ async function rejectStockTransferController(req, res) {
     }
     catch (error) {
         const message = error instanceof Error ? error.message : "Reject failed";
+        res.status(400).json({ message });
+    }
+}
+async function rejectReceiptController(req, res) {
+    try {
+        const parse = RejectReceiptSchema.safeParse(req.body ?? {});
+        if (!parse.success) {
+            return res.status(400).json({
+                message: "Invalid reject-receipt payload",
+                errors: parse.error.flatten(),
+            });
+        }
+        const transfer = await (0, stock_transfer_service_1.rejectStockTransferReceipt)(req.auth, req.params.id, parse.data.rejectionReason);
+        res.json({ success: true, transfer });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Receipt rejection failed";
         res.status(400).json({ message });
     }
 }

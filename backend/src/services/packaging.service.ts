@@ -3,6 +3,9 @@ import { prisma } from "../server";
 import { checkReorderAlert } from "./inventory-alert.service";
 import { adjustStoreBalance } from "./store-inventory.service";
 
+/** Store code into which finished bales are credited after each packaging run */
+const BALE_OUTPUT_STORE_CODE = "PACKAGING_STORE";
+
 
 export const KG_PER_UNIT_BY_TYPE: Record<string, number> = {
   NYLON_BALER_0_5KG: 12,
@@ -345,6 +348,63 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
     for (const { id, prev } of alertItems) {
       await checkReorderAlert(id, prev);
     }
+
+    // ── Req 1: Credit finished bales to Packaging Store balance ──────────────
+    // Each output line that carries an inventoryItemId (resolved bale item)
+    // increments the Packaging Store physicalQty by the number of bales produced.
+    // typeKey-only lines that have no linked InventoryItem are resolved here;
+    // if no item can be found the run is aborted with a descriptive error.
+    for (const line of resolvedLines) {
+      const balesProduced = line.unitsProduced;
+      if (balesProduced <= 0) continue;
+
+      // Prefer explicit packedBaleInventoryItemId; fall back to typeKey lookup
+      let baleItemId: string | null = line.packedBaleInventoryItemId ?? null;
+
+      if (!baleItemId && line.typeKey && line.typeKey !== "UNKNOWN") {
+        const found = await tx.inventoryItem.findFirst({
+          where: { type: { in: ["FINISHED_GOOD"] }, sku: { contains: line.typeKey } },
+          select: { id: true },
+        });
+        baleItemId = found?.id ?? null;
+      }
+
+      if (!baleItemId) {
+        throw new Error(
+          `Cannot credit Packaging Store: no InventoryItem found for typeKey "${line.typeKey}". ` +
+          `Please link a packed-bale InventoryItem to this output line.`
+        );
+      }
+
+      // Link the resolved item back onto the output row so it is queryable
+      await tx.packagingRunFinishedProductOutput.updateMany({
+        where: {
+          packagingRunId: run.id,
+          typeKey: line.typeKey ?? "UNKNOWN",
+          inventoryItemId: null,
+        },
+        data: { inventoryItemId: baleItemId },
+      });
+
+      await adjustStoreBalance(tx, {
+        itemId: baleItemId,
+        locationId: packagingLocation.id,
+        physicalDelta: balesProduced,
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          itemId: baleItemId,
+          movementType: "RECEIPT",
+          quantityDelta: balesProduced.toFixed(3),
+          unitPriceApplied: "0.00",
+          packagingRunId: run.id,
+          locationId: packagingLocation.id,
+          notes: `Bales produced — ${runNumber} [${line.typeKey ?? ""}]`,
+        },
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     return tx.packagingRun.findUnique({
       where: { id: run.id },
