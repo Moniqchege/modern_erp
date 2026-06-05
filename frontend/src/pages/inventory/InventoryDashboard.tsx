@@ -8,6 +8,7 @@ import {
 import { ROUTES } from "../../app/router/routes";
 import { apiFetch } from "../../api/apiClient";
 import { getCurrentUser } from "../../auth/authClient";
+import { DispatchStoreDashboard } from "./DispatchStoreDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,11 @@ export function InventoryDashboard() {
   const navigate = useNavigate();
   const user = getCurrentUser();
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+
+  // Dispatch store managers get their own tailored dashboard
+  if (user?.role === "DISPATCH_STORE_MANAGER") {
+    return <DispatchStoreDashboard />;
+  }
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);

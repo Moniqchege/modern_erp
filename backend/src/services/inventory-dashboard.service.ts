@@ -14,7 +14,169 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
     locationId = loc?.id;
   }
 
-  // ─── Scoped path: use StoreInventoryBalance for a specific store ─────────────
+  // ─── Dispatch Store: bale-focused dashboard ──────────────────────────────────
+  if (locationId && storeCode === "DISPATCH_STORE") {
+    const [
+      balances,
+      recentMovements,
+      movementsWeek,
+      inboundTransfers,
+    ] = await Promise.all([
+      // Only FINISHED_GOOD / BY_PRODUCT balances — no packaging consumables
+      prisma.storeInventoryBalance.findMany({
+        where: {
+          locationId,
+          item: { type: { in: ["FINISHED_GOOD", "BY_PRODUCT"] } },
+        },
+        include: {
+          item: {
+            include: {
+              priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 },
+            },
+          },
+        },
+      }),
+      // Recent movements — arrivals (RECEIPT) and outbound (SALES_DISPATCH)
+      prisma.inventoryMovement.findMany({
+        where: {
+          locationId,
+          movementType: { in: ["RECEIPT", "SALES_DISPATCH"] },
+          movementAt: { gte: thirtyDaysAgo },
+        },
+        orderBy: { movementAt: "desc" },
+        take: 20,
+        include: { item: { select: { sku: true, name: true, unit: true } } },
+      }),
+      // 7-day movement trend (receipts and issues for chart)
+      prisma.inventoryMovement.findMany({
+        where: { locationId, movementAt: { gte: sevenDaysAgo } },
+        select: { movementAt: true, movementType: true, quantityDelta: true },
+      }),
+      // Bale transfers inbound (Packaging → Dispatch)
+      prisma.stockTransferRequest.findMany({
+        where: {
+          destinationLocationId: locationId,
+          status: { in: ["PENDING", "APPROVED_IN_TRANSIT", "PENDING_CORRECTION"] },
+        },
+        include: {
+          items: {
+            include: { item: { select: { sku: true, name: true, unit: true } } },
+          },
+          requestedBy: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+    ]);
+
+    // ── KPIs ──────────────────────────────────────────────────────────────────
+    let totalBaleSkus = 0;
+    let totalBalesOnHand = 0;
+    let totalBalesInTransit = 0;
+    let totalValuation = 0;
+    const baleStock: Array<{
+      sku: string; name: string; unit: string;
+      physicalQty: number; transitQty: number; value: number;
+    }> = [];
+
+    for (const bal of balances) {
+      const physQty = Number(bal.physicalQty);
+      const transitQty = Number(bal.transitQty);
+      if (physQty <= 0 && transitQty <= 0) continue;
+      totalBaleSkus++;
+      totalBalesOnHand += physQty;
+      totalBalesInTransit += transitQty;
+      const price = bal.item.priceHistory[0] ? Number(bal.item.priceHistory[0].unitPrice) : 0;
+      const value = physQty * price;
+      totalValuation += value;
+      baleStock.push({
+        sku: bal.item.sku,
+        name: bal.item.name,
+        unit: bal.item.unit,
+        physicalQty: physQty,
+        transitQty,
+        value,
+      });
+    }
+    baleStock.sort((a, b) => b.physicalQty - a.physicalQty);
+
+    // ── 7-day movement trend ─────────────────────────────────────────────────
+    const movementByDay: Record<string, { receipts: number; issues: number }> = {};
+    for (const m of movementsWeek) {
+      const day = m.movementAt.toISOString().slice(0, 10);
+      if (!movementByDay[day]) movementByDay[day] = { receipts: 0, issues: 0 };
+      const delta = Number(m.quantityDelta);
+      if (delta > 0) movementByDay[day].receipts += delta;
+      else movementByDay[day].issues += Math.abs(delta);
+    }
+    const movementTrend = Object.entries(movementByDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, receiptsKg: v.receipts, issuesKg: v.issues }));
+
+    const pendingInbound = inboundTransfers.filter((t) => t.status === "PENDING" || t.status === "PENDING_CORRECTION").length;
+    const inTransitIn = inboundTransfers.filter((t) => t.status === "APPROVED_IN_TRANSIT").length;
+
+    return {
+      storeCode,
+      isDispatchStore: true,
+      kpis: {
+        totalBaleSkus,
+        totalBalesOnHand: Math.round(totalBalesOnHand * 1000) / 1000,
+        totalBalesInTransit: Math.round(totalBalesInTransit * 1000) / 1000,
+        totalValuationKes: Math.round(totalValuation * 100) / 100,
+        inTransitIn,
+        pendingInbound,
+        // Zeros for fields not relevant to dispatch store
+        totalSkus: totalBaleSkus,
+        outOfStock: baleStock.filter((b) => b.physicalQty <= 0).length,
+        belowReorderCount: 0,
+        rawMaizeKg: 0, grade1BulkKg: 0, grade2BulkKg: 0,
+        grade1Bales: 0, grade2Bales: 0, packagingMaterialKg: 0,
+        avgMillingEfficiencyPct: 0, avgPackagingYieldPct: 0,
+        productionRuns30d: 0, packagingRuns30d: 0,
+        pendingTransfers: pendingInbound,
+      },
+      baleStock,
+      inboundTransfers: inboundTransfers.map((t) => ({
+        id: t.id,
+        requestNumber: t.requestNumber,
+        status: t.status,
+        requestedBy: t.requestedBy.name,
+        createdAt: t.createdAt,
+        items: t.items.map((line) => ({
+          sku: line.item.sku,
+          name: line.item.name,
+          unit: line.item.unit,
+          qtyRequested: Number(line.qtyRequested),
+          qtyIssued: line.qtyIssued != null ? Number(line.qtyIssued) : null,
+        })),
+      })),
+      movementTrend,
+      recentMovements: recentMovements.map((m) => ({
+        id: m.id,
+        sku: m.item.sku,
+        name: m.item.name,
+        unit: m.item.unit,
+        movementType: m.movementType,
+        quantityDelta: Number(m.quantityDelta),
+        movementAt: m.movementAt,
+        notes: m.notes,
+      })),
+      // Unused in this view
+      stockByType: { counts: {}, quantitiesKg: {} },
+      belowReorder: [],
+      topStockByValue: baleStock.slice(0, 8).map((b) => ({
+        sku: b.sku, name: b.name, quantity: b.physicalQty, unit: b.unit, value: b.value,
+      })),
+      productionYieldHistory: [],
+      packagingYieldHistory: [],
+      recentProduction: [],
+      recentPackaging: [],
+      recentTransfers: [],
+    };
+  }
+
+  // ─── Generic store scoped path ────────────────────────────────────────────
   if (locationId) {
     const [
       balances,

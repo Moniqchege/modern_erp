@@ -16,6 +16,7 @@ import {
   Store,
   Search,
   Truck,
+  Warehouse,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
 import { getCurrentUser, logout } from "../auth/authClient";
@@ -30,6 +31,7 @@ export type InventoryNavKey =
   | "packaging"
   | "stockTransfers"
   | "baleTransfers"
+  | "dispatchStore"
   | "stores"
   | "reports";
 
@@ -41,6 +43,7 @@ interface NavItem {
   description: string;
   adminOnly?: boolean;
   baleOnly?: boolean;
+  dispatchOnly?: boolean;
 }
 
 // ─── Nav definition ───────────────────────────────────────────────────────────
@@ -92,6 +95,14 @@ const ALL_NAV_ITEMS: NavItem[] = [
     baleOnly: true,
   },
   {
+    key: "dispatchStore",
+    label: "Dispatch Store",
+    path: ROUTES.INVENTORY_DISPATCH_STORE,
+    icon: Warehouse,
+    description: "Bales on hand · outbound",
+    dispatchOnly: true,
+  },
+  {
     key: "stores",
     label: "Stores",
     path: ROUTES.INVENTORY_STORES,
@@ -116,6 +127,7 @@ function getActiveKey(pathname: string): InventoryNavKey {
   if (pathname.startsWith(ROUTES.INVENTORY_STOCK_TRANSFERS)) return "stockTransfers";
   if (pathname.startsWith(ROUTES.INVENTORY_STORES)) return "stores";
   if (pathname.startsWith(ROUTES.INVENTORY_REPORTS)) return "reports";
+  if (pathname.startsWith(ROUTES.INVENTORY_DISPATCH_STORE)) return "dispatchStore";
   if (pathname === ROUTES.INVENTORY || pathname === `${ROUTES.INVENTORY}/`) return "dashboard";
   return "dashboard";
 }
@@ -149,10 +161,13 @@ export function InventoryLayout() {
     user?.role === "PACKAGING_STORE_MANAGER" ||
     user?.role === "DISPATCH_STORE_MANAGER";
 
+  const isDispatchManager = user?.role === "DISPATCH_STORE_MANAGER";
+
   const navItems = ALL_NAV_ITEMS.filter(
     (item) =>
       (!item.adminOnly || isAdmin) &&
-      (!item.baleOnly || isBaleParticipant)
+      (!item.baleOnly || isBaleParticipant) &&
+      (!item.dispatchOnly || isDispatchManager || isAdmin)
   );
 
   const closeSidebar = () => setIsSidebarOpen(false);

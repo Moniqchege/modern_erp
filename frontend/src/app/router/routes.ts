@@ -15,6 +15,7 @@ export const ROUTES = {
     INVENTORY_STORES: "/inventory/stores",
     INVENTORY_BALE_TRANSFERS: "/inventory/bale-transfers",
     INVENTORY_BALE_TRANSFER_DETAIL: (id: string) => `/inventory/bale-transfers/${id}`,
+    INVENTORY_DISPATCH_STORE: "/inventory/dispatch-store",
 
     /** @deprecated Use INVENTORY_PRODUCTION */
     PRODUCTION: "/inventory/production",

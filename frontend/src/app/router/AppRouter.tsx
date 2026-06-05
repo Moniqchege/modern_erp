@@ -48,6 +48,9 @@ const BaleTransferForm = lazy(() =>
 const BaleTransferDetail = lazy(() =>
   import("../../pages/inventory/BaleTransferDetail").then((m) => ({ default: m.BaleTransferDetail }))
 );
+const DispatchStoreDashboard = lazy(() =>
+  import("../../pages/inventory/DispatchStoreDashboard").then((m) => ({ default: m.DispatchStoreDashboard }))
+);
 const SalesDashboard = lazy(() =>
   import("../../pages/sales/SalesDashboard").then((m) => ({ default: m.SalesDashboard }))
 );
@@ -177,6 +180,7 @@ export function AppRouter() {
             <Route path="bale-transfers/push" element={<BaleTransferForm />} />
             <Route path="bale-transfers/pull" element={<BaleTransferForm />} />
             <Route path="bale-transfers/:transferId" element={<BaleTransferDetail />} />
+            <Route path="dispatch-store" element={<DispatchStoreDashboard />} />
           </Route>
 
           <Route path="/production" element={<Navigate to={ROUTES.INVENTORY_PRODUCTION} replace />} />

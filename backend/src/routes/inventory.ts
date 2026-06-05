@@ -223,10 +223,18 @@ inventoryRouter.get("/reports/:reportType", requireAuth, async (req: Request, re
   }
 });
 
+// Item types that belong in the dispatch store — only bale/finished products.
+// Packaging consumables (bags, balers, tapes, glue) are never dispatched to customers.
+const DISPATCH_STORE_ITEM_TYPES = [
+  "FINISHED_GOOD",
+  "BY_PRODUCT",
+] as const;
+
 // GET all items — optionally filtered to items that have stock in a specific store
 inventoryRouter.get("/", async (req, res) => {
   try {
     const storeCode = typeof req.query.storeCode === "string" ? req.query.storeCode : undefined;
+    const isDispatchStore = storeCode === "DISPATCH_STORE";
 
     // If storeCode provided, only return items that have a balance in that store
     let itemIds: string[] | undefined;
@@ -240,7 +248,11 @@ inventoryRouter.get("/", async (req, res) => {
     }
 
     const items = await prisma.inventoryItem.findMany({
-      where: itemIds ? { id: { in: itemIds } } : {},
+      where: {
+        ...(itemIds ? { id: { in: itemIds } } : {}),
+        // Dispatch store only shows finished goods (bales) — never packaging materials
+        ...(isDispatchStore ? { type: { in: [...DISPATCH_STORE_ITEM_TYPES] } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         priceHistory: {
