@@ -41,6 +41,46 @@ const NON_PACKAGING_TYPES = new Set([
   "BY_PRODUCT",
 ]);
 
+// ─── Types that represent packed bale / bag outputs (eligible as output credits) ─
+
+const BALE_OUTPUT_TYPES = new Set([
+  "NYLON_BALER_0_5KG",
+  "NYLON_BALER_1KG",
+  "NYLON_BALER_2KG",
+  "KHAKI_BALER_0_5KG",
+  "KHAKI_BALER_1KG",
+  "KHAKI_BALER_2KG",
+  "LAMINATED_BALER",
+  "BAG_5KG",
+  "BAG_10KG",
+  "BAG_50KG",
+  "BAG_90KG",
+  "PACKETS_1KG",
+  "PACKETS_2KG",
+]);
+
+// ─── Maps a bale container format to the output item type that gets credited ──
+//
+// A KHAKI_BALER_2KG or NYLON_BALER_2KG is a physical container holding 24×2KG
+// packets. The finished product inventory item that gets credited is PACKETS_2KG
+// (the named brand, e.g. "Xpress 2KG"). Same logic applies for 1KG balers.
+// Bags and loose packets map directly to their own type.
+const BALE_TYPE_TO_OUTPUT_ITEM_TYPE: Record<string, string> = {
+  KHAKI_BALER_2KG:   "PACKETS_2KG",
+  NYLON_BALER_2KG:   "PACKETS_2KG",
+  KHAKI_BALER_1KG:   "PACKETS_1KG",
+  NYLON_BALER_1KG:   "PACKETS_1KG",
+  KHAKI_BALER_0_5KG: "PACKETS_2KG",   // no 0.5KG packet type exists yet — map to nearest
+  NYLON_BALER_0_5KG: "PACKETS_2KG",
+  LAMINATED_BALER:   "PACKETS_2KG",
+  BAG_5KG:           "BAG_5KG",
+  BAG_10KG:          "BAG_10KG",
+  BAG_50KG:          "BAG_50KG",
+  BAG_90KG:          "BAG_90KG",
+  PACKETS_1KG:       "PACKETS_1KG",
+  PACKETS_2KG:       "PACKETS_2KG",
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PackagingRun {
@@ -139,8 +179,10 @@ function OutputLineRow({ line, packagingItems, onChange, onRemove }: OutputLineR
   const units = parseFloat(line.unitsProduced) || 0;
   const totalKg = units * line.kgPerUnit;
 
-  // Only show items whose type matches the selected bale typeKey
-  const matchingItems = packagingItems.filter((it) => it.type === line.typeKey);
+  // The output item type for a given bale container format — e.g. selecting
+  // "Khaki baler 2 kg" credits a PACKETS_2KG brand item (Xpress 2KG, Yetu Plus 2KG, etc.)
+  const outputItemType = BALE_TYPE_TO_OUTPUT_ITEM_TYPE[line.typeKey] ?? line.typeKey;
+  const matchingItems = packagingItems.filter((it) => it.type === outputItemType);
 
   function handleTypeChange(key: string) {
     const bale = baleFromKey(key as BaleTypeKey);
@@ -416,7 +458,7 @@ export function PackagingForm() {
     [inventoryItems]
   );
 
-  // Packaging materials = consumables only (tapes, glue, etc.) — NOT bale types
+  // Packaging materials = all non-raw/finished/by-product items in Packaging Store
   const filteredPackagingRows = useMemo(() => {
     const q = packagingSearch.trim().toLowerCase();
     if (!q) return packagingMaterialRows;
@@ -498,6 +540,9 @@ export function PackagingForm() {
       const pkgData = await pkgRes.json();
       const pkgItems: InventoryItem[] = pkgData.items || [];
 
+      // Include all packaging-store items except raw materials, finished goods, and by-products.
+      // Packets (PACKETS_2KG) and baler bags (KHAKI_BALER_2KG etc.) are consumed as inputs
+      // during packaging runs, so they must appear here alongside tapes, glue, etc.
       const pkgMaterials = pkgItems.filter((i) => !NON_PACKAGING_TYPES.has(i.type));
       setPackagingMaterialRows(
         pkgMaterials.map((item) => ({
@@ -686,7 +731,7 @@ export function PackagingForm() {
                       block={block}
                       flourItem={flourItem}
                       packagingItems={inventoryItems.filter(
-                        (i) => !NON_PACKAGING_TYPES.has(i.type)
+                        (i) => BALE_OUTPUT_TYPES.has(i.type)
                       )}
                       onChange={(updated) =>
                         setFlourBlocks((prev) =>

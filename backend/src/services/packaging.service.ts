@@ -225,6 +225,7 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
           return {
             finishedProductName: flourOutput.flourInventoryItemId,
             typeKey: resolved?.typeKey ?? line.typeKey ?? "UNKNOWN",
+            inventoryItemId: line.packedBaleInventoryItemId ?? null, // ← ADD THIS
             balesProduced: line.unitsProduced,
             packagedKg: packagedKg.toFixed(3),
             kgPerUnit: kgPerUnit.toFixed(3),
@@ -345,22 +346,24 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
       }
     }
 
-    for (const { id, prev } of alertItems) {
-      await checkReorderAlert(id, prev);
+    // Credit packed bale outputs into Packaging Store balance
+    const baleOutputLocation = await tx.inventoryLocation.findUnique({
+      where: { code: BALE_OUTPUT_STORE_CODE },
+      select: { id: true },
+    });
+    if (!baleOutputLocation) {
+      throw new Error(`Bale output store (${BALE_OUTPUT_STORE_CODE}) not found.`);
     }
 
-    // ── Req 1: Credit finished bales to Packaging Store balance ──────────────
-    // Each output line increments the Packaging Store physicalQty for the
-    // resolved packed-bale InventoryItem.
-    //
-    // Resolution priority:
-    //  1. packedBaleInventoryItemId explicitly on the line — always preferred.
-    //  2. typeKey matches exactly ONE InventoryItem.type — unambiguous fallback.
-    //  3. Multiple candidates — abort with a clear error asking for explicit id.
     for (const line of resolvedLines) {
       const balesProduced = line.unitsProduced;
       if (balesProduced <= 0) continue;
 
+      // Resolution priority:
+      //  1. packedBaleInventoryItemId explicitly provided on the line — always preferred.
+      //  2. typeKey matches exactly ONE InventoryItem.type — unambiguous auto-resolve.
+      //  3. Multiple candidates — abort asking for explicit selection.
+      //  4. No candidate — abort with a helpful message.
       let baleItemId: string | null = line.packedBaleInventoryItemId ?? null;
 
       if (!baleItemId && line.typeKey && line.typeKey !== "UNKNOWN") {
@@ -387,7 +390,7 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
         );
       }
 
-      // Link item back onto the output row for traceability
+      // Link item back onto the output row for traceability (if not already set)
       await tx.packagingRunFinishedProductOutput.updateMany({
         where: {
           packagingRunId: run.id,
@@ -400,23 +403,23 @@ export async function processPackagingRun(input: ProcessPackagingInput) {
 
       await adjustStoreBalance(tx, {
         itemId: baleItemId,
-        locationId: packagingLocation.id,
+        locationId: baleOutputLocation.id,
         physicalDelta: balesProduced,
       });
 
-      await tx.inventoryMovement.create({
-        data: {
-          itemId: baleItemId,
-          movementType: "RECEIPT",
-          quantityDelta: balesProduced.toFixed(3),
-          unitPriceApplied: "0.00",
-          packagingRunId: run.id,
-          locationId: packagingLocation.id,
-          notes: `Bales produced — ${runNumber} [${line.typeKey ?? ""}]`,
-        },
+      await applyMovement(tx, {
+        itemId: baleItemId,
+        movementType: "RECEIPT",
+        quantityDelta: balesProduced,
+        packagingRunId: run.id,
+        locationId: baleOutputLocation.id,
+        notes: `Packaging run ${runNumber} — ${balesProduced} × ${line.typeKey ?? "bale"} produced`,
       });
     }
-    // ─────────────────────────────────────────────────────────────────────────
+
+    for (const { id, prev } of alertItems) {
+      await checkReorderAlert(id, prev);
+    }
 
     return tx.packagingRun.findUnique({
       where: { id: run.id },

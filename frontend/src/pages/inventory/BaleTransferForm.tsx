@@ -31,10 +31,11 @@ type BaleStockItem = {
   inventoryItemId: string;
   sku: string;
   name: string;
-  unit: string;
+  unit: string;      // always "BALES"
   type: string;
-  physicalQty: number;
-  transitQty: number;
+  typeKey: string;
+  physicalQty: number;  // available bales
+  transitQty: number;   // bales already in transit
 };
 
 type LineItem = {
@@ -51,6 +52,7 @@ export function BaleTransferForm() {
   const isPush = pathname.endsWith("/push");
 
   const [items, setItems] = useState<BaleStockItem[]>([]);
+  const [selectedLineLabel, setSelectedLineLabel] = useState<string>("");
   const [loadingItems, setLoadingItems] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -255,7 +257,7 @@ export function BaleTransferForm() {
                         <option value="">Select bale type…</option>
                         {available.map((it) => (
                           <option key={it.inventoryItemId} value={it.inventoryItemId}>
-                            {it.name} ({it.sku}) — {it.physicalQty} {it.unit} available
+                            {it.name} ({it.sku}) — {it.physicalQty} {it.physicalQty === 1 ? "bale" : "bales"} available
                           </option>
                         ))}
                       </select>
@@ -264,7 +266,7 @@ export function BaleTransferForm() {
                       {chosen && (
                         <div className="flex items-center gap-3 mt-1">
                           <p className="text-[10px] text-slate-500">
-                            On hand:{" "}
+                            Available:{" "}
                             <span
                               className={`font-mono font-bold ${
                                 chosen.physicalQty > 0 ? "text-emerald-700" : "text-rose-600"
@@ -272,11 +274,11 @@ export function BaleTransferForm() {
                             >
                               {chosen.physicalQty}
                             </span>{" "}
-                            {chosen.unit}
+                            {chosen.physicalQty === 1 ? "bale" : "bales"}
                           </p>
                           {chosen.transitQty > 0 && (
                             <p className="text-[10px] text-blue-600">
-                              {chosen.transitQty} in transit
+                              {chosen.transitQty} {chosen.transitQty === 1 ? "bale" : "bales"} in transit
                             </p>
                           )}
                         </div>
@@ -285,7 +287,7 @@ export function BaleTransferForm() {
                       {isOverStock && (
                         <p className="text-[10px] font-bold text-rose-600 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
-                          Exceeds available stock ({chosen!.physicalQty} {chosen!.unit})
+                          Exceeds available bales ({chosen!.physicalQty} {chosen!.physicalQty === 1 ? "bale" : "bales"})
                         </p>
                       )}
                     </div>
@@ -317,7 +319,7 @@ export function BaleTransferForm() {
                         }`}
                       />
                       {chosen && (
-                        <p className="text-[9px] text-slate-400 text-center">{chosen.unit}</p>
+                        <p className="text-[9px] text-slate-400 text-center">bales</p>
                       )}
                     </div>
 

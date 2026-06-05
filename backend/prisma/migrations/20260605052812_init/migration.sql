@@ -100,12 +100,44 @@ CREATE TABLE `InventoryMovement` (
 -- CreateTable
 CREATE TABLE `InventoryLocation` (
     `id` VARCHAR(191) NOT NULL,
-    `code` ENUM('MAIN_STORE', 'PACKAGING_STORE', 'MAIZE_STORE', 'DISPATCH_STORE') NOT NULL,
-    `name` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `description` VARCHAR(1000) NULL,
+    `address` VARCHAR(500) NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `isLegacy` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `InventoryLocation_code_key`(`code`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `StoreManagerAssignment` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `storeId` VARCHAR(191) NOT NULL,
+    `assignedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `StoreManagerAssignment_userId_key`(`userId`),
+    INDEX `StoreManagerAssignment_storeId_idx`(`storeId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `StoreAuditLog` (
+    `id` VARCHAR(191) NOT NULL,
+    `action` ENUM('STORE_CREATED', 'STORE_UPDATED', 'STORE_ACTIVATED', 'STORE_DEACTIVATED', 'MANAGER_ASSIGNED', 'MANAGER_REMOVED') NOT NULL,
+    `storeId` VARCHAR(191) NOT NULL,
+    `performedByUserId` VARCHAR(191) NOT NULL,
+    `snapshot` JSON NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `StoreAuditLog_storeId_createdAt_idx`(`storeId`, `createdAt`),
+    INDEX `StoreAuditLog_performedByUserId_idx`(`performedByUserId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -132,11 +164,14 @@ CREATE TABLE `StockTransferRequest` (
     `destinationLocationId` VARCHAR(191) NOT NULL,
     `requestedByUserId` VARCHAR(191) NOT NULL,
     `approvedByUserId` VARCHAR(191) NULL,
-    `status` ENUM('PENDING', 'APPROVED_IN_TRANSIT', 'COMPLETED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `status` ENUM('PENDING', 'APPROVED_IN_TRANSIT', 'COMPLETED', 'REJECTED', 'RECEIPT_REJECTED', 'PENDING_CORRECTION') NOT NULL DEFAULT 'PENDING',
     `rejectionReason` TEXT NULL,
     `notes` TEXT NULL,
     `approvedAt` DATETIME(3) NULL,
     `completedAt` DATETIME(3) NULL,
+    `receiptRejectionReason` TEXT NULL,
+    `receiptRejectedByUserId` VARCHAR(191) NULL,
+    `receiptRejectedAt` DATETIME(3) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -155,6 +190,7 @@ CREATE TABLE `StockTransferItem` (
     `itemId` VARCHAR(191) NOT NULL,
     `qtyRequested` DECIMAL(12, 3) NOT NULL,
     `qtyIssued` DECIMAL(12, 3) NULL,
+    `partialIssueReason` TEXT NULL,
     `qtyReceived` DECIMAL(12, 3) NULL,
     `discrepancyNote` TEXT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -501,6 +537,7 @@ CREATE TABLE `PackagingRun` (
     `packagingMaterialDestroyed` DECIMAL(12, 3) NOT NULL DEFAULT 0,
     `totalPackagedKg` DECIMAL(12, 3) NOT NULL,
     `yieldPercent` DECIMAL(5, 2) NOT NULL,
+    `electricityKwh` DECIMAL(10, 3) NULL,
     `notes` TEXT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
@@ -518,6 +555,7 @@ CREATE TABLE `PackagingRunFinishedProductInput` (
     `inventoryItemId` VARCHAR(191) NOT NULL,
     `finishedProductName` VARCHAR(255) NOT NULL,
     `flourConsumedKg` DECIMAL(12, 3) NOT NULL,
+    `flourSpillageKg` DECIMAL(12, 3) NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -1090,6 +1128,15 @@ ALTER TABLE `InventoryMovement` ADD CONSTRAINT `InventoryMovement_locationId_fke
 ALTER TABLE `InventoryMovement` ADD CONSTRAINT `InventoryMovement_stockTransferRequestId_fkey` FOREIGN KEY (`stockTransferRequestId`) REFERENCES `StockTransferRequest`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `StoreManagerAssignment` ADD CONSTRAINT `StoreManagerAssignment_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StoreManagerAssignment` ADD CONSTRAINT `StoreManagerAssignment_storeId_fkey` FOREIGN KEY (`storeId`) REFERENCES `InventoryLocation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StoreAuditLog` ADD CONSTRAINT `StoreAuditLog_storeId_fkey` FOREIGN KEY (`storeId`) REFERENCES `InventoryLocation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `StoreInventoryBalance` ADD CONSTRAINT `StoreInventoryBalance_itemId_fkey` FOREIGN KEY (`itemId`) REFERENCES `InventoryItem`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1106,6 +1153,9 @@ ALTER TABLE `StockTransferRequest` ADD CONSTRAINT `StockTransferRequest_requeste
 
 -- AddForeignKey
 ALTER TABLE `StockTransferRequest` ADD CONSTRAINT `StockTransferRequest_approvedByUserId_fkey` FOREIGN KEY (`approvedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StockTransferRequest` ADD CONSTRAINT `StockTransferRequest_receiptRejectedByUserId_fkey` FOREIGN KEY (`receiptRejectedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `StockTransferItem` ADD CONSTRAINT `StockTransferItem_transferId_fkey` FOREIGN KEY (`transferId`) REFERENCES `StockTransferRequest`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

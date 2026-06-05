@@ -734,50 +734,98 @@ export async function listBaleTransfers(
     return transfers.map(formatTransfer);
 }
 
-// ─── Get Bale Stock (items with packed bale balances in Packaging Store) ───────
+// ─── Get Bale Stock (bales produced in packaging runs available for transfer) ──
+//
+// Returns the count of packed bales per brand item that are available in the
+// Packaging Store for transfer to Dispatch. Quantities are expressed in BALES
+// (not in pieces or kg) and are derived entirely from packaging run records:
+//
+//   availableBales = totalBalesProduced − balesAlreadyTransferredOut
+//
+// This avoids mixing bale counts with raw packaging-material piece counts that
+// happen to share the same inventory item (e.g. PACKETS_2KG items are both
+// consumed as packaging inputs AND credited as bale output targets).
 
 export async function getPackagingStoreBaleStock() {
     await ensureDefaultStores();
 
-    const src = await prisma.inventoryLocation.findUniqueOrThrow({
-        where: { code: SOURCE_STORE_CODE },
-        select: { id: true },
-    });
+    const { sourceLocationId, destLocationId } = await getStoreLocationIds();
 
-    // Items that have ever been produced as a packaging run output
-    // (these are the only items meaningful to bale transfer — not raw bags)
-    const outputItems = await prisma.packagingRunFinishedProductOutput.findMany({
+    // 1. Sum bales produced per inventory item across all packaging runs.
+    const outputs = await prisma.packagingRunFinishedProductOutput.findMany({
         where: { inventoryItemId: { not: null } },
-        select: { inventoryItemId: true },
-        distinct: ["inventoryItemId"],
+        select: {
+            inventoryItemId: true,
+            balesProduced: true,
+            typeKey: true,
+            inventoryItem: {
+                select: { id: true, sku: true, name: true, unit: true, type: true },
+            },
+        },
     });
 
-    const baleItemIds = outputItems
-        .map((r) => r.inventoryItemId)
-        .filter((id): id is string => id !== null);
+    if (outputs.length === 0) return [];
 
-    if (baleItemIds.length === 0) return [];
+    // Aggregate total bales produced per item
+    const produced = new Map<string, { bales: number; item: NonNullable<typeof outputs[0]["inventoryItem"]>; typeKey: string }>();
+    for (const o of outputs) {
+        if (!o.inventoryItemId || !o.inventoryItem) continue;
+        const existing = produced.get(o.inventoryItemId);
+        if (existing) {
+            existing.bales += o.balesProduced;
+        } else {
+            produced.set(o.inventoryItemId, {
+                bales: o.balesProduced,
+                item: o.inventoryItem,
+                typeKey: o.typeKey ?? "",
+            });
+        }
+    }
 
-    // Get current Packaging Store balances for those items
-    const balances = await prisma.storeInventoryBalance.findMany({
+    if (produced.size === 0) return [];
+
+    // 2. Sum bales already transferred out (APPROVED_IN_TRANSIT or COMPLETED)
+    //    for each item from PACKAGING_STORE → DISPATCH_STORE.
+    //    qtyRequested is in bales (the unit used when creating the transfer).
+    const transferredItems = await prisma.stockTransferItem.findMany({
         where: {
-            locationId: src.id,
-            itemId: { in: baleItemIds },
+            transfer: {
+                sourceLocationId,
+                destinationLocationId: destLocationId,
+                status: { in: ["APPROVED_IN_TRANSIT", "COMPLETED"] },
+            },
+            itemId: { in: [...produced.keys()] },
         },
-        include: {
-            item: { select: { id: true, sku: true, name: true, unit: true, type: true } },
-        },
+        select: { itemId: true, qtyIssued: true, qtyRequested: true },
     });
 
-    return balances.map((b) => ({
-        inventoryItemId: b.itemId,
-        sku: b.item.sku,
-        name: b.item.name,
-        unit: b.item.unit,
-        type: b.item.type,
-        physicalQty: Number(b.physicalQty),
-        transitQty: Number(b.transitQty),
-    }));
+    const transferred = new Map<string, number>();
+    for (const t of transferredItems) {
+        // Use qtyIssued when available (actual quantity sent), fall back to qtyRequested
+        const qty = t.qtyIssued != null ? Number(t.qtyIssued) : Number(t.qtyRequested);
+        transferred.set(t.itemId, (transferred.get(t.itemId) ?? 0) + qty);
+    }
+
+    // 3. Build result: only include items with at least 1 bale available
+    const result = [];
+    for (const [itemId, { bales, item, typeKey }] of produced) {
+        const alreadyOut = transferred.get(itemId) ?? 0;
+        const availableBales = bales - alreadyOut;
+        if (availableBales <= 0) continue;
+
+        result.push({
+            inventoryItemId: itemId,
+            sku: item.sku,
+            name: item.name,
+            typeKey,
+            unit: "BALES",   // always bales — not pieces or kg
+            type: String(item.type),
+            physicalQty: availableBales,
+            transitQty: alreadyOut,
+        });
+    }
+
+    return result;
 }
 
 export async function getBaleTransferById(
@@ -787,8 +835,36 @@ export async function getBaleTransferById(
     assertIsBaleTransferParticipant(auth.role);
     await ensureDefaultStores();
 
+    // Keep the UI accountable: bale transfer detail should never expose
+    // packaging-material types (tape/glue/empty bags etc.).
+    const BALER_AND_BAG_TYPES = new Set<string>([
+        "KHAKI_BALER_2KG",
+        "KHAKI_BALER_1KG",
+        "KHAKI_BALER_0_5KG",
+        "NYLON_BALER_2KG",
+        "NYLON_BALER_1KG",
+        "NYLON_BALER_0_5KG",
+        "LAMINATED_BALER",
+        "BAG_5KG",
+        "BAG_10KG",
+        "BAG_50KG",
+        "BAG_90KG",
+        "PACKETS_1KG",
+        "PACKETS_2KG",
+    ]);
+
     return prisma.$transaction(async (tx) => {
         const transfer = await getBaleTransfer(transferId, tx);
-        return formatTransfer(transfer);
+
+        // Filter out any legacy/incorrect transfer lines that reference
+        // non-bale items.
+        const filtered = {
+            ...transfer,
+            items: transfer.items.filter((line) =>
+                BALER_AND_BAG_TYPES.has(String((line as any).item?.type ?? "UNKNOWN"))
+            ),
+        };
+
+        return formatTransfer(filtered as any);
     });
 }
