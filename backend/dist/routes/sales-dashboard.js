@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.salesDashboardRouter = void 0;
+const express_1 = require("express");
+const async_handler_1 = require("../middleware/async-handler");
+const auth_1 = require("../middleware/auth");
+const sales_dashboard_controller_1 = require("../controllers/sales/sales-dashboard.controller");
+exports.salesDashboardRouter = (0, express_1.Router)();
+exports.salesDashboardRouter.use(auth_1.requireAuth);
+exports.salesDashboardRouter.get("/", (0, async_handler_1.asyncHandler)(sales_dashboard_controller_1.getSalesDashboardController));

@@ -55,5 +55,15 @@ export const ROUTES = {
     PROCUREMENT_FINANCE: "/procurement/finance",
     PROCUREMENT_REPORTS: "/procurement/reports",
 
+    BUDGET: "/budget-imprest",
+    BUDGET_ALLOCATIONS: "/budget-imprest/allocations",
+    BUDGET_IMPRESTS: "/budget-imprest/imprests",
+    BUDGET_SURRENDERS: "/budget-imprest/surrenders",
+
+    FINANCE: "/finance",
+    FINANCE_ACCOUNTS: "/finance/accounts",
+    FINANCE_JOURNALS: "/finance/journals",
+    FINANCE_REPORTS: "/finance/reports",
+
     ROOT: "/",
 } as const;

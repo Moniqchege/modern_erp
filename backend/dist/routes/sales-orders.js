@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.salesOrdersRouter = void 0;
+const express_1 = require("express");
+const async_handler_1 = require("../middleware/async-handler");
+const auth_1 = require("../middleware/auth");
+const sales_order_controller_1 = require("../controllers/sales/sales-order.controller");
+exports.salesOrdersRouter = (0, express_1.Router)();
+exports.salesOrdersRouter.use(auth_1.requireAuth);
+exports.salesOrdersRouter.get("/", (0, async_handler_1.asyncHandler)(sales_order_controller_1.listSalesOrdersController));
+exports.salesOrdersRouter.post("/", (0, async_handler_1.asyncHandler)(sales_order_controller_1.createSalesOrderController));
+exports.salesOrdersRouter.get("/:id", (0, async_handler_1.asyncHandler)(sales_order_controller_1.getSalesOrderController));
+exports.salesOrdersRouter.patch("/:id", (0, async_handler_1.asyncHandler)(sales_order_controller_1.updateSalesOrderController));
+exports.salesOrdersRouter.post("/:id/cancel", (0, async_handler_1.asyncHandler)(sales_order_controller_1.cancelSalesOrderController));

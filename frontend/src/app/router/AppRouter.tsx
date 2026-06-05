@@ -130,6 +130,31 @@ const ProcurementReports = lazy(() =>
   import("../../pages/procurement/ProcurementReports").then((m) => ({ default: m.ProcurementReports }))
 );
 
+const BudgetDashboard = lazy(() =>
+  import("../../pages/budget/BudgetDashboard").then((m) => ({ default: m.BudgetDashboard }))
+);
+const BudgetAllocations = lazy(() =>
+  import("../../pages/budget/BudgetAllocations").then((m) => ({ default: m.BudgetAllocations }))
+);
+const ImprestRequests = lazy(() =>
+  import("../../pages/budget/ImprestRequests").then((m) => ({ default: m.ImprestRequests }))
+);
+const ImprestSurrenders = lazy(() =>
+  import("../../pages/budget/ImprestSurrenders").then((m) => ({ default: m.ImprestSurrenders }))
+);
+
+const FinanceDashboard = lazy(() =>
+  import("../../pages/finance/FinanceDashboard").then((m) => ({ default: m.FinanceDashboard }))
+);
+const ChartOfAccounts = lazy(() =>
+  import("../../pages/finance/ChartOfAccounts").then((m) => ({ default: m.ChartOfAccounts }))
+);
+const JournalEntries = lazy(() =>
+  import("../../pages/finance/JournalEntries").then((m) => ({ default: m.JournalEntries }))
+);
+const FinancialReports = lazy(() =>
+  import("../../pages/finance/FinancialReports").then((m) => ({ default: m.FinancialReports }))
+);
 
 const Login = lazy(() => import("../../pages/Login").then((m) => ({ default: m.Login })));
 const VerifyOtp = lazy(() => import("../../pages/VerifyOtp").then((m) => ({ default: m.VerifyOtp })));
@@ -218,6 +243,20 @@ export function AppRouter() {
           <Route path="/procurement/weighbridge/outbound" element={<ProcurementWeighbridgeOutbound />} />
           <Route path={ROUTES.PROCUREMENT_FINANCE} element={<ProcurementFinance />} />
           <Route path={ROUTES.PROCUREMENT_REPORTS} element={<ProcurementReports />} />
+
+          <Route path={ROUTES.BUDGET}>
+            <Route index element={<BudgetDashboard />} />
+            <Route path="allocations" element={<BudgetAllocations />} />
+            <Route path="imprests" element={<ImprestRequests />} />
+            <Route path="surrenders" element={<ImprestSurrenders />} />
+          </Route>
+
+          <Route path={ROUTES.FINANCE}>
+            <Route index element={<FinanceDashboard />} />
+            <Route path="accounts" element={<ChartOfAccounts />} />
+            <Route path="journals" element={<JournalEntries />} />
+            <Route path="reports" element={<FinancialReports />} />
+          </Route>
 
           <Route path="*" element={<NotFound />} />
 

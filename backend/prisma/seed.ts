@@ -115,6 +115,106 @@ async function main() {
 
   // eslint-disable-next-line no-console
   console.log("Sales seed: 3 customers, 2 product SKUs");
+
+  // --- FINANCE CHART OF ACCOUNTS SEED ---
+  const ACCOUNTS = [
+    { code: "1010", name: "Bank Current Account", type: "ASSET" as const, description: "Main operating bank account" },
+    { code: "1020", name: "Petty Cash & Imprest Clearing", type: "ASSET" as const, description: "Clearing account for imprests and petty cash" },
+    { code: "1200", name: "Accounts Receivable", type: "ASSET" as const, description: "Receivables from sales customers" },
+    { code: "1300", name: "Inventory Asset", type: "ASSET" as const, description: "Valuation of warehouse inventory" },
+    { code: "2010", name: "Accounts Payable", type: "LIABILITY" as const, description: "Payables to supplier vendors" },
+    { code: "3010", name: "Retained Earnings", type: "EQUITY" as const, description: "Accumulated earnings of the enterprise" },
+    { code: "4010", name: "Maize Flour Sales Revenue", type: "REVENUE" as const, description: "Revenue from sales products" },
+    { code: "5010", name: "Operating & Travel Expenses", type: "EXPENSE" as const, description: "General office and business travel expenses" },
+    { code: "5020", name: "Rent & Utilities", type: "EXPENSE" as const, description: "Factory rent and utility bills" },
+  ];
+
+  for (const acc of ACCOUNTS) {
+    await prisma.financeAccount.upsert({
+      where: { code: acc.code },
+      create: { ...acc, balance: 100000.00 }, // Start with some initial balance for bank account, others at 0
+      update: { name: acc.name, type: acc.type, description: acc.description },
+    });
+  }
+  // eslint-disable-next-line no-console
+  console.log("Finance seed: 9 General Ledger accounts seeded");
+
+  // Set main bank account starting balance higher
+  await prisma.financeAccount.update({
+    where: { code: "1010" },
+    data: { balance: 1500000.00 },
+  });
+  await prisma.financeAccount.update({
+    where: { code: "1020" },
+    data: { balance: 0.00 }, // Petty cash starts at 0
+  });
+
+  // --- BUDGET PERIODS & CATEGORIES SEED ---
+  const periods = [
+    { name: "FY 2026 Q2", startDate: new Date("2026-04-01"), endDate: new Date("2026-06-30"), status: "ACTIVE" as const },
+    { name: "FY 2026 Q3", startDate: new Date("2026-07-01"), endDate: new Date("2026-09-30"), status: "ACTIVE" as const },
+  ];
+
+  const periodModels = [];
+  for (const p of periods) {
+    const pm = await prisma.budgetPeriod.upsert({
+      where: { name: p.name },
+      create: p,
+      update: { startDate: p.startDate, endDate: p.endDate, status: p.status },
+    });
+    periodModels.push(pm);
+  }
+
+  const categories = [
+    { name: "Travel & Logistics", code: "EXP-TRAV", description: "Business travel, transport, and lodging" },
+    { name: "Office Supplies", code: "EXP-OFF", description: "Stationery, software licenses, printing" },
+    { name: "Milling Consumables", code: "EXP-MILL", description: "Consumables, parts, and machine maintenance" },
+    { name: "Marketing & Sales Promo", code: "EXP-MKT", description: "Advertisements, sales events, discounts" },
+  ];
+
+  const categoryModels = [];
+  for (const c of categories) {
+    const cm = await prisma.budgetCategory.upsert({
+      where: { code: c.code },
+      create: c,
+      update: { name: c.name, description: c.description },
+    });
+    categoryModels.push(cm);
+  }
+  // eslint-disable-next-line no-console
+  console.log("Budget seed: 2 periods, 4 categories seeded");
+
+  // --- BUDGET ALLOCATIONS ---
+  const q2Period = periodModels.find(p => p.name === "FY 2026 Q2");
+  if (q2Period) {
+    const travelCat = categoryModels.find(c => c.code === "EXP-TRAV");
+    const officeCat = categoryModels.find(c => c.code === "EXP-OFF");
+    const millCat = categoryModels.find(c => c.code === "EXP-MILL");
+    const mktCat = categoryModels.find(c => c.code === "EXP-MKT");
+
+    const allocations = [
+      { periodId: q2Period.id, categoryId: travelCat!.id, department: "Administration", totalAllocation: 50000.00 },
+      { periodId: q2Period.id, categoryId: officeCat!.id, department: "Administration", totalAllocation: 25000.00 },
+      { periodId: q2Period.id, categoryId: millCat!.id, department: "Procurement", totalAllocation: 250000.00 },
+      { periodId: q2Period.id, categoryId: mktCat!.id, department: "Sales", totalAllocation: 100000.00 },
+    ];
+
+    for (const alloc of allocations) {
+      await prisma.budget.upsert({
+        where: {
+          periodId_categoryId_department: {
+            periodId: alloc.periodId,
+            categoryId: alloc.categoryId,
+            department: alloc.department,
+          },
+        },
+        create: alloc,
+        update: { totalAllocation: alloc.totalAllocation },
+      });
+    }
+    // eslint-disable-next-line no-console
+    console.log("Budget seed: Q2 allocations successfully seeded");
+  }
 }
 
 main()

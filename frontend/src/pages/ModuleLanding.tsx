@@ -9,6 +9,7 @@ import {
   UserCog,
   ShieldCheck,
 } from "lucide-react";
+import { ROUTES } from "../app/router/routes";
 
 type Card = {
   title: string;
@@ -49,7 +50,7 @@ export function ModuleLanding() {
       title: "Budget & Imprest",
       subtitle: "Funds, approvals & allocations",
       icon: Wallet,
-      to: "/invoices",
+      to: ROUTES.BUDGET,
     },
     {
       title: "HR Module",
@@ -61,7 +62,7 @@ export function ModuleLanding() {
       title: "Finance Module",
       subtitle: "Accounting & financial reports",
       icon: Briefcase,
-      to: "/dashboard",
+      to: ROUTES.FINANCE,
     },
   ];
 

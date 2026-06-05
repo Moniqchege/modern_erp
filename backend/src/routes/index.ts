@@ -19,6 +19,8 @@ import { baleTransferRouter } from "./bale-transfers";
 import { salesDashboardRouter } from "./sales-dashboard";
 import { salesProductsRouter } from "./sales-products";
 import { dispatchesRouter } from "./dispatches";
+import { financeRouter } from "./finance";
+import { budgetRouter } from "./budget";
 
 export const routes = Router();
 
@@ -41,6 +43,8 @@ routes.use("/procurement", procurementRouter);
 routes.use("/traceability", traceabilityRouter);
 routes.use("/stock-transfers", stockTransferRouter);
 routes.use("/bale-transfers", baleTransferRouter);
+routes.use("/finance", financeRouter);
+routes.use("/budget", budgetRouter);
 
 
 
