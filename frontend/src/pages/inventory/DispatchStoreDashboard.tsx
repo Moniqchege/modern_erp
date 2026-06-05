@@ -23,6 +23,8 @@ type BaleStockRow = {
   sku: string;
   name: string;
   unit: string;
+  type?: string;
+  kgPerUnit?: number;
   physicalQty: number;
   transitQty: number;
   value: number;
@@ -100,7 +102,35 @@ const INBOUND_STATUS_META = {
   },
 } as const;
 
-// ─── Mini bar chart ───────────────────────────────────────────────────────────
+// ─── Bale type badge ──────────────────────────────────────────────────────────
+
+const BALE_TYPE_LABELS: Record<string, { label: string; className: string }> = {
+  KHAKI_BALER_2KG:  { label: "2kg Khaki Bale",    className: "text-orange-700 bg-orange-50 border-orange-200" },
+  KHAKI_BALER_1KG:  { label: "1kg Khaki Bale",    className: "text-orange-700 bg-orange-50 border-orange-200" },
+  NYLON_BALER_2KG:  { label: "2kg Nylon Bale",    className: "text-cyan-700 bg-cyan-50 border-cyan-200" },
+  NYLON_BALER_1KG:  { label: "1kg Nylon Bale",    className: "text-cyan-700 bg-cyan-50 border-cyan-200" },
+  LAMINATED_BALER:  { label: "Laminated Bale",     className: "text-violet-700 bg-violet-50 border-violet-200" },
+  PACKETS_2KG:      { label: "2kg Packets",        className: "text-blue-700 bg-blue-50 border-blue-200" },
+  PACKETS_1KG:      { label: "1kg Packets",        className: "text-blue-700 bg-blue-50 border-blue-200" },
+  BAG_5KG:          { label: "5kg Bag",            className: "text-slate-600 bg-slate-50 border-slate-200" },
+  BAG_10KG:         { label: "10kg Bag",           className: "text-slate-600 bg-slate-50 border-slate-200" },
+  BAG_50KG:         { label: "50kg Bag",           className: "text-slate-600 bg-slate-50 border-slate-200" },
+  BAG_90KG:         { label: "90kg Bag",           className: "text-slate-600 bg-slate-50 border-slate-200" },
+  FINISHED_GOOD:    { label: "Finished Good",      className: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  BY_PRODUCT:       { label: "By-Product",         className: "text-purple-700 bg-purple-50 border-purple-200" },
+};
+
+function BaleTypeBadge({ type }: { type?: string }) {
+  if (!type) return null;
+  const meta = BALE_TYPE_LABELS[type];
+  const label = meta?.label ?? type.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
+  const className = meta?.className ?? "text-indigo-700 bg-indigo-50 border-indigo-200";
+  return (
+    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg border ${className} select-none`}>
+      {label}
+    </span>
+  );
+}
 
 function MiniBar({
   items,
@@ -266,7 +296,7 @@ export function DispatchStoreDashboard() {
           {
             label: "Stock valuation",
             value: fmtKes(k.totalValuationKes),
-            sub: "At latest unit prices",
+            sub: "Bales × kg/bale × flour selling price",
             icon: DollarSign,
             accent: "border-orange-200 bg-orange-50/30",
           },
@@ -326,10 +356,12 @@ export function DispatchStoreDashboard() {
                 <thead className="bg-slate-50 text-[10px] font-extrabold uppercase text-slate-500 border-b border-slate-100">
                   <tr>
                     <th className="px-5 py-3">SKU</th>
-                    <th className="px-5 py-3">Product</th>
+                    <th className="px-5 py-3">Bale Type</th>
+                    <th className="px-5 py-3">Name</th>
+                    <th className="px-5 py-3 text-center">Kg/Bale</th>
                     <th className="px-5 py-3 text-right">On hand</th>
                     <th className="px-5 py-3 text-right">In transit</th>
-                    <th className="px-5 py-3 text-right">Value</th>
+                    <th className="px-5 py-3 text-right">Value (selling)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -338,8 +370,14 @@ export function DispatchStoreDashboard() {
                       <td className="px-5 py-3 font-mono font-bold text-slate-800">
                         {row.sku}
                       </td>
-                      <td className="px-5 py-3 text-slate-600 max-w-[160px] truncate">
+                      <td className="px-5 py-3">
+                        <BaleTypeBadge type={row.type} />
+                      </td>
+                      <td className="px-5 py-3 text-slate-600 max-w-[130px] truncate">
                         {row.name}
+                      </td>
+                      <td className="px-5 py-3 text-center font-mono text-slate-500 text-[11px]">
+                        {row.kgPerUnit ?? 24} kg
                       </td>
                       <td className="px-5 py-3 text-right font-mono font-bold text-slate-900">
                         {fmtNum(row.physicalQty, 1)}{" "}
@@ -352,8 +390,15 @@ export function DispatchStoreDashboard() {
                           ? `+${fmtNum(row.transitQty, 1)}`
                           : "—"}
                       </td>
-                      <td className="px-5 py-3 text-right font-mono text-emerald-700 font-bold">
-                        {row.value > 0 ? fmtKes(row.value) : "—"}
+                      <td className="px-5 py-3 text-right">
+                        {row.value > 0 ? (
+                          <div>
+                            <div className="font-mono font-bold text-emerald-700">{fmtKes(row.value)}</div>
+                            <div className="text-[9px] text-slate-400 font-mono mt-0.5">
+                              {row.physicalQty} × {row.kgPerUnit ?? 24}kg
+                            </div>
+                          </div>
+                        ) : "—"}
                       </td>
                     </tr>
                   ))}

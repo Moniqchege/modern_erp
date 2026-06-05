@@ -120,6 +120,32 @@ function getTypeBadge(itemType: string) {
           By-Product
         </span>
       );
+    case "PACKETS_2KG":
+      return <span className="inline-block text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/50 px-2 py-0.5 rounded-lg select-none">2kg Packets</span>;
+    case "PACKETS_1KG":
+      return <span className="inline-block text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/50 px-2 py-0.5 rounded-lg select-none">1kg Packets</span>;
+    case "KHAKI_BALER_2KG":
+      return <span className="inline-block text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200/50 px-2 py-0.5 rounded-lg select-none">2kg Khaki Bale</span>;
+    case "KHAKI_BALER_1KG":
+      return <span className="inline-block text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200/50 px-2 py-0.5 rounded-lg select-none">1kg Khaki Bale</span>;
+    case "NYLON_BALER_1KG":
+      return <span className="inline-block text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/50 px-2 py-0.5 rounded-lg select-none">1kg Nylon Bale</span>;
+    case "NYLON_BALER_2KG":
+      return <span className="inline-block text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200/50 px-2 py-0.5 rounded-lg select-none">2kg Nylon Bale</span>;
+    case "LAMINATED_BALER":
+      return <span className="inline-block text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200/50 px-2 py-0.5 rounded-lg select-none">Laminated Bale</span>;
+    case "BAG_5KG":
+      return <span className="inline-block text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">5kg Bag</span>;
+    case "BAG_10KG":
+      return <span className="inline-block text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">10kg Bag</span>;
+    case "BAG_50KG":
+      return <span className="inline-block text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">50kg Bag</span>;
+    case "BAG_90KG":
+      return <span className="inline-block text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">90kg Bag</span>;
+    case "CLEAR_TAPES":
+      return <span className="inline-block text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">Clear Tapes</span>;
+    case "GLUE":
+      return <span className="inline-block text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200/50 px-2 py-0.5 rounded-lg select-none">Glue</span>;
     default:
       return (
         <span className="inline-block text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/50 px-2 py-0.5 rounded-lg select-none">

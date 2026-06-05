@@ -16,24 +16,47 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
 
   // ─── Dispatch Store: bale-focused dashboard ──────────────────────────────────
   if (locationId && storeCode === "DISPATCH_STORE") {
+    // Resolve packaging store location for bale-stock lookups
+    const packagingStoreLoc = await prisma.inventoryLocation.findUnique({
+      where: { code: "PACKAGING_STORE" },
+      select: { id: true },
+    });
+    const packagingLocationId = packagingStoreLoc?.id;
+
+    // Items that have ever been transferred into the dispatch store via bale transfers.
+    // This is the source of truth — packaging materials never appear here because they
+    // are only transferred via the bale transfer flow.
+    const transferredItemIds = packagingLocationId
+      ? await prisma.stockTransferItem.findMany({
+        where: {
+          transfer: {
+            sourceLocationId: packagingLocationId,
+            destinationLocationId: locationId,
+          },
+        },
+        select: { itemId: true },
+        distinct: ["itemId"],
+      }).then((rows) => rows.map((r) => r.itemId))
+      : [];
+
     const [
       balances,
       recentMovements,
       movementsWeek,
       inboundTransfers,
+      // kgPerUnit per bale item — used for correct valuation
+      packagingOutputs,
+      // Flour selling prices — value = bales × kgPerUnit × flourSellingPrice
+      flourItems,
     ] = await Promise.all([
-      // Only FINISHED_GOOD / BY_PRODUCT balances — no packaging consumables
+      // Only show items that arrived via bale transfers — never raw packaging consumables
       prisma.storeInventoryBalance.findMany({
         where: {
           locationId,
-          item: { type: { in: ["FINISHED_GOOD", "BY_PRODUCT"] } },
+          ...(transferredItemIds.length > 0 ? { itemId: { in: transferredItemIds } } : {}),
         },
         include: {
-          item: {
-            include: {
-              priceHistory: { orderBy: { effectiveDate: "desc" }, take: 1 },
-            },
-          },
+          item: true,
         },
       }),
       // Recent movements — arrivals (RECEIPT) and outbound (SALES_DISPATCH)
@@ -67,7 +90,45 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
+      // Get kgPerUnit for each bale inventory item from packaging run outputs
+      prisma.packagingRunFinishedProductOutput.findMany({
+        where: { inventoryItemId: { not: null } },
+        select: { inventoryItemId: true, kgPerUnit: true },
+        distinct: ["inventoryItemId"],
+      }),
+      // Flour items with SELLING price — used as value basis (price per kg of flour)
+      prisma.inventoryItem.findMany({
+        where: { type: { in: ["FINISHED_GOOD", "BY_PRODUCT"] } },
+        include: {
+          priceHistory: {
+            where: { priceType: "SELLING" },
+            orderBy: { effectiveDate: "desc" },
+            take: 1,
+          },
+        },
+      }),
     ]);
+
+    // Build lookup: inventoryItemId → kgPerUnit
+    const kgPerUnitByItemId = new Map<string, number>();
+    for (const o of packagingOutputs) {
+      if (o.inventoryItemId && !kgPerUnitByItemId.has(o.inventoryItemId)) {
+        kgPerUnitByItemId.set(o.inventoryItemId, Number(o.kgPerUnit));
+      }
+    }
+
+    // Derive a selling price per kg from flour items.
+    // We use the highest available selling price as a fallback for unmatched items.
+    let defaultSellingPricePerKg = 0;
+    const sellingPricePerKgByItemId = new Map<string, number>();
+    for (const fi of flourItems) {
+      const priceRow = fi.priceHistory[0];
+      if (priceRow) {
+        const pricePerKg = Number(priceRow.unitPrice); // stored as per-kg price
+        sellingPricePerKgByItemId.set(fi.id, pricePerKg);
+        if (pricePerKg > defaultSellingPricePerKg) defaultSellingPricePerKg = pricePerKg;
+      }
+    }
 
     // ── KPIs ──────────────────────────────────────────────────────────────────
     let totalBaleSkus = 0;
@@ -75,8 +136,8 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
     let totalBalesInTransit = 0;
     let totalValuation = 0;
     const baleStock: Array<{
-      sku: string; name: string; unit: string;
-      physicalQty: number; transitQty: number; value: number;
+      sku: string; name: string; unit: string; type: string;
+      kgPerUnit: number; physicalQty: number; transitQty: number; value: number;
     }> = [];
 
     for (const bal of balances) {
@@ -86,13 +147,22 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
       totalBaleSkus++;
       totalBalesOnHand += physQty;
       totalBalesInTransit += transitQty;
-      const price = bal.item.priceHistory[0] ? Number(bal.item.priceHistory[0].unitPrice) : 0;
-      const value = physQty * price;
+
+      // Value = bales × kgPerUnit × sellingPricePerKg
+      // kgPerUnit comes from the packaging run output for this item (e.g. 24)
+      // sellingPricePerKg comes from the flour inventory item (FINISHED_GOOD/BY_PRODUCT)
+      const kgPerUnit = kgPerUnitByItemId.get(bal.itemId) ?? 24;
+      const sellingPricePerKg = defaultSellingPricePerKg;
+      const valuePerBale = kgPerUnit * sellingPricePerKg;
+      const value = physQty * valuePerBale;
       totalValuation += value;
+
       baleStock.push({
         sku: bal.item.sku,
         name: bal.item.name,
         unit: bal.item.unit,
+        type: bal.item.type,
+        kgPerUnit,
         physicalQty: physQty,
         transitQty,
         value,
@@ -311,6 +381,8 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
     productionBatches,
     packagingRuns,
     belowReorderItems,
+    packagingStoreBalances,
+    dispatchStoreBalances,
   ] = await Promise.all([
     prisma.inventoryItem.findMany({
       include: {
@@ -339,6 +411,16 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
     }),
     prisma.inventoryItem.findMany({
       where: { reorderLevel: { not: null } },
+    }),
+    // Packaging store balances — for bale KPIs (source of truth for produced bales)
+    prisma.storeInventoryBalance.findMany({
+      where: { location: { code: "PACKAGING_STORE" } },
+      include: { item: { select: { sku: true, name: true, unit: true } } },
+    }),
+    // Dispatch store balances — for bale KPIs
+    prisma.storeInventoryBalance.findMany({
+      where: { location: { code: "DISPATCH_STORE" } },
+      include: { item: { select: { sku: true, name: true, unit: true } } },
     }),
   ]);
 
@@ -409,6 +491,21 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
 
   const sku = (s: string) => items.find((i) => i.sku === s);
 
+  // Bale counts: sum physical quantities from PACKAGING_STORE + DISPATCH_STORE balances
+  // These are accurate because adjustStoreBalance is called on every packaging run and transfer.
+  // InventoryItem.quantity is NOT reliable for bales (it reflects global ledger, not store locations).
+  const allBaleBalances = [...packagingStoreBalances, ...dispatchStoreBalances];
+  const baleQtyByItemId = new Map<string, number>();
+  for (const bal of allBaleBalances) {
+    const id = bal.itemId;
+    baleQtyByItemId.set(id, (baleQtyByItemId.get(id) ?? 0) + Number(bal.physicalQty));
+  }
+  const totalBalesInStores = (itemSku: string) => {
+    const item = items.find((i) => i.sku === itemSku);
+    if (!item) return 0;
+    return baleQtyByItemId.get(item.id) ?? 0;
+  };
+
   return {
     storeCode: null,
     kpis: {
@@ -419,8 +516,8 @@ export async function getInventoryDashboardAnalytics(storeCode?: string) {
       rawMaizeKg: sku("MZ-RAW-01") ? Number(sku("MZ-RAW-01")!.quantity) : qtyByType.RAW_MATERIAL ?? 0,
       grade1BulkKg: sku("FL-GR1-01") ? Number(sku("FL-GR1-01")!.quantity) : 0,
       grade2BulkKg: sku("FL-GR2-02") ? Number(sku("FL-GR2-02")!.quantity) : 0,
-      grade1Bales: sku("FL-GR1-BALE-24") ? Number(sku("FL-GR1-BALE-24")!.quantity) : 0,
-      grade2Bales: sku("FL-GR2-BALE-24") ? Number(sku("FL-GR2-BALE-24")!.quantity) : 0,
+      grade1Bales: totalBalesInStores("FL-GR1-BALE-24"),
+      grade2Bales: totalBalesInStores("FL-GR2-BALE-24"),
       packagingMaterialKg: sku("PKG-MAT-01") ? Number(sku("PKG-MAT-01")!.quantity) : 0,
       avgMillingEfficiencyPct: Math.round(avgMillingEff * 100) / 100,
       avgPackagingYieldPct: Math.round(avgPackagingYield * 100) / 100,

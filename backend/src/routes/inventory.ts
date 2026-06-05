@@ -225,6 +225,9 @@ inventoryRouter.get("/reports/:reportType", requireAuth, async (req: Request, re
 
 // Item types that belong in the dispatch store — only bale/finished products.
 // Packaging consumables (bags, balers, tapes, glue) are never dispatched to customers.
+// NOTE: bales produced by packaging runs use their packaging material type (e.g. KHAKI_BALER_2KG)
+// as the item type, not FINISHED_GOOD, so we no longer filter by type here — instead we
+// rely on storeCode scoping (only items with a balance in the dispatch store appear).
 const DISPATCH_STORE_ITEM_TYPES = [
   "FINISHED_GOOD",
   "BY_PRODUCT",
@@ -240,18 +243,43 @@ inventoryRouter.get("/", async (req, res) => {
     let itemIds: string[] | undefined;
     if (storeCode) {
       await ensureDefaultStores();
-      const balances = await prisma.storeInventoryBalance.findMany({
-        where: { location: { code: storeCode } },
-        select: { itemId: true },
-      });
-      itemIds = balances.map((b) => b.itemId);
+
+      if (isDispatchStore) {
+        // For the dispatch store, only show items that actually arrived via bale transfers.
+        // The StoreInventoryBalance can contain packaging material items (PACKETS_2KG etc.)
+        // because those same InventoryItems are used as bale outputs in packaging runs.
+        // We restrict to items that appear in a StockTransferItem destined for this store,
+        // so raw packaging consumables that were never transferred are excluded.
+        const dispatchLoc = await prisma.inventoryLocation.findUnique({
+          where: { code: "DISPATCH_STORE" },
+          select: { id: true },
+        });
+        if (dispatchLoc) {
+          const transferredItems = await prisma.stockTransferItem.findMany({
+            where: {
+              transfer: { destinationLocationId: dispatchLoc.id },
+            },
+            select: { itemId: true },
+            distinct: ["itemId"],
+          });
+          itemIds = transferredItems.map((t) => t.itemId);
+        } else {
+          itemIds = [];
+        }
+      } else {
+        const balances = await prisma.storeInventoryBalance.findMany({
+          where: { location: { code: storeCode } },
+          select: { itemId: true },
+        });
+        itemIds = balances.map((b) => b.itemId);
+      }
     }
 
     const items = await prisma.inventoryItem.findMany({
       where: {
         ...(itemIds ? { id: { in: itemIds } } : {}),
-        // Dispatch store only shows finished goods (bales) — never packaging materials
-        ...(isDispatchStore ? { type: { in: [...DISPATCH_STORE_ITEM_TYPES] } } : {}),
+        // When scoped to dispatch store, we already filtered to only items with a balance there
+        // via itemIds — no additional type filter needed.
       },
       orderBy: { createdAt: "desc" },
       include: {
