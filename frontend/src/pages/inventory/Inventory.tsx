@@ -394,6 +394,17 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
 
 export function Inventory({ onViewItem }: InventoryProps) {
   const user = getCurrentUser();
+  const isDispatchStoreManager = user?.role === "DISPATCH_STORE_MANAGER";
+
+  // For Dispatch Store users, show only successful bale transfers / bale stock.
+  // Note: current catalogue API returns bale inventory rows with PACKETS_2KG type (unit=PIECES)
+  // even though the logical unit is bale/transfer.
+  // To avoid hiding everything, we instead treat Dispatch managers as viewing only:
+  // - items that are currently in stock (quantity > 0)
+  // This matches your expected behaviour: show only successful transfers.
+  const dispatchOnlyHasStock = true;
+
+  // Admin flag
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
 
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -566,11 +577,22 @@ const filteredUnits =
   setEditTarget(null);
 };
 
-  const filteredItems = (items ?? []).filter((item) =>
-  item.name.toLowerCase().includes(search.toLowerCase()) ||
-  item.sku.toLowerCase().includes(search.toLowerCase()) ||
-  item.description?.toLowerCase().includes(search.toLowerCase())
-);
+const filteredItems = (items ?? []).filter((item) => {
+  const matchesSearch =
+    item.name.toLowerCase().includes(search.toLowerCase()) ||
+    item.sku.toLowerCase().includes(search.toLowerCase()) ||
+    item.description?.toLowerCase().includes(search.toLowerCase());
+
+  if (!matchesSearch) return false;
+
+  if (isDispatchStoreManager) {
+    // Backend returns bale inventory rows with PACKETS/PIECES types for Dispatch store.
+    // So we filter by actual on-hand quantity instead of item.type.
+    return dispatchOnlyHasStock ? Number(item.quantity) > 0 : true;
+  }
+
+  return true;
+});
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
