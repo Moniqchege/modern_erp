@@ -53,7 +53,7 @@ export type CreatePullRequestInput = {
 
 export type IssuePullRequestLineInput = {
     lineId: string;
-    qtyIssued?: number;        // defaults to qtyRequested when omitted
+    qtyIssued?: number;
     partialIssueReason?: string;
 };
 
@@ -72,7 +72,7 @@ const transferInclude = {
     receiptRejectedBy: { select: { id: true, name: true, email: true, role: true } },
     items: {
         include: {
-            item: { select: { id: true, sku: true, name: true, unit: true } },
+            item: { select: { id: true, sku: true, name: true, unit: true, type: true } },
         },
     },
     discrepancies: true,
@@ -835,36 +835,39 @@ export async function getBaleTransferById(
     assertIsBaleTransferParticipant(auth.role);
     await ensureDefaultStores();
 
-    // Keep the UI accountable: bale transfer detail should never expose
-    // packaging-material types (tape/glue/empty bags etc.).
-    const BALER_AND_BAG_TYPES = new Set<string>([
-        "KHAKI_BALER_2KG",
-        "KHAKI_BALER_1KG",
-        "KHAKI_BALER_0_5KG",
-        "NYLON_BALER_2KG",
-        "NYLON_BALER_1KG",
-        "NYLON_BALER_0_5KG",
-        "LAMINATED_BALER",
-        "BAG_5KG",
-        "BAG_10KG",
-        "BAG_50KG",
-        "BAG_90KG",
-        "PACKETS_1KG",
-        "PACKETS_2KG",
-    ]);
-
     return prisma.$transaction(async (tx) => {
         const transfer = await getBaleTransfer(transferId, tx);
+        const formatted = formatTransfer(transfer);
 
-        // Filter out any legacy/incorrect transfer lines that reference
-        // non-bale items.
-        const filtered = {
-            ...transfer,
-            items: transfer.items.filter((line) =>
-                BALER_AND_BAG_TYPES.has(String((line as any).item?.type ?? "UNKNOWN"))
-            ),
-        };
+        // Enrich each line with bale context (typeKey, kgPerUnit, totalKg)
+        // sourced from the packaging run outputs that produced these bales.
+        const itemIds = formatted.items.map((l) => l.itemId);
+        const runOutputs = await tx.packagingRunFinishedProductOutput.findMany({
+            where: { inventoryItemId: { in: itemIds } },
+            select: {
+                inventoryItemId: true,
+                typeKey: true,
+                kgPerUnit: true,
+            },
+            distinct: ["inventoryItemId"],
+        });
 
-        return formatTransfer(filtered as any);
+        const outputByItemId = new Map(
+            runOutputs.map((o) => [o.inventoryItemId, o])
+        );
+
+        const enrichedItems = formatted.items.map((line) => {
+            const out = outputByItemId.get(line.itemId);
+            const kgPerUnit = out ? Number(out.kgPerUnit) : 24;
+            const typeKey = out?.typeKey ?? null;
+            return {
+                ...line,
+                typeKey,
+                kgPerUnit,
+                totalKg: line.qtyRequested * kgPerUnit,
+            };
+        });
+
+        return { ...formatted, items: enrichedItems };
     });
 }

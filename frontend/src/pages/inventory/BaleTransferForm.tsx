@@ -257,8 +257,9 @@ export function BaleTransferForm() {
                         <option value="">Select bale type…</option>
                         {available.map((it) => (
                           <option key={it.inventoryItemId} value={it.inventoryItemId}>
-                            {it.name} ({it.sku}) — {it.physicalQty} {it.physicalQty === 1 ? "bale" : "bales"} available
-                          </option>
+  {it.name} {it.typeKey.replace(/_\d+KG$/, "")} - {it.physicalQty}{" "}
+  {it.physicalQty === 1 ? "bale" : "bales"} available
+</option>
                         ))}
                       </select>
 

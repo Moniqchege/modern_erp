@@ -31,6 +31,10 @@ type TransferLine = {
   qtyReceived: number | null;
   discrepancyNote: string | null;
   item: { sku: string; name: string; unit: string };
+  // bale context enriched by backend
+  typeKey: string | null;
+  kgPerUnit: number;
+  totalKg: number;
 };
 
 type BaleTransfer = {
@@ -57,6 +61,32 @@ type BaleTransfer = {
 function fmt(n: number | null | undefined, unit?: string) {
   if (n == null) return "—";
   return `${n.toFixed(3)}${unit ? " " + unit : ""}`;
+}
+
+function fmtBales(n: number | null | undefined) {
+  if (n == null) return "—";
+  return `${n} ${n === 1 ? "bale" : "bales"}`;
+}
+
+const BALE_TYPE_LABEL: Record<string, string> = {
+  KHAKI_BALER_2KG:   "Khaki baler 2 kg",
+  KHAKI_BALER_1KG:   "Khaki baler 1 kg",
+  KHAKI_BALER_0_5KG: "Khaki baler 0.5 kg",
+  NYLON_BALER_2KG:   "Nylon baler 2 kg",
+  NYLON_BALER_1KG:   "Nylon baler 1 kg",
+  NYLON_BALER_0_5KG: "Nylon baler 0.5 kg",
+  LAMINATED_BALER:   "Laminated baler",
+  BAG_5KG:           "Bag 5 kg",
+  BAG_10KG:          "Bag 10 kg",
+  BAG_50KG:          "Bag 50 kg",
+  BAG_90KG:          "Bag 90 kg",
+  PACKETS_1KG:       "Packet 1 kg",
+  PACKETS_2KG:       "Packet 2 kg",
+};
+
+function baleTypeLabel(typeKey: string | null) {
+  if (!typeKey) return null;
+  return BALE_TYPE_LABEL[typeKey] ?? typeKey;
 }
 
 const STATUS_LABEL: Record<TransferStatus, string> = {
@@ -370,7 +400,8 @@ export function BaleTransferDetail() {
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="text-left px-5 py-2 text-[10px] font-bold text-slate-400 uppercase">Item</th>
+              <th className="text-left px-5 py-2 text-[10px] font-bold text-slate-400 uppercase">Brand / Item</th>
+              <th className="text-left px-4 py-2 text-[10px] font-bold text-slate-400 uppercase">Bale Format</th>
               <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-400 uppercase">Requested</th>
               <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-400 uppercase">Issued</th>
               <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-400 uppercase">Received</th>
@@ -384,6 +415,9 @@ export function BaleTransferDetail() {
                 line.qtyReceived != null &&
                 line.qtyIssued != null &&
                 line.qtyReceived < line.qtyIssued - 0.0005;
+              const label = baleTypeLabel(line.typeKey);
+              const issuedKg = line.qtyIssued != null ? line.qtyIssued * line.kgPerUnit : null;
+              const receivedKg = line.qtyReceived != null ? line.qtyReceived * line.kgPerUnit : null;
 
               return (
                 <React.Fragment key={line.id}>
@@ -391,32 +425,51 @@ export function BaleTransferDetail() {
                     <td className="px-5 py-2.5">
                       <p className="font-bold text-slate-800">{line.item.name}</p>
                       <p className="text-[10px] text-slate-400">{line.item.sku}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">
+                        {line.qtyRequested} bales × {line.kgPerUnit} kg = {line.totalKg} kg
+                      </p>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {label ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                          {label}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-700">
-                      {fmt(line.qtyRequested, line.item.unit)}
+                      <p>{fmtBales(line.qtyRequested)}</p>
+                      <p className="text-[10px] text-slate-400">{line.totalKg} kg</p>
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono">
                       {line.qtyIssued == null ? (
                         <span className="text-slate-400">—</span>
                       ) : (
-                        <span className={isPartial ? "text-amber-600 font-bold" : "text-slate-700"}>
-                          {fmt(line.qtyIssued, line.item.unit)}
-                        </span>
+                        <>
+                          <p className={isPartial ? "text-amber-600 font-bold" : "text-slate-700"}>
+                            {fmtBales(line.qtyIssued)}
+                          </p>
+                          <p className="text-[10px] text-slate-400">{issuedKg} kg</p>
+                        </>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono">
                       {line.qtyReceived == null ? (
                         <span className="text-slate-400">—</span>
                       ) : (
-                        <span className={isShort ? "text-rose-600 font-bold" : "text-emerald-700"}>
-                          {fmt(line.qtyReceived, line.item.unit)}
-                        </span>
+                        <>
+                          <p className={isShort ? "text-rose-600 font-bold" : "text-emerald-700"}>
+                            {fmtBales(line.qtyReceived)}
+                          </p>
+                          <p className="text-[10px] text-slate-400">{receivedKg} kg</p>
+                        </>
                       )}
                     </td>
                   </tr>
                   {isPartial && line.partialIssueReason && (
                     <tr>
-                      <td colSpan={4} className="px-5 pb-2.5">
+                      <td colSpan={5} className="px-5 pb-2.5">
                         <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
                           <span className="font-bold">Partial issue: </span>
                           {line.partialIssueReason}
@@ -426,7 +479,7 @@ export function BaleTransferDetail() {
                   )}
                   {isShort && line.discrepancyNote && (
                     <tr>
-                      <td colSpan={4} className="px-5 pb-2.5">
+                      <td colSpan={5} className="px-5 pb-2.5">
                         <p className="text-[10px] text-rose-700 bg-rose-50 border border-rose-100 rounded px-2 py-1">
                           <span className="font-bold">Discrepancy: </span>
                           {line.discrepancyNote}
@@ -491,12 +544,12 @@ export function BaleTransferDetail() {
                     <div>
                       <p className="text-xs font-bold text-slate-800">{line.item.name}</p>
                       <p className="text-[10px] text-slate-400">
-                        Requested: {fmt(line.qtyRequested, line.item.unit)}
+                        Requested: {fmtBales(line.qtyRequested)} ({line.totalKg} kg)
                       </p>
                     </div>
                     <div className="space-y-1">
                       <label htmlFor={`issue-qty-${line.id}`} className="text-[9px] font-extrabold text-slate-400 uppercase">
-                        Qty to issue ({line.item.unit})
+                        Bales to issue
                       </label>
                       <input
                         id={`issue-qty-${line.id}`}
@@ -513,7 +566,7 @@ export function BaleTransferDetail() {
                       />
                       {isPartial && (
                         <p className="text-[10px] text-amber-600 font-bold">
-                          ↓ {(line.qtyRequested - qty).toFixed(3)} {line.item.unit} short
+                          ↓ {(line.qtyRequested - qty)} bale{line.qtyRequested - qty !== 1 ? "s" : ""} short
                         </p>
                       )}
                     </div>
@@ -644,11 +697,11 @@ export function BaleTransferDetail() {
                   <div key={line.id} className="bg-white border border-indigo-100 rounded-lg p-3 space-y-2">
                     <div>
                       <p className="text-xs font-bold text-slate-800">{line.item.name}</p>
-                      <p className="text-[10px] text-slate-400">Issued: {fmt(issued, line.item.unit)}</p>
+                      <p className="text-[10px] text-slate-400">Issued: {fmtBales(issued)} ({issued * line.kgPerUnit} kg)</p>
                     </div>
                     <div className="space-y-1">
                       <label htmlFor={`recv-qty-${line.id}`} className="text-[9px] font-extrabold text-slate-400 uppercase">
-                        Qty received ({line.item.unit})
+                        Bales received
                       </label>
                       <input
                         id={`recv-qty-${line.id}`}
@@ -665,7 +718,7 @@ export function BaleTransferDetail() {
                       />
                       {isShort && (
                         <p className="text-[10px] text-rose-600 font-bold">
-                          ↓ {(issued - received).toFixed(3)} {line.item.unit} short of issued qty
+                          ↓ {(issued - received)} bale{issued - received !== 1 ? "s" : ""} short of issued qty
                         </p>
                       )}
                     </div>
