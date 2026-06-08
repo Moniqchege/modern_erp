@@ -12,8 +12,8 @@ registerProcurementListeners();
 
 void (async () => {
   try {
-    await ensureDefaultStores();       // stores must exist before user→store assignments
-    await seedDefaultUserIfNeeded();   // creates admin + demo store managers + assignments
+    await ensureDefaultStores();      
+    await seedDefaultUserIfNeeded(); 
     await seedSalesModuleIfNeeded();
   } catch (err) {
     // eslint-disable-next-line no-console

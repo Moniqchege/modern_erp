@@ -163,6 +163,26 @@ const ForceResetPassword = lazy(() =>
 );
 const ModuleLanding = lazy(() => import("../../pages/ModuleLanding").then((m) => ({ default: m.ModuleLanding })));
 
+// ─── Weighbridge module (Purchases / Sales / Others / Dashboard / Log) ───
+const WeighbridgeLayout = lazy(() =>
+  import("../../layouts/WeighbridgeLayout").then((m) => ({ default: m.WeighbridgeLayout }))
+);
+const WeighbridgePurchases = lazy(() =>
+  import("../../pages/weighbridge/Purchases").then((m) => ({ default: m.WeighbridgePurchases }))
+);
+const WeighbridgeSales = lazy(() =>
+  import("../../pages/weighbridge/Sales").then((m) => ({ default: m.WeighbridgeSales }))
+);
+const WeighbridgeOthers = lazy(() =>
+  import("../../pages/weighbridge/Others").then((m) => ({ default: m.WeighbridgeOthers }))
+);
+const WeighbridgeDashboard = lazy(() =>
+  import("../../pages/weighbridge/Dashboard").then((m) => ({ default: m.WeighbridgeDashboard }))
+);
+const WeighbridgeActivitiesLog = lazy(() =>
+  import("../../pages/weighbridge/ActivitiesLog").then((m) => ({ default: m.ActivitiesLog }))
+);
+
 export function AppRouter() {
   const RequireAuth = ({ children }: { children: React.ReactNode }) => {
     if (!isAuthenticated()) return <Navigate to="/login" replace />;
@@ -256,6 +276,15 @@ export function AppRouter() {
             <Route path="accounts" element={<ChartOfAccounts />} />
             <Route path="journals" element={<JournalEntries />} />
             <Route path="reports" element={<FinancialReports />} />
+          </Route>
+
+          <Route path={ROUTES.WEIGHBRIDGE}>
+            <Route index element={<Navigate to={ROUTES.WEIGHBRIDGE_PURCHASES} replace />} />
+            <Route path="purchases" element={<WeighbridgePurchases />} />
+            <Route path="sales" element={<WeighbridgeSales />} />
+            <Route path="others" element={<WeighbridgeOthers />} />
+            <Route path="dashboard" element={<WeighbridgeDashboard />} />
+            <Route path="log" element={<WeighbridgeActivitiesLog />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

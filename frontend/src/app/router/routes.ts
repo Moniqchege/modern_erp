@@ -65,5 +65,13 @@ export const ROUTES = {
     FINANCE_JOURNALS: "/finance/journals",
     FINANCE_REPORTS: "/finance/reports",
 
+    // ─── Weighbridge module (unified Purchases / Sales / Others) ─────────────
+    WEIGHBRIDGE: "/weighbridge",
+    WEIGHBRIDGE_PURCHASES: "/weighbridge/purchases",
+    WEIGHBRIDGE_SALES: "/weighbridge/sales",
+    WEIGHBRIDGE_OTHERS: "/weighbridge/others",
+    WEIGHBRIDGE_DASHBOARD: "/weighbridge/dashboard",
+    WEIGHBRIDGE_LOG: "/weighbridge/log",
+
     ROOT: "/",
 } as const;

@@ -8,6 +8,7 @@ import {
   Wallet,
   UserCog,
   ShieldCheck,
+  Scale,
 } from "lucide-react";
 import { ROUTES } from "../app/router/routes";
 
@@ -63,6 +64,12 @@ export function ModuleLanding() {
       subtitle: "Accounting & financial reports",
       icon: Briefcase,
       to: ROUTES.FINANCE,
+    },
+    {
+      title: "Weighbridge",
+      subtitle: "Inbound maize, outbound flour & 3rd-party services",
+      icon: Scale,
+      to: ROUTES.WEIGHBRIDGE,
     },
   ];
 

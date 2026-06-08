@@ -1,22 +1,3 @@
-/**
- * Bale Transfer Service
- *
- * Handles movement of packed flour bales from Packaging Store → Dispatch Store.
- *
- * Two workflows:
- *  - Push Transfer  : Packaging Store Manager directly dispatches bales
- *                     (status goes straight to APPROVED_IN_TRANSIT).
- *  - Pull Request   : Dispatch Store Manager requests bales (PENDING),
- *                     Packaging Store Manager reviews and issues them.
- *
- * Lifecycle recap:
- *   Pull:  PENDING → (issue) APPROVED_IN_TRANSIT → (receive) COMPLETED
- *                                                → (reject)  PENDING_CORRECTION → (re-issue) APPROVED_IN_TRANSIT
- *          PENDING → (reject) REJECTED
- *   Push:  created directly as APPROVED_IN_TRANSIT → (receive) COMPLETED
- *                                                   → (reject)  PENDING_CORRECTION → (re-issue) APPROVED_IN_TRANSIT
- */
-
 import { Prisma, StockTransferStatus } from "@prisma/client";
 import type { AccessTokenPayload } from "../auth/jwt";
 import { prisma } from "../server";
@@ -734,17 +715,6 @@ export async function listBaleTransfers(
     return transfers.map(formatTransfer);
 }
 
-// ─── Get Bale Stock (bales produced in packaging runs available for transfer) ──
-//
-// Returns the count of packed bales per brand item that are available in the
-// Packaging Store for transfer to Dispatch. Quantities are expressed in BALES
-// (not in pieces or kg) and are derived entirely from packaging run records:
-//
-//   availableBales = totalBalesProduced − balesAlreadyTransferredOut
-//
-// This avoids mixing bale counts with raw packaging-material piece counts that
-// happen to share the same inventory item (e.g. PACKETS_2KG items are both
-// consumed as packaging inputs AND credited as bale output targets).
 
 export async function getPackagingStoreBaleStock() {
     await ensureDefaultStores();
@@ -838,9 +808,6 @@ export async function getBaleTransferById(
     return prisma.$transaction(async (tx) => {
         const transfer = await getBaleTransfer(transferId, tx);
         const formatted = formatTransfer(transfer);
-
-        // Enrich each line with bale context (typeKey, kgPerUnit, totalKg)
-        // sourced from the packaging run outputs that produced these bales.
         const itemIds = formatted.items.map((l) => l.itemId);
         const runOutputs = await tx.packagingRunFinishedProductOutput.findMany({
             where: { inventoryItemId: { in: itemIds } },

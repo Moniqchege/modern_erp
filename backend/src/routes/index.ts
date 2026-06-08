@@ -21,6 +21,7 @@ import { salesProductsRouter } from "./sales-products";
 import { dispatchesRouter } from "./dispatches";
 import { financeRouter } from "./finance";
 import { budgetRouter } from "./budget";
+import { weighbridgeRouter } from "./weighbridge";
 
 export const routes = Router();
 
@@ -45,6 +46,7 @@ routes.use("/stock-transfers", stockTransferRouter);
 routes.use("/bale-transfers", baleTransferRouter);
 routes.use("/finance", financeRouter);
 routes.use("/budget", budgetRouter);
+routes.use("/weighbridge", weighbridgeRouter);
 
 
 

@@ -1,19 +1,8 @@
-/**
- * TRACEABILITY API ROUTES
- * 
- * RESTful endpoints for food safety traceability operations.
- * Implements HACCP/ISO 22000 compliant tracking workflows.
- */
-
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import traceabilityService from "../services/traceability.service";
 
 const router = Router();
-
-// ============================================
-// VALIDATION SCHEMAS
-// ============================================
 
 const receiveRawMaizeSchema = z.object({
     supplierId: z.string().min(1, "Supplier ID is required"),
@@ -59,16 +48,6 @@ const productionRunSchema = z.object({
     }),
 });
 
-// ============================================
-// RAW MATERIAL RECEIVING
-// ============================================
-
-/**
- * POST /api/traceability/receive-raw-maize
- * 
- * Record inbound raw maize delivery with weighbridge data.
- * Batch is automatically quarantined pending QC approval.
- */
 router.post("/receive-raw-maize", async (req: Request, res: Response) => {
     try {
         const data = receiveRawMaizeSchema.parse(req.body);
@@ -93,12 +72,6 @@ router.post("/receive-raw-maize", async (req: Request, res: Response) => {
     }
 });
 
-/**
- * POST /api/traceability/quality-control
- * 
- * Perform quality control test on quarantined raw maize batch.
- * Automatically approves or rejects based on compliance thresholds.
- */
 router.post("/quality-control", async (req: Request, res: Response) => {
     try {
         const data = qualityTestSchema.parse(req.body);
@@ -119,17 +92,6 @@ router.post("/quality-control", async (req: Request, res: Response) => {
     }
 });
 
-// ============================================
-// PRODUCTION & MILLING
-// ============================================
-
-/**
- * POST /api/traceability/production-run
- * 
- * Create a production run with full traceability.
- * Links raw maize inputs to finished goods outputs.
- * Validates mass balance and flags variance alerts.
- */
 router.post("/production-run", async (req: Request, res: Response) => {
     try {
         const data = productionRunSchema.parse(req.body);
@@ -160,12 +122,7 @@ router.post("/production-run", async (req: Request, res: Response) => {
     }
 });
 
-/**
- * POST /api/traceability/calculate-yield
- * 
- * Calculate milling yield and mass balance.
- * Utility endpoint for pre-validation before creating production run.
- */
+
 router.post("/calculate-yield", async (req: Request, res: Response) => {
     try {
         const { rawMaizeWeight, yieldData } = req.body;
@@ -195,20 +152,7 @@ router.post("/calculate-yield", async (req: Request, res: Response) => {
     }
 });
 
-// ============================================
-// FIFO INVENTORY PICKING
-// ============================================
 
-/**
- * GET /api/traceability/fifo-picking
- * 
- * Get FIFO-sorted list of batches for picking.
- * Prioritizes oldest expiration or reception date.
- * 
- * Query params:
- * - itemType: "RAW_MAIZE" or "FINISHED_GOODS"
- * - requiredQuantity: (optional) filter by minimum quantity
- */
 router.get("/fifo-picking", async (req: Request, res: Response) => {
     try {
         const { itemType, requiredQuantity } = req.query;
@@ -240,16 +184,7 @@ router.get("/fifo-picking", async (req: Request, res: Response) => {
     }
 });
 
-// ============================================
-// TRACEABILITY QUERIES
-// ============================================
 
-/**
- * GET /api/traceability/trace-forward/:batchId
- * 
- * Forward traceability: Raw Maize → Production → Finished Goods → Dispatch
- * Returns complete supply chain tree from source to customer.
- */
 router.get("/trace-forward/:batchId", async (req: Request, res: Response) => {
     try {
         const { batchId } = req.params;
@@ -270,12 +205,7 @@ router.get("/trace-forward/:batchId", async (req: Request, res: Response) => {
     }
 });
 
-/**
- * GET /api/traceability/trace-backward/:barcode
- * 
- * Backward traceability: Finished Product → Production → Raw Maize → Supplier
- * Returns complete chain from retail bag to farm origin.
- */
+
 router.get("/trace-backward/:barcode", async (req: Request, res: Response) => {
     try {
         const { barcode } = req.params;
@@ -296,9 +226,6 @@ router.get("/trace-backward/:barcode", async (req: Request, res: Response) => {
     }
 });
 
-// ============================================
-// HEALTH CHECK
-// ============================================
 
 router.get("/health", (_req: Request, res: Response) => {
     res.json({

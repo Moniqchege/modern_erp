@@ -97,16 +97,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invoices                Invoice[]              @relation("InvoiceCreatedBy")
-  stockTransfersRequested StockTransferRequest[] @relation("StockTransferRequestedBy")
-  stockTransfersApproved  StockTransferRequest[] @relation("StockTransferApprovedBy")
-  stockTransfersReceiptRejected StockTransferRequest[] @relation("StockTransferReceiptRejectedBy")
-  storeManagerAssignment  StoreManagerAssignment?
+  invoices                      Invoice[]               @relation("InvoiceCreatedBy")
+  stockTransfersRequested       StockTransferRequest[]  @relation("StockTransferRequestedBy")
+  stockTransfersApproved        StockTransferRequest[]  @relation("StockTransferApprovedBy")
+  stockTransfersReceiptRejected StockTransferRequest[]  @relation("StockTransferReceiptRejectedBy")
+  storeManagerAssignment        StoreManagerAssignment?
 
-  journalEntriesCreated   JournalEntry[]         @relation("JournalCreatedBy")
-  imprestsRequested       ImprestRequest[]       @relation("ImprestRequester")
-  imprestsApproved        ImprestRequest[]       @relation("ImprestApprover")
-  surrendersVerified      ImprestSurrender[]     @relation("SurrenderVerifier")
+  journalEntriesCreated JournalEntry[]     @relation("JournalCreatedBy")
+  imprestsRequested     ImprestRequest[]   @relation("ImprestRequester")
+  imprestsApproved      ImprestRequest[]   @relation("ImprestApprover")
+  surrendersVerified    ImprestSurrender[] @relation("SurrenderVerifier")
 }
 
 model OtpCode {
@@ -187,8 +187,8 @@ model InventoryMovement {
   item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   movementType     InventoryMovementType
-  quantityDelta    Decimal               @db.Decimal(12, 3) 
-  unitPriceApplied Decimal               @db.Decimal(10, 2) 
+  quantityDelta    Decimal               @db.Decimal(12, 3)
+  unitPriceApplied Decimal               @db.Decimal(10, 2)
   movementAt       DateTime              @default(now())
 
   supplierId      String?
@@ -216,20 +216,16 @@ model InventoryMovement {
   @@index([locationId, itemId])
 }
 
-// ============================================
-// MULTI-STORE INVENTORY & STOCK TRANSFERS
-// ============================================
-
 model InventoryLocation {
-  id          String    @id @default(cuid())
-  code        String    @unique
-  name        String    @db.VarChar(255)
-  description String?   @db.VarChar(1000)
-  address     String?   @db.VarChar(500)
-  isActive    Boolean   @default(true)
-  isLegacy    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String   @db.VarChar(255)
+  description String?  @db.VarChar(1000)
+  address     String?  @db.VarChar(500)
+  isActive    Boolean  @default(true)
+  isLegacy    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   balances             StoreInventoryBalance[]
   movements            InventoryMovement[]
@@ -263,13 +259,13 @@ enum StoreAuditAction {
 }
 
 model StoreAuditLog {
-  id               String           @id @default(cuid())
-  action           StoreAuditAction
-  storeId          String
-  store            InventoryLocation @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  id                String            @id @default(cuid())
+  action            StoreAuditAction
+  storeId           String
+  store             InventoryLocation @relation(fields: [storeId], references: [id], onDelete: Cascade)
   performedByUserId String
-  snapshot         Json
-  createdAt        DateTime         @default(now())
+  snapshot          Json
+  createdAt         DateTime          @default(now())
 
   @@index([storeId, createdAt])
   @@index([performedByUserId])
@@ -291,30 +287,28 @@ model StoreInventoryBalance {
 }
 
 model StockTransferRequest {
-  id                    String              @id @default(cuid())
-  requestNumber         String              @unique
-  sourceLocationId      String
-  sourceLocation        InventoryLocation   @relation("TransferSourceStore", fields: [sourceLocationId], references: [id])
-  destinationLocationId String
-  destinationLocation   InventoryLocation   @relation("TransferDestinationStore", fields: [destinationLocationId], references: [id])
-  requestedByUserId     String
-  requestedBy           User                @relation("StockTransferRequestedBy", fields: [requestedByUserId], references: [id])
-  approvedByUserId      String?
-  approvedBy            User?               @relation("StockTransferApprovedBy", fields: [approvedByUserId], references: [id])
-  status                StockTransferStatus @default(PENDING)
-  rejectionReason       String?             @db.Text
-  notes                 String?             @db.Text
-  approvedAt            DateTime?
-  completedAt           DateTime?
-
-  /// Set when receiving store rejects a delivered transfer
-  receiptRejectionReason  String?           @db.Text
+  id                      String              @id @default(cuid())
+  requestNumber           String              @unique
+  sourceLocationId        String
+  sourceLocation          InventoryLocation   @relation("TransferSourceStore", fields: [sourceLocationId], references: [id])
+  destinationLocationId   String
+  destinationLocation     InventoryLocation   @relation("TransferDestinationStore", fields: [destinationLocationId], references: [id])
+  requestedByUserId       String
+  requestedBy             User                @relation("StockTransferRequestedBy", fields: [requestedByUserId], references: [id])
+  approvedByUserId        String?
+  approvedBy              User?               @relation("StockTransferApprovedBy", fields: [approvedByUserId], references: [id])
+  status                  StockTransferStatus @default(PENDING)
+  rejectionReason         String?             @db.Text
+  notes                   String?             @db.Text
+  approvedAt              DateTime?
+  completedAt             DateTime?
+  receiptRejectionReason  String?             @db.Text
   receiptRejectedByUserId String?
-  receiptRejectedBy       User?             @relation("StockTransferReceiptRejectedBy", fields: [receiptRejectedByUserId], references: [id])
+  receiptRejectedBy       User?               @relation("StockTransferReceiptRejectedBy", fields: [receiptRejectedByUserId], references: [id])
   receiptRejectedAt       DateTime?
 
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   items         StockTransferItem[]
   movements     InventoryMovement[]
@@ -327,19 +321,18 @@ model StockTransferRequest {
 }
 
 model StockTransferItem {
-  id              String               @id @default(cuid())
-  transferId      String
-  transfer        StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  itemId          String
-  item            InventoryItem        @relation(fields: [itemId], references: [id])
-  qtyRequested    Decimal              @db.Decimal(12, 3)
-  qtyIssued       Decimal?             @db.Decimal(12, 3)
-  /// Reason provided by main store manager when qtyIssued < qtyRequested
-  partialIssueReason String?           @db.Text
-  qtyReceived     Decimal?             @db.Decimal(12, 3)
-  discrepancyNote String?              @db.Text
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id                 String               @id @default(cuid())
+  transferId         String
+  transfer           StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  itemId             String
+  item               InventoryItem        @relation(fields: [itemId], references: [id])
+  qtyRequested       Decimal              @db.Decimal(12, 3)
+  qtyIssued          Decimal?             @db.Decimal(12, 3)
+  partialIssueReason String?              @db.Text
+  qtyReceived        Decimal?             @db.Decimal(12, 3)
+  discrepancyNote    String?              @db.Text
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([transferId])
   @@index([itemId])
@@ -359,13 +352,9 @@ model StockTransferDiscrepancy {
   @@index([transferId])
 }
 
-// ============================================
-// TRACEABILITY MODULE - SUPPLIERS & RAW MATERIALS
-// ============================================
-
 model Supplier {
   id             String  @id @default(cuid())
-  code           String  @unique 
+  code           String  @unique
   name           String
   contactPerson  String?
   phone          String?
@@ -417,15 +406,15 @@ model RawMaizeBatch {
 
   supplierId  String
   supplier    Supplier  @relation(fields: [supplierId], references: [id])
-  farmOrigin  String? 
+  farmOrigin  String?
   harvestDate DateTime?
 
-  truckRegistration String 
+  truckRegistration String
   driverName        String?
   driverPhone       String?
 
-  grossWeight Decimal @db.Decimal(12, 3) 
-  tareWeight  Decimal @db.Decimal(12, 3) 
+  grossWeight Decimal @db.Decimal(12, 3)
+  tareWeight  Decimal @db.Decimal(12, 3)
   netWeight   Decimal @db.Decimal(12, 3)
 
   status          BatchStatus @default(QUARANTINED)
@@ -436,7 +425,7 @@ model RawMaizeBatch {
 
   receivedAt DateTime  @default(now())
   approvedAt DateTime?
-  expiryDate DateTime? 
+  expiryDate DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -461,10 +450,10 @@ model QualityControlLog {
   rawMaizeBatchId String
   rawMaizeBatch   RawMaizeBatch @relation(fields: [rawMaizeBatchId], references: [id], onDelete: Cascade)
 
-  moistureContent Decimal  @db.Decimal(5, 2) 
-  aflatoxinLevel  Decimal  @db.Decimal(8, 2) 
-  foreignMatter   Decimal  @db.Decimal(5, 2) 
-  brokenKernels   Decimal? @db.Decimal(5, 2) 
+  moistureContent Decimal  @db.Decimal(5, 2)
+  aflatoxinLevel  Decimal  @db.Decimal(8, 2)
+  foreignMatter   Decimal  @db.Decimal(5, 2)
+  brokenKernels   Decimal? @db.Decimal(5, 2)
 
   status   QCStatus @default(QUARANTINED)
   testedBy String // Inspector name or ID
@@ -481,11 +470,11 @@ model QualityControlLog {
 
 model Silo {
   id         String @id @default(cuid())
-  siloNumber String @unique 
-  location   String 
+  siloNumber String @unique
+  location   String
 
-  maxCapacity  Decimal @db.Decimal(12, 3) 
-  currentLevel Decimal @default(0.00) @db.Decimal(12, 3) 
+  maxCapacity  Decimal @db.Decimal(12, 3)
+  currentLevel Decimal @default(0.00) @db.Decimal(12, 3)
 
   isActive      Boolean   @default(true)
   lastCleanedAt DateTime?
@@ -505,7 +494,7 @@ model SiloCleaningLog {
   siloId String
   silo   Silo   @relation(fields: [siloId], references: [id], onDelete: Cascade)
 
-  cleanedBy    String 
+  cleanedBy    String
   cleaningDate DateTime @default(now())
   remarks      String?  @db.Text
 
@@ -515,27 +504,23 @@ model SiloCleaningLog {
   @@index([cleaningDate])
 }
 
-// ============================================
-// PRODUCTION & MILLING TRACEABILITY
-// ============================================
-
 model ProductionRun {
   id        String @id @default(cuid())
   runNumber String @unique
 
-  millingLine  String 
+  millingLine  String
   operatorName String
 
   totalRawInput        Decimal @db.Decimal(12, 3)
   totalFlourOutput     Decimal @db.Decimal(12, 3)
-  totalByProductOutput Decimal @db.Decimal(12, 3) 
-  moistureLoss         Decimal @db.Decimal(12, 3) 
+  totalByProductOutput Decimal @db.Decimal(12, 3)
+  moistureLoss         Decimal @db.Decimal(12, 3)
   variance             Decimal @db.Decimal(12, 3)
-  variancePercent      Decimal @db.Decimal(5, 2) 
+  variancePercent      Decimal @db.Decimal(5, 2)
 
-  yieldEfficiency Decimal @db.Decimal(5, 2) 
+  yieldEfficiency Decimal @db.Decimal(5, 2)
 
-  varianceAlert Boolean @default(false) 
+  varianceAlert Boolean @default(false)
 
   startTime DateTime
   endTime   DateTime?
@@ -576,8 +561,8 @@ model ByProductBatch {
   productionRunId String
   productionRun   ProductionRun @relation(fields: [productionRunId], references: [id])
 
-  productType     String 
-  quantity        Decimal @db.Decimal(12, 3) 
+  productType     String
+  quantity        Decimal @db.Decimal(12, 3)
   currentQuantity Decimal @db.Decimal(12, 3)
 
   unitPrice Decimal @default(0.00) @db.Decimal(10, 2)
@@ -589,20 +574,16 @@ model ByProductBatch {
   @@index([productionRunId])
 }
 
-// ============================================
-// FINISHED GOODS - HIERARCHICAL TRACEABILITY
-// ============================================
-
 model FinishedGoodsBatch {
   id          String @id @default(cuid())
-  batchNumber String @unique 
+  batchNumber String @unique
 
   productionRunId String
   productionRun   ProductionRun @relation(fields: [productionRunId], references: [id])
 
-  productType     String 
-  totalQuantity   Decimal @db.Decimal(12, 3) 
-  currentQuantity Decimal @db.Decimal(12, 3) 
+  productType     String
+  totalQuantity   Decimal @db.Decimal(12, 3)
+  currentQuantity Decimal @db.Decimal(12, 3)
 
   packagingDate DateTime @default(now())
   expiryDate    DateTime
@@ -619,12 +600,12 @@ model FinishedGoodsBatch {
 
 model Pallet {
   id            String @id @default(cuid())
-  palletBarcode String @unique 
+  palletBarcode String @unique
 
   finishedGoodsBatchId String
   finishedGoodsBatch   FinishedGoodsBatch @relation(fields: [finishedGoodsBatchId], references: [id])
 
-  totalWeight Decimal @db.Decimal(12, 3) 
+  totalWeight Decimal @db.Decimal(12, 3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -638,12 +619,12 @@ model Pallet {
 
 model Bale {
   id          String @id @default(cuid())
-  baleBarcode String @unique 
+  baleBarcode String @unique
 
   palletId String
   pallet   Pallet @relation(fields: [palletId], references: [id], onDelete: Cascade)
 
-  totalWeight Decimal @db.Decimal(12, 3) 
+  totalWeight Decimal @db.Decimal(12, 3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -656,12 +637,12 @@ model Bale {
 
 model Bag {
   id         String @id @default(cuid())
-  bagBarcode String @unique 
+  bagBarcode String @unique
 
   baleId String
   bale   Bale   @relation(fields: [baleId], references: [id], onDelete: Cascade)
 
-  weight Decimal @db.Decimal(12, 3) 
+  weight Decimal @db.Decimal(12, 3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -669,10 +650,6 @@ model Bag {
   @@index([bagBarcode])
   @@index([baleId])
 }
-
-// ============================================
-// DISPATCH & CUSTOMER DELIVERY TRACEABILITY
-// ============================================
 
 model DispatchLog {
   id             String @id @default(cuid())
@@ -725,10 +702,6 @@ model DispatchItem {
   @@index([palletId])
 }
 
-// ============================================
-// LEGACY MODELS (Updated with Relations)
-// ============================================
-
 model ProductionBatch {
   id          String @id @default(cuid())
   batchNumber String @unique
@@ -757,10 +730,6 @@ model ProductionBatchOutput {
 
   @@index([productionBatchId])
 }
-
-// ============================================
-// PACKAGING — bulk flour to 24kg bales
-// ============================================
 
 model PackagingRun {
   id        String @id @default(cuid())
@@ -792,10 +761,6 @@ model PackagingRun {
   @@index([createdAt])
 }
 
-// ============================================
-// PACKAGING — normalized per-finished-product breakdown
-// ============================================
-
 model PackagingRunFinishedProductInput {
   id                  String        @id @default(cuid())
   packagingRunId      String
@@ -816,29 +781,24 @@ model PackagingRunFinishedProductOutput {
   id String @id @default(cuid())
 
   packagingRunId      String
-  packagingRun        PackagingRun  @relation(fields: [packagingRunId], references: [id], onDelete: Cascade)
-  finishedProductName String        @db.VarChar(255)
+  packagingRun        PackagingRun @relation(fields: [packagingRunId], references: [id], onDelete: Cascade)
+  finishedProductName String       @db.VarChar(255)
 
-  typeKey             String? @default("UNKNOWN")
+  typeKey String? @default("UNKNOWN")
 
   inventoryItemId String?
-  inventoryItem    InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
 
-  balesProduced       Int
-  packagedKg          Decimal       @db.Decimal(12, 3)
-  kgPerUnit Decimal @default(24) @db.Decimal(12, 3)
+  balesProduced Int
+  packagedKg    Decimal @db.Decimal(12, 3)
+  kgPerUnit     Decimal @default(24) @db.Decimal(12, 3)
 
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([packagingRunId])
   @@index([finishedProductName])
 }
-
-
-// ============================================
-// CUSTOMERS & SALES MODULE (Maize Flour Plant)
-// ============================================
 
 enum CustomerType {
   DISTRIBUTOR
@@ -950,8 +910,9 @@ model SalesOrder {
   orderStatus    SalesOrderStatus        @default(DRAFT)
   dispatchStatus SalesDispatchStatus     @default(PENDING)
 
-  items   SalesOrderItem[]
-  invoice Invoice?
+  items              SalesOrderItem[]
+  weighbridgeTickets WeighbridgeTicket[]
+  invoice            Invoice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -969,12 +930,12 @@ model SalesOrderItem {
   salesOrderId String
   salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
 
-  productSku       String
-  salesProduct     SalesProduct? @relation(fields: [productSku], references: [sku])
-  quantity         Decimal       @db.Decimal(12, 3)
-  unitPrice        Decimal       @db.Decimal(10, 2)
-  discountPercent  Decimal       @default(0) @db.Decimal(5, 2)
-  lineTotal        Decimal       @db.Decimal(12, 2)
+  productSku      String
+  salesProduct    SalesProduct? @relation(fields: [productSku], references: [sku])
+  quantity        Decimal       @db.Decimal(12, 3)
+  unitPrice       Decimal       @db.Decimal(10, 2)
+  discountPercent Decimal       @default(0) @db.Decimal(5, 2)
+  lineTotal       Decimal       @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
 
@@ -987,10 +948,10 @@ model Invoice {
   invoiceNumber String        @unique
   dispatches    DispatchLog[]
 
-  subtotal  Decimal @db.Decimal(10, 2)
-  tax       Decimal @db.Decimal(10, 2)
-  total     Decimal @db.Decimal(10, 2)
-  amountDue Decimal @db.Decimal(10, 2)
+  subtotal  Decimal       @db.Decimal(10, 2)
+  tax       Decimal       @db.Decimal(10, 2)
+  total     Decimal       @db.Decimal(10, 2)
+  amountDue Decimal       @db.Decimal(10, 2)
   status    InvoiceStatus @default(DRAFT)
 
   dueDate  DateTime?
@@ -999,11 +960,11 @@ model Invoice {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  salesOrderId String?    @unique
+  salesOrderId String?     @unique
   salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
 
   createdById String
-  createdBy   User @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  createdBy   User   @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
 
   payments CustomerPayment[]
 
@@ -1035,10 +996,6 @@ model CustomerPayment {
   @@index([invoiceId])
   @@index([paidAt])
 }
-
-// ============================================
-// PROCUREMENT & SUPPLIER MANAGEMENT MODULE
-// ============================================
 
 enum SupplierOnboardingStatus {
   PENDING
@@ -1371,32 +1328,6 @@ model PurchaseOrderLine {
   @@index([purchaseOrderId])
 }
 
-model WeighbridgeTicket {
-  id                String               @id @default(cuid())
-  ticketNumber      String               @unique
-  direction         WeighbridgeDirection @default(INBOUND)
-  purchaseOrderId   String?
-  purchaseOrder     PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id])
-  rawMaizeBatchId   String?
-  rawMaizeBatch     RawMaizeBatch?       @relation(fields: [rawMaizeBatchId], references: [id])
-  truckRegistration String
-  driverName        String?
-  grossWeightKg     Decimal              @db.Decimal(12, 3)
-  tareWeightKg      Decimal              @db.Decimal(12, 3)
-  netWeightKg       Decimal              @db.Decimal(12, 3)
-  weighedInAt       DateTime             @default(now())
-  weighedOutAt      DateTime?
-  operatorName      String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-
-  grns      GoodsReceivedNote[]
-  qcResults ProcurementQCLabResult[]
-
-  @@index([ticketNumber])
-  @@index([purchaseOrderId])
-}
-
 model ProcurementQCLabResult {
   id                   String              @id @default(cuid())
   qcNumber             String              @unique
@@ -1592,6 +1523,110 @@ model ProcurementAuditLog {
   @@index([supplierId])
 }
 
+// ============================================================
+// ADD THESE MODELS TO YOUR EXISTING schema.prisma
+// ============================================================
+
+enum WeighbridgeTicketType {
+  PURCHASE
+  SALE
+  OTHERS
+}
+
+enum WeighbridgeTicketStatus {
+  PENDING // First weight captured; vehicle inside yard
+  COMPLETED // Second weight captured; net calculated; locked
+  CANCELLED // Voided by supervisor (reason required)
+}
+
+model WeighbridgeTruckMaster {
+  id           String   @id @default(cuid())
+  licensePlate String   @unique
+  model        String
+  masterTareKg Decimal  @db.Decimal(12, 3)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tickets           WeighbridgeTicket[]                @relation("TruckTickets")
+  driverAssignments WeighbridgeTruckDriverAssignment[]
+
+  @@index([licensePlate])
+}
+
+model WeighbridgeTruckDriverAssignment {
+  id           String                 @id @default(cuid())
+  truckId      String
+  truck        WeighbridgeTruckMaster @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  driverName   String
+  assignedAt   DateTime               @default(now())
+  unassignedAt DateTime?
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@index([truckId, isActive])
+}
+
+model WeighbridgeTicket {
+  id                   String                   @id @default(cuid())
+  ticketNumber         String                   @unique
+  type                 WeighbridgeTicketType
+  status               WeighbridgeTicketStatus  @default(PENDING)
+  purchaseOrderId      String?
+  purchaseOrder        PurchaseOrder?           @relation(fields: [purchaseOrderId], references: [id])
+  supplierName         String?
+  supplierDriverName   String?
+  salesOrderId         String?
+  salesOrder           SalesOrder?              @relation(fields: [salesOrderId], references: [id])
+  rawMaizeBatchId      String?
+  rawMaizeBatch        RawMaizeBatch?           @relation(fields: [rawMaizeBatchId], references: [id])
+  procurementQcResults ProcurementQCLabResult[]
+  goodsReceivedNotes   GoodsReceivedNote[]
+  customerName         String?
+  truckMasterId        String?
+  truckMaster          WeighbridgeTruckMaster?  @relation("TruckTickets", fields: [truckMasterId], references: [id])
+  assignedDriverName   String?
+  vehiclePlate         String?
+  driverName           String?
+  firstWeightKg        Decimal?                 @db.Decimal(12, 3)
+  firstWeightAt        DateTime?
+  secondWeightKg       Decimal?                 @db.Decimal(12, 3)
+  secondWeightAt       DateTime?
+  netWeightKg          Decimal?                 @db.Decimal(12, 3)
+
+  tareVarianceKg  Decimal? @db.Decimal(12, 3)
+  varianceFlagged Boolean  @default(false)
+
+  isManual Boolean @default(false)
+
+  serviceDescription String?
+  paymentMethod      String?
+  amountCharged      Decimal? @db.Decimal(12, 2)
+  receiptReference   String?
+
+  cancellationReason String?   @db.Text
+  cancelledByUserId  String?
+  cancelledAt        DateTime?
+
+  completedAt DateTime?
+
+  operatorUserId String?
+  operatorName   String?
+
+  toleranceKg Decimal @default(50) @db.Decimal(12, 3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, type, createdAt])
+  @@index([ticketNumber])
+  @@index([vehiclePlate])
+  @@index([purchaseOrderId])
+  @@index([salesOrderId])
+  @@index([truckMasterId])
+}
+
 // ============================================
 // FINANCE & GENERAL LEDGER
 // ============================================
@@ -1640,7 +1675,7 @@ model JournalEntry {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  lines       JournalLine[]
+  lines JournalLine[]
 }
 
 model JournalLine {
@@ -1691,7 +1726,7 @@ model BudgetPeriod {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  budgets   Budget[]
+  budgets Budget[]
 }
 
 model BudgetCategory {
@@ -1702,7 +1737,7 @@ model BudgetCategory {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  budgets     Budget[]
+  budgets Budget[]
 }
 
 model Budget {
@@ -1726,27 +1761,27 @@ model Budget {
 }
 
 model ImprestRequest {
-  id               String         @id @default(cuid())
-  requestNo        String         @unique
+  id               String        @id @default(cuid())
+  requestNo        String        @unique
   requesterId      String
-  requester        User           @relation("ImprestRequester", fields: [requesterId], references: [id])
-  department       String         @db.VarChar(128)
+  requester        User          @relation("ImprestRequester", fields: [requesterId], references: [id])
+  department       String        @db.VarChar(128)
   budgetId         String
-  budget           Budget         @relation(fields: [budgetId], references: [id], onDelete: Restrict)
-  amount           Decimal        @db.Decimal(14, 2)
-  purpose          String         @db.Text
-  status           ImprestStatus  @default(PENDING_APPROVAL)
+  budget           Budget        @relation(fields: [budgetId], references: [id], onDelete: Restrict)
+  amount           Decimal       @db.Decimal(14, 2)
+  purpose          String        @db.Text
+  status           ImprestStatus @default(PENDING_APPROVAL)
   approverId       String?
-  approver         User?          @relation("ImprestApprover", fields: [approverId], references: [id])
+  approver         User?         @relation("ImprestApprover", fields: [approverId], references: [id])
   approvedAt       DateTime?
   disbursementDate DateTime?
-  paymentMethod    String?        @db.VarChar(64) // e.g. MPESA, BANK, CASH
-  referenceNo      String?        @db.VarChar(128)
-  rejectionReason  String?        @db.Text
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  paymentMethod    String?       @db.VarChar(64) // e.g. MPESA, BANK, CASH
+  referenceNo      String?       @db.VarChar(128)
+  rejectionReason  String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  surrender        ImprestSurrender?
+  surrender ImprestSurrender?
 
   @@index([requesterId])
   @@index([budgetId])

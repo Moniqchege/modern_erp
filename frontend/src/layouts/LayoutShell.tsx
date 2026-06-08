@@ -6,6 +6,7 @@ import { InventoryLayout } from "./InventoryLayout";
 import { SalesLayout } from "./SalesLayout";
 import { BudgetLayout } from "./BudgetLayout";
 import { FinanceLayout } from "./FinanceLayout";
+import { WeighbridgeLayout } from "./WeighbridgeLayout";
 import { ROUTES } from "../app/router/routes";
 
 type SidebarKey = "dashboard" | "customers" | "invoices";
@@ -28,6 +29,13 @@ function isBudgetModule(pathname: string): boolean {
 
 function isFinanceModule(pathname: string): boolean {
   return pathname === ROUTES.FINANCE || pathname.startsWith(`${ROUTES.FINANCE}/`);
+}
+
+function isWeighbridgeModule(pathname: string): boolean {
+  return (
+    pathname === ROUTES.WEIGHBRIDGE ||
+    pathname.startsWith(`${ROUTES.WEIGHBRIDGE}/`)
+  );
 }
 
 function getSidebarKeyFromPath(pathname: string): SidebarKey {
@@ -74,6 +82,10 @@ export function LayoutShell() {
 
   if (isFinanceModule(location.pathname)) {
     return <FinanceLayout />;
+  }
+
+  if (isWeighbridgeModule(location.pathname)) {
+    return <WeighbridgeLayout />;
   }
 
   const shouldHideSidebar = location.pathname === "/app";
