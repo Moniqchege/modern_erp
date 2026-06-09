@@ -1,7 +1,3 @@
-/**
- * Activities Log — searchable, filterable tabular report of all tickets.
- * Exports to CSV and Excel (SpreadsheetML 2003 XML). Manual entries are highlighted in red.
- */
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ClipboardList,
@@ -294,7 +290,7 @@ export function ActivitiesLog() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-15">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">

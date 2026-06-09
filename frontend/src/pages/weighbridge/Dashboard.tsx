@@ -1,9 +1,3 @@
-/**
- * Screen 4 — Executive Analytics Dashboard
- *
- * KPI cards + visual chart for daily traffic + recent tickets list.
- * Pure SVG bar chart (no external chart lib).
- */
 import React, { useEffect, useState } from "react";
 import {
   Loader2,

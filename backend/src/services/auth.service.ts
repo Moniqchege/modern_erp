@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import { prisma } from "../server";
 import { constantTimeEqual, randomNumericOtp } from "../utils/auth";
-import { signAccessToken } from "../auth/jwt";
+import { signAccessToken, verifyAccessToken, type AccessTokenPayload } from "../auth/jwt";
 import crypto from "crypto";
 
 const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || "admin@local.test";
@@ -226,6 +226,39 @@ export async function getUserByTokenPayload(payload: { userId: string }) {
     return prisma.user.findUnique({ where: { id: payload.userId } });
 }
 
+/**
+ * Re-issue an access token as long as the provided one is still valid (or only
+ * just expired). This is called by the client to keep the user logged in
+ * while the browser tab is active.
+ */
+export async function refreshAccessToken(token: string) {
+    if (!token) throw new Error("No token provided");
+
+    let payload: AccessTokenPayload;
+    try {
+        payload = verifyAccessToken(token);
+    } catch (err) {
+        // Token is invalid (malformed, wrong signature, or expired beyond
+        // the leeway window). We can't safely refresh.
+        throw new Error("Invalid or expired token");
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user) throw new Error("User not found");
+
+    const accessToken = signAccessToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        forcePasswordReset: user.forcePasswordReset,
+    });
+
+    return {
+        accessToken,
+        forcePasswordReset: user.forcePasswordReset,
+    };
+}
+
 export async function createPasswordResetToken(email: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -268,4 +301,3 @@ export async function resetPasswordWithToken(params: { email: string; token: str
 
     return { ok: true };
 }
-

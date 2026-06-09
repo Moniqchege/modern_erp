@@ -149,9 +149,9 @@ export function ProcurementLayout() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex antialiased">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.04),transparent_45%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none" />
+    <div className="h-screen bg-slate-50 text-slate-800 font-sans flex antialiased overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.04),transparent_45%)] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none z-0" />
 
       {/* Mobile overlay */}
       {isSidebarOpen && (
@@ -166,11 +166,12 @@ export function ProcurementLayout() {
         className={`
           fixed lg:static inset-y-0 left-0 z-40
           w-72 bg-white border-r border-slate-200/80 flex flex-col shrink-0 shadow-sm
+          h-screen overflow-hidden
           transform transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        <div className="p-6 border-b border-slate-200/80">
+        <div className="p-6 border-b border-slate-200/80 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3" onClick={() => handleNavigate("/app")}>
               <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-600/20">
@@ -197,7 +198,7 @@ export function ProcurementLayout() {
           </div>
         </div>
 
-        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto min-h-0">
           <span className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">
             Module Menu
           </span>
@@ -236,7 +237,7 @@ export function ProcurementLayout() {
           })}
         </nav>
 
-        <div className="p-4 border-t cursor-pointer border-slate-200/80 space-y-2" onClick={handleLogout}>
+        <div className="p-4 border-t cursor-pointer border-slate-200/80 space-y-2 shrink-0" onClick={handleLogout}>
           <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-800 truncate">Procurement Officer</span>
@@ -255,7 +256,7 @@ export function ProcurementLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10 h-screen">
         <header className="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
             {/* Hamburger — mobile only */}
@@ -299,8 +300,8 @@ export function ProcurementLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-8">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 p-4 sm:p-8 min-h-0">
+          <div className="max-w-7xl mx-auto pb-16 sm:pb-8">
             <Outlet />
           </div>
         </main>

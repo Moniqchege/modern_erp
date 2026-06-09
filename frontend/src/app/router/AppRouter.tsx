@@ -9,6 +9,7 @@ import {
 } from "./LegacyInventoryRedirect";
 import { NotFound } from "../../pages/NotFound";
 import { isAuthenticated } from "../../auth/authClient";
+import { useSessionManager } from "../../auth/useSessionManager";
 
 const Dashboard = lazy(() => import("../../pages/Dashboard").then((m) => ({ default: m.Dashboard })));
 const InventoryDashboard = lazy(() =>
@@ -183,7 +184,15 @@ const WeighbridgeActivitiesLog = lazy(() =>
   import("../../pages/weighbridge/ActivitiesLog").then((m) => ({ default: m.ActivitiesLog }))
 );
 
-export function AppRouter() {
+/**
+ * Inner router — separated so that the session manager hook (which uses
+ * useLocation/useNavigate) only runs after the router context is available.
+ */
+function AppRouterInner() {
+  // Keep the user logged in while they're actively using the app and
+  // redirect to /login as soon as the backend reports the session is gone.
+  useSessionManager();
+
   const RequireAuth = ({ children }: { children: React.ReactNode }) => {
     if (!isAuthenticated()) return <Navigate to="/login" replace />;
     return <>{children}</>;
@@ -293,4 +302,8 @@ export function AppRouter() {
       </Routes>
     </Suspense>
   );
+}
+
+export function AppRouter() {
+  return <AppRouterInner />;
 }

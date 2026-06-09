@@ -123,8 +123,8 @@ export function SalesLayout() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex antialiased">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.05),transparent_45%)] pointer-events-none" />
+    <div className="h-screen bg-slate-50 text-slate-800 font-sans flex antialiased overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.05),transparent_45%)] pointer-events-none z-0" />
 
       {isSidebarOpen && (
         <div
@@ -134,11 +134,11 @@ export function SalesLayout() {
       )}
 
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200/80 flex flex-col shrink-0 shadow-sm transform transition-transform duration-300 ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200/80 flex flex-col shrink-0 shadow-sm h-screen overflow-hidden transform transition-transform duration-300 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="p-6 border-b border-slate-200/80">
+        <div className="p-6 border-b border-slate-200/80 shrink-0">
           <div className="flex items-center justify-between">
             <div
               className="flex items-center gap-3 cursor-pointer"
@@ -164,7 +164,7 @@ export function SalesLayout() {
           </div>
         </div>
 
-        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto min-h-0">
           <span className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">
             Module Menu
           </span>
@@ -201,14 +201,7 @@ export function SalesLayout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-200/80">
-          {/* <button
-            type="button"
-            onClick={() => handleNavigate("/app")}
-            className="w-full flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2 px-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> All modules
-          </button> */}
+        <div className="p-4 border-t border-slate-200/80 shrink-0">
           <button
             type="button"
             onClick={handleLogout}
@@ -219,7 +212,7 @@ export function SalesLayout() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         <header className="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button
@@ -243,8 +236,8 @@ export function SalesLayout() {
             <span className="hidden sm:block">{currentDate}</span>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 p-6 min-h-0">
+          <div className="max-w-7xl mx-auto pb-16 sm:pb-8">
             <Outlet />
           </div>
         </main>

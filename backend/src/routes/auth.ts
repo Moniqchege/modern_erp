@@ -8,6 +8,7 @@ import {
     forceResetPassword,
     createPasswordResetToken,
     resetPasswordWithToken,
+    refreshAccessToken,
 } from "../services/auth.service";
 
 export const authRouter = Router();
@@ -52,6 +53,29 @@ authRouter.post("/verify-otp", async (req, res) => {
         res.status(200).json({ success: true, ...data });
     } catch (e) {
         res.status(400).json({ success: false, message: String(e) });
+    }
+});
+
+/**
+ * Refresh the access token. The client sends its current (possibly about to
+ * expire) access token in the Authorization header and the server will issue
+ * a fresh one with a new TTL window. This keeps the user logged in as long
+ * as they are actively using the app.
+ */
+authRouter.post("/refresh", async (req, res) => {
+    const header = req.headers.authorization;
+    const token =
+        header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
+
+    if (!token) {
+        return res.status(401).json({ success: false, message: "No token provided" });
+    }
+
+    try {
+        const data = await refreshAccessToken(token);
+        res.status(200).json({ success: true, ...data });
+    } catch (e) {
+        res.status(401).json({ success: false, message: String(e) });
     }
 });
 
@@ -120,4 +144,3 @@ authRouter.post("/reset-password", async (req, res) => {
         res.status(400).json({ success: false, message: String(e) });
     }
 });
-

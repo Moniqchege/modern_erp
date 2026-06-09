@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { setAccessToken } from "../auth/authClient";
 
 export function VerifyOtp() {
   const navigate = useNavigate();
@@ -31,7 +32,9 @@ export function VerifyOtp() {
       const json = await res.json();
       if (!json.success) throw new Error(json.message || "OTP verification failed");
 
-      localStorage.setItem("accessToken", json.accessToken);
+      if (json.accessToken) {
+        setAccessToken(json.accessToken);
+      }
 
       if (json.forcePasswordReset || forceReset === "true") {
         navigate(`/force-reset?email=${encodeURIComponent(email)}`);
@@ -84,7 +87,7 @@ export function VerifyOtp() {
     {/* Content */}
     <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        
+
         {/* LEFT SIDE */}
         <div className="hidden lg:block text-white">
           <div className="max-w-xl">
@@ -192,4 +195,3 @@ export function VerifyOtp() {
   </div>
 );
 }
-

@@ -66,9 +66,9 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex antialiased selection:bg-indigo-650 selection:text-white relative">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.02),transparent_40%)] pointer-events-none" />
+    <div className="h-screen bg-slate-50 text-slate-800 font-sans flex antialiased selection:bg-indigo-650 selection:text-white relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.02),transparent_40%)] pointer-events-none z-0" />
 
       {/* Mobile overlay */}
       {isSidebarOpen && (
@@ -83,13 +83,14 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
         className={`
           fixed lg:static inset-y-0 left-0 z-40
           w-72 bg-white border-r border-slate-200/80 flex flex-col justify-between shrink-0 shadow-sm
+          h-screen overflow-hidden
           transform transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        <div>
+        <div className="flex flex-col h-full overflow-hidden">
           {/* Logo Brand Header */}
-          <div className="p-6 border-b border-slate-200/80">
+          <div className="p-6 border-b border-slate-200/80 shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-600/20">
@@ -117,7 +118,7 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
           </div>
 
           {/* Navigation Items */}
-          <nav className="p-4 space-y-1.5 mt-4">
+          <nav className="p-4 space-y-1.5 mt-4 flex-1 overflow-y-auto min-h-0">
             <span className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">
               Plant Modules
             </span>
@@ -160,7 +161,7 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
         </div>
 
         {/* User Profile Card */}
-        <div className="p-4 border-t border-slate-200/80 bg-slate-50/50">
+        <div className="p-4 border-t border-slate-200/80 bg-slate-50/50 shrink-0">
           <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -190,7 +191,7 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10 h-screen">
         <header className="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-4">
             {/* Hamburger — mobile only */}
@@ -240,8 +241,8 @@ export function Layout({ children, activeTab, setActiveTab }: LayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-8">
-          <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+        <main className="flex-1 p-4 sm:p-8 min-h-0">
+          <div className="max-w-7xl mx-auto pb-16 sm:pb-8 space-y-6">{children}</div>
         </main>
       </div>
     </div>

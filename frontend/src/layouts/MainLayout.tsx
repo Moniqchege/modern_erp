@@ -33,9 +33,9 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, closeSidebar, setIsSidebarOpen }}>
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex antialiased selection:bg-indigo-650 selection:text-white relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.02),transparent_40%)] pointer-events-none" />
+      <div className="h-screen bg-slate-50 text-slate-800 font-sans flex antialiased selection:bg-indigo-650 selection:text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none z-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.02),transparent_40%)] pointer-events-none z-0" />
 
         {/* Mobile sidebar overlay — clicking it closes the sidebar */}
         {isSidebarOpen && (
@@ -45,7 +45,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           />
         )}
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10 h-screen">
           {/* Top Header */}
           <header className="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-4">
@@ -106,8 +106,8 @@ export function MainLayout({ children }: MainLayoutProps) {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 flex overflow-hidden">
-            <div className="flex-1 flex min-w-0">{children || <Outlet />}</div>
+          <main className="flex-1 flex overflow-hidden min-h-0">
+            <div className="flex-1 flex min-w-0 min-h-0 pb-16 sm:pb-8">{children || <Outlet />}</div>
           </main>
         </div>
       </div>

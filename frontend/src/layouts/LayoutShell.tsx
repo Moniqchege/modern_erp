@@ -92,11 +92,11 @@ export function LayoutShell() {
 
   if (shouldHideSidebar) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex antialiased selection:bg-indigo-650 selection:text-white relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.02),transparent_40%)] pointer-events-none" />
+      <div className="h-screen bg-slate-50 text-slate-800 font-sans flex antialiased selection:bg-indigo-650 selection:text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.03),transparent_40%)] pointer-events-none z-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(236,72,153,0.02),transparent_40%)] pointer-events-none z-0" />
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10 h-screen">
           <header className="h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md px-8 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-4">
               <div className="relative w-60 group">
@@ -125,8 +125,8 @@ export function LayoutShell() {
             </div>
           </header>
 
-          <main className="flex-1">
-            <div className="max-w-7xl mx-auto min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <main className="flex-1 min-h-0">
+            <div className="max-w-7xl mx-auto min-h-full flex items-center justify-center pb-16 sm:pb-8">
               <div className="w-full flex flex-col items-center">
                 <Outlet />
               </div>
