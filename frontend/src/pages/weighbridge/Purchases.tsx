@@ -1,11 +1,3 @@
-/**
- * Screen 1 — Purchases (Maize Inflow)
- *
- * Step 1: enter PO, plate, driver, capture first weight (gross) → Save Pending
- * Step 2: capture second weight (tare) on the way out → Complete Ticket
- *
- * Math: Net = firstWeight (gross) − secondWeight (tare)
- */
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ShoppingCart,
@@ -48,7 +40,6 @@ const inp = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
 );
 
 export function WeighbridgePurchases() {
-  // ── Header selection ────────────────────────────────────────────────────
   const [poList, setPoList] = useState<PurchaseOrderLookup[]>([]);
   const [loadingPOs, setLoadingPOs] = useState(true);
   const [selectedPOId, setSelectedPOId] = useState("");
@@ -57,24 +48,17 @@ export function WeighbridgePurchases() {
     [poList, selectedPOId]
   );
 
-  // ── Form fields ─────────────────────────────────────────────────────────
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [driverName, setDriverName] = useState("");
   const [supplierDriverName, setSupplierDriverName] = useState("");
-
-  // ── Step tracking ───────────────────────────────────────────────────────
   const [pendingTicket, setPendingTicket] = useState<WeighbridgeTicketRecord | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  // ── Live scales (one for first, one for second) ────────────────────────
   const firstScale = useLiveScale();
   const secondScale = useLiveScale();
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  // ── Load POs on mount ──────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
     setLoadingPOs(true);
@@ -128,7 +112,6 @@ export function WeighbridgePurchases() {
     }
   };
 
-  // ── Step 1: Save Pending ──────────────────────────────────────────────
   const handleSavePending = async () => {
     setError(null);
     setSuccess(null);
@@ -175,7 +158,6 @@ export function WeighbridgePurchases() {
     }
   };
 
-  // ── Step 2: Complete Ticket ───────────────────────────────────────────
   const handleComplete = async () => {
     setError(null);
     if (!pendingTicket) {
@@ -226,7 +208,6 @@ export function WeighbridgePurchases() {
     }
   };
 
-  // ── Computed weights ────────────────────────────────────────────────────
   const first = pendingTicket
     ? Number(pendingTicket.firstWeightKg ?? 0)
     : firstScale.capturedWeight;

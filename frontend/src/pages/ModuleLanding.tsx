@@ -98,7 +98,7 @@ React.useEffect(() => {
 }, []);
 
   return (
-    <div className="w-full min-h-screen mt-8 bg-slate-50 text-slate-900 flex flex-col">
+    <div className="w-full min-h-screen mt-8 bg-slate-50 text-slate-900 flex flex-col pb-10">
       {/* HERO HEADER (ERP STYLE) */}
       <div className="relative overflow-hidden bg-gradient-to-br rounded-xl from-slate-900 to-slate-800 text-white px-10 py-10">
         <div className="absolute inset-0 opacity-10 pointer-events-none">
@@ -181,24 +181,18 @@ React.useEffect(() => {
               </button>
             );
           })}
-
-          {/* ADD MODULE CARD */}
-          <button className="border-2 border-dashed border-slate-300 rounded-xl p-6 h-[160px] flex flex-col items-center justify-center text-slate-500 hover:text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition">
-            <div className="text-2xl mb-2">＋</div>
-            <div className="text-xs font-medium">Custom Module</div>
-          </button>
         </div>
 
         {/* FOOTER */}
-        <div className="mt-10 border-t border-slate-200 pt-4 text-xs text-slate-500 flex flex-col md:flex-row justify-between gap-2">
-  <div>
-    © {new Date().getFullYear()} Uwezo ERP. All Rights Reserved.
-    <span className="inline-flex items-center gap-2 ml-2">
-      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-      Built for operational excellence
-    </span>
-  </div>
-</div>
+      <div className="fixed bottom-0 left-0 w-full border-t border-slate-200 bg-white py-3 text-xs text-slate-500 flex justify-center z-50">
+        <div className="text-center">
+           © {new Date().getFullYear()} Uwezo ERP. All Rights Reserved.
+        <span className="inline-flex items-center gap-2 ml-2">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+          Built for operational excellence
+        </span>
+       </div>
+      </div>
       </div>
     </div>
   );

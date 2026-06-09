@@ -395,16 +395,8 @@ function EditModal({ item, apiConnected, onClose, onSaved }: EditModalProps) {
 export function Inventory({ onViewItem }: InventoryProps) {
   const user = getCurrentUser();
   const isDispatchStoreManager = user?.role === "DISPATCH_STORE_MANAGER";
-
-  // For Dispatch Store users, show only successful bale transfers / bale stock.
-  // Note: current catalogue API returns bale inventory rows with PACKETS_2KG type (unit=PIECES)
-  // even though the logical unit is bale/transfer.
-  // To avoid hiding everything, we instead treat Dispatch managers as viewing only:
-  // - items that are currently in stock (quantity > 0)
-  // This matches your expected behaviour: show only successful transfers.
   const dispatchOnlyHasStock = true;
 
-  // Admin flag
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
 
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -666,6 +658,7 @@ const filteredItems = (items ?? []).filter((item) => {
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Item Name & Details</th>
                   <th className="px-6 py-4">Qty In Stock</th>
+                  <th className="px-6 py-4">Reorder Level</th>
                   <th className="px-6 py-4 truncate">Unit Price</th>
                   <th className="px-6 py-4 text-center">Status</th>
                   <th className="px-6 py-4 text-center">Actions</th>
@@ -697,6 +690,19 @@ const filteredItems = (items ?? []).filter((item) => {
                           {item.quantity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}{" "}
                           <span className="text-[10px] text-slate-400 font-sans font-bold">{item.unit}</span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-medium">
+                          <div className="flex items-center gap-2">
+                          <span>{item.reorderLevel ?? "-"}</span>
+    
+                        {isBelowReorder(item) && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/50 px-1.5 py-0.5 rounded-md select-none animate-pulse">
+                          <AlertCircle className="w-3 h-3" />
+                              Low Stock
+                          </span>
+                        )}
+                         </div>
+                        </td>
+
                         <td className="px-6 py-4 text-left font-mono truncate font-bold text-slate-700">
                           {item.unitPrice != null ? `ksh ${item.unitPrice.toFixed(2)}` : "—"}
                         </td>

@@ -10,11 +10,8 @@ import type { PendingTicketSummary, WeighbridgeTicketRecord } from "../types";
 import { fmtKg, fmtDate, statusBadgeClass, ticketTypeLabel } from "../format";
 
 interface PendingQueueProps {
-  /** Filter the queue to a specific ticket type. Omit to show all. */
   type?: "PURCHASE" | "SALE" | "OTHERS";
-  /** Called when the operator clicks "Resume" on a ticket */
   onResume: (ticket: PendingTicketSummary) => void;
-  /** Bump this number to force a refresh after a new ticket is created */
   refreshKey?: number;
 }
 
@@ -96,10 +93,20 @@ export function PendingQueue({ type, onResume, refreshKey }: PendingQueueProps) 
                         {ticketTypeLabel(t.type)}
                       </span>
                       {t.supplierOrCustomer ?? "—"}
+                      <span className="ml-2 font-mono text-[10px] text-slate-600">
+                        • {t.vehiclePlate ?? t.truckLicensePlate ?? "No plate"}
+                      </span>
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      {fmtDate(t.createdAt)} · {fmtKg(t.firstWeightKg)}
-                    </p>
+                    <div className="mt-1">
+                      <p className="text-[10px] text-slate-400">
+                           First weight: <span className="font-bold text-slate-700">{fmtKg(t.firstWeightKg)}</span>
+                       </p>
+
+                      <p className="text-[10px] text-slate-400">
+                          {fmtDate(t.createdAt)}
+                       </p>
+                    </div>
+                    
                   </div>
                   <button
                     type="button"

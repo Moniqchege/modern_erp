@@ -202,13 +202,13 @@ export function SalesLayout() {
         </nav>
 
         <div className="p-4 border-t border-slate-200/80">
-          <button
+          {/* <button
             type="button"
             onClick={() => handleNavigate("/app")}
             className="w-full flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2 px-2"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> All modules
-          </button>
+          </button> */}
           <button
             type="button"
             onClick={handleLogout}

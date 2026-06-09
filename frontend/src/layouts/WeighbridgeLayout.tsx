@@ -236,14 +236,14 @@ export function WeighbridgeLayout() {
           className="p-4 border-t cursor-pointer border-slate-200/80 space-y-2"
           onClick={handleLogout}
         >
-          <button
+          {/* <button
             type="button"
             onClick={() => handleNavigate("/app")}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             All Modules
-          </button>
+          </button> */}
           <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-slate-800 truncate">
